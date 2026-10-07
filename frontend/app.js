@@ -1949,7 +1949,7 @@ async function renderTermsPage(asin) {
     </tr>`).join("");
     $("tWrap").innerHTML = `<table class="tbl-terms"><thead><tr>
         ${sortableTh(tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
-        ${sortableTh(tSort, { label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
+        ${sortableTh(tSort, { cls: "col-term", label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
         ${sortableTh(tSort, { cls: "col-match", label: "匹配方式", en: "Match Type", field: "matchType" })}
         ${sortableTh(tSort, { cls: "num col-camp", label: "涉及活动", en: "Campaigns", field: "campaign_count",
           total: nf(sumBy(rows, "campaign_count")), totalTip: "当前列表涉及活动数合计" })}

@@ -309,21 +309,25 @@ td.name{font-weight:500;color:#1f2d3d}
 #pWrap td.col-ops .ops-btns{display:flex;gap:6px}
 #pWrap td.col-ops .btn{white-space:nowrap}
 
-/* 搜索词列表页: 列宽 (table-layout:fixed 下未指定宽度的列平分剩余空间)。
-   表宽 = 各列之和 → 容器不够宽时由 .p-wrap 横向滚动。 */
-#tWrap table.tbl-terms{table-layout:fixed;width:100%;min-width:1300px}
+/* 搜索词列表页: 列宽
+   注意: table-layout:fixed 下每列都显式给宽度, 容器比表宽时多出的空间
+   会**按比例分摊到所有列**(不会全部堆到某一列), 因此宽屏下各列同步变宽。
+   表宽下限 = 各列之和 → 容器更窄时由 .p-wrap 横向滚动。 */
+#tWrap table.tbl-terms{table-layout:fixed;width:100%;min-width:1180px}
 #tWrap table.tbl-terms th{white-space:normal;line-height:1.25;vertical-align:middle}
-#tWrap .col-dim{width:88px}
+#tWrap .col-dim{width:80px}
+#tWrap .col-term{width:300px}      /* 搜索词 / 投放 ASIN */
 #tWrap .col-match{width:96px}
-#tWrap .col-camp{width:86px}
-#tWrap .col-imp{width:96px}
+#tWrap .col-camp{width:96px}
+#tWrap .col-imp{width:104px}
 #tWrap .col-clk{width:88px}
 #tWrap .col-cost{width:104px}
-#tWrap .col-ord{width:80px}
-#tWrap .col-freq{width:104px}
-#tWrap .col-ops{width:104px}
+#tWrap .col-ord{width:88px}
+#tWrap .col-freq{width:124px}
+#tWrap .col-ops{width:96px}
 #tWrap table.tbl-terms td.num{overflow:hidden;text-overflow:ellipsis}
-#tWrap .kw-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tWrap .kw-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+#tWrap tbody tr:hover td{background:#f8faff}
 /* 指标列表头: 中文 + (英文简称) */
 .th-en{display:block;font-weight:400;font-size:10.5px;color:var(--muted);
   letter-spacing:.2px;text-transform:none}
