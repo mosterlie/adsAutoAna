@@ -300,13 +300,30 @@ td.name{font-weight:500;color:#1f2d3d}
 #pWrap .nowrap-ellip{overflow:hidden;text-overflow:ellipsis}
 /* 指标列: 数值过宽时就地裁掉, 绝不溢出到隔壁列 */
 #pWrap table.tbl-products td.num{overflow:hidden;text-overflow:ellipsis}
-/* 操作列固定在右侧 (横向滚动时始终可见) */
-#pWrap th.col-ops,#pWrap td.col-ops{position:sticky;right:0;background:#fff;z-index:3;
+/* 操作列固定在右侧 (横向滚动时始终可见) —— 产品视角 + 搜索词列表页 共用 */
+#pWrap th.col-ops,#pWrap td.col-ops,
+#tWrap th.col-ops,#tWrap td.col-ops{position:sticky;right:0;background:#fff;z-index:3;
   border-left:1px solid var(--bd);box-shadow:-4px 0 6px -4px rgba(0,0,0,.10)}
-#pWrap thead th.col-ops{background:#f6f7f9;z-index:5}
-#pWrap tbody tr:hover td.col-ops{background:#f8faff}
+#pWrap thead th.col-ops,#tWrap thead th.col-ops{background:#f6f7f9;z-index:5}
+#pWrap tbody tr:hover td.col-ops,#tWrap tbody tr:hover td.col-ops{background:#f8faff}
 #pWrap td.col-ops .ops-btns{display:flex;gap:6px}
 #pWrap td.col-ops .btn{white-space:nowrap}
+
+/* 搜索词列表页: 列宽 (table-layout:fixed 下未指定宽度的列平分剩余空间)。
+   表宽 = 各列之和 → 容器不够宽时由 .p-wrap 横向滚动。 */
+#tWrap table.tbl-terms{table-layout:fixed;width:100%;min-width:1300px}
+#tWrap table.tbl-terms th{white-space:normal;line-height:1.25;vertical-align:middle}
+#tWrap .col-dim{width:88px}
+#tWrap .col-match{width:96px}
+#tWrap .col-camp{width:86px}
+#tWrap .col-imp{width:96px}
+#tWrap .col-clk{width:88px}
+#tWrap .col-cost{width:104px}
+#tWrap .col-ord{width:80px}
+#tWrap .col-freq{width:104px}
+#tWrap .col-ops{width:104px}
+#tWrap table.tbl-terms td.num{overflow:hidden;text-overflow:ellipsis}
+#tWrap .kw-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 指标列表头: 中文 + (英文简称) */
 .th-en{display:block;font-weight:400;font-size:10.5px;color:var(--muted);
   letter-spacing:.2px;text-transform:none}
@@ -318,16 +335,18 @@ td.name{font-weight:500;color:#1f2d3d}
 /* 表头点击排序: 指示箭头用 ::after 画, 不占 DOM 文本与列宽。
    注意: 不要改 position, 表头本体是 position:sticky(top:0), 改掉会破坏吸顶;
    sticky 本身就能作为 ::after 的包含块。 */
-#pWrap th.th-sortable{cursor:pointer;user-select:none;padding-right:15px}
-#pWrap th.th-sortable:hover{background:#eef3fc;color:var(--blue-d)}
-#pWrap th.th-sortable::after{content:"⇅";position:absolute;right:3px;top:50%;
+#pWrap th.th-sortable,#tWrap th.th-sortable{cursor:pointer;user-select:none;padding-right:15px}
+#pWrap th.th-sortable:hover,#tWrap th.th-sortable:hover{background:#eef3fc;color:var(--blue-d)}
+#pWrap th.th-sortable::after,#tWrap th.th-sortable::after{content:"⇅";position:absolute;right:3px;top:50%;
   transform:translateY(-50%);font-size:9px;line-height:1;font-weight:400;
   color:#c4cad4;pointer-events:none}
-#pWrap th.th-sortable:hover::after{color:var(--blue)}
-#pWrap th.th-sortable.sort-desc::after{content:"▼";font-size:8px;color:var(--blue)}
-#pWrap th.th-sortable.sort-asc::after{content:"▲";font-size:8px;color:var(--blue)}
-#pWrap th.th-sortable.sort-desc,#pWrap th.th-sortable.sort-asc{color:var(--blue-d);font-weight:600}
-#pWrap th.th-sortable.sort-desc .th-en,#pWrap th.th-sortable.sort-asc .th-en{color:var(--blue)}
+#pWrap th.th-sortable:hover::after,#tWrap th.th-sortable:hover::after{color:var(--blue)}
+#pWrap th.th-sortable.sort-desc::after,#tWrap th.th-sortable.sort-desc::after{content:"▼";font-size:8px;color:var(--blue)}
+#pWrap th.th-sortable.sort-asc::after,#tWrap th.th-sortable.sort-asc::after{content:"▲";font-size:8px;color:var(--blue)}
+#pWrap th.th-sortable.sort-desc,#pWrap th.th-sortable.sort-asc,
+#tWrap th.th-sortable.sort-desc,#tWrap th.th-sortable.sort-asc{color:var(--blue-d);font-weight:600}
+#pWrap th.th-sortable.sort-desc .th-en,#pWrap th.th-sortable.sort-asc .th-en,
+#tWrap th.th-sortable.sort-desc .th-en,#tWrap th.th-sortable.sort-asc .th-en{color:var(--blue)}
 .sort-hint{color:#9aa3b0}
 /* 缩略图可点击 */
 .prod-thumb{cursor:zoom-in}

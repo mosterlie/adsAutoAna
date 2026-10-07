@@ -1950,18 +1950,18 @@ async function renderTermsPage(asin) {
     $("tWrap").innerHTML = `<table class="tbl-terms"><thead><tr>
         ${sortableTh(tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
         ${sortableTh(tSort, { label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
-        ${sortableTh(tSort, { label: "匹配方式", en: "Match Type", field: "matchType" })}
-        ${sortableTh(tSort, { cls: "num", label: "涉及活动", en: "Campaigns", field: "campaign_count",
+        ${sortableTh(tSort, { cls: "col-match", label: "匹配方式", en: "Match Type", field: "matchType" })}
+        ${sortableTh(tSort, { cls: "num col-camp", label: "涉及活动", en: "Campaigns", field: "campaign_count",
           total: nf(sumBy(rows, "campaign_count")), totalTip: "当前列表涉及活动数合计" })}
-        ${sortableTh(tSort, { cls: "num", label: "曝光", en: "Impressions", field: "impressions",
+        ${sortableTh(tSort, { cls: "num col-imp", label: "曝光", en: "Impressions", field: "impressions",
           total: nf(sumBy(rows, "impressions")), totalTip: "当前列表曝光合计" })}
-        ${sortableTh(tSort, { cls: "num", label: "点击", en: "Clicks", field: "clicks",
+        ${sortableTh(tSort, { cls: "num col-clk", label: "点击", en: "Clicks", field: "clicks",
           total: nf(sumBy(rows, "clicks")), totalTip: "当前列表点击合计" })}
-        ${sortableTh(tSort, { cls: "num", label: "花费", en: "Spend", field: "adCost",
+        ${sortableTh(tSort, { cls: "num col-cost", label: "花费", en: "Spend", field: "adCost",
           total: money(sumBy(rows, "adCost")), totalTip: "当前列表花费合计" })}
-        ${sortableTh(tSort, { cls: "num", label: "订单", en: "Orders", field: "orderNum",
+        ${sortableTh(tSort, { cls: "num col-ord", label: "订单", en: "Orders", field: "orderNum",
           total: nf(sumBy(rows, "orderNum")), totalTip: "当前列表订单合计" })}
-        ${sortableTh(tSort, { cls: "num", label: "搜索热度", en: "Search Freq. Rank",
+        ${sortableTh(tSort, { cls: "num col-freq", label: "搜索热度", en: "Search Freq. Rank",
           field: "searchFrequencyRank", title: "ABA 搜索词排名，数值越小越热门" })}
         <th class="col-ops"></th>
       </tr></thead><tbody>${body}</tbody></table>` +
