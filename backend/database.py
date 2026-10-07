@@ -206,6 +206,17 @@ CREATE TABLE IF NOT EXISTS amz_product_images (
     UNIQUE(asin, domain, large)
 );
 CREATE INDEX IF NOT EXISTS idx_amz_img_asin ON amz_product_images(asin);
+
+-- 附图抓取记录: 记录某 ASIN 的商品页"已抓过"(即使抓到 0 张), 用于判断
+-- 某父体的全部子体是否都已抓取, 避免重复抓取
+CREATE TABLE IF NOT EXISTS amz_image_crawls (
+    asin         TEXT NOT NULL,
+    domain       TEXT NOT NULL,
+    image_count  INTEGER,
+    crawled_at   TEXT,
+    PRIMARY KEY(asin, domain)
+);
+CREATE INDEX IF NOT EXISTS idx_amz_imgcrawl_asin ON amz_image_crawls(asin);
 """
 
 
@@ -245,6 +256,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
     # 老库 online_products 全部是子体, 回填 is_variation 便于按父子体切换
     conn.execute("CREATE INDEX IF NOT EXISTS idx_olp_var ON online_products(is_variation)")
+    # 已有图片的 ASIN 回填「已抓取」记录, 避免附图抓取时重复打开这些商品页
+    conn.execute(
+        """INSERT OR IGNORE INTO amz_image_crawls(asin, domain, image_count, crawled_at)
+           SELECT asin, domain, COUNT(*), MAX(updated_at)
+           FROM amz_product_images GROUP BY asin, domain""")
     conn.execute(
         """UPDATE online_products SET is_variation='2'
            WHERE is_variation IS NULL
@@ -990,6 +1006,13 @@ def save_amz_product_images(asin: str, domain: str, images: List[Dict[str, Any]]
                                                   updated_at)
                    VALUES(?,?,?,?,?,?,?)""",
                 (asin, domain, c["position"], c["thumb"], c["large"], c["source"], ts))
+        # 记录"已抓过"(含 0 张), 供判断父体是否已全量抓取
+        conn.execute(
+            """INSERT INTO amz_image_crawls(asin, domain, image_count, crawled_at)
+               VALUES(?,?,?,?)
+               ON CONFLICT(asin, domain) DO UPDATE SET
+                 image_count=excluded.image_count, crawled_at=excluded.crawled_at""",
+            (asin, domain, len(clean), ts))
     return len(clean)
 
 
@@ -1033,10 +1056,21 @@ def get_parent_images(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
             continue
         seen.add(key)
         merged.append(d)
+
+    # 已抓取(含抓空)的子体 -> 判断是否已全量覆盖
+    crawled: List[str] = []
+    with get_conn() as conn:
+        for r in conn.execute(
+                f"SELECT asin FROM amz_image_crawls WHERE domain=? AND asin IN ({ph})",
+                [domain] + kids):
+            crawled.append(r["asin"])
+    pending = [a for a in kids if a not in crawled]
     return {"asin": asin, "parent_asin": parent, "domain": domain,
             "child_asins": kids, "count": len(merged),
             "images": merged, "by_asin": by_asin,
-            "sources": list(by_asin.keys())}
+            "sources": list(by_asin.keys()),
+            "crawled": crawled, "crawled_count": len(crawled),
+            "pending": pending, "pending_count": len(pending)}
 
 
 def get_amz_product_metrics(asin: str, domain: str = "co.jp",
@@ -1562,17 +1596,34 @@ def get_parent_profile(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
         pass
 
     imgs = get_parent_images(parent, domain)
+    all_imgs = imgs.get("images") or []
+    # 主图 = 父 ASIN 自己的主图(没有则取第一张); 其余为「附图」
+    main = ""
+    for im in all_imgs:
+        if im.get("asin") == parent and im.get("source") == "main":
+            main = im["large"]
+            break
+    if not main and all_imgs:
+        main = all_imgs[0]["large"]
+    extra = [im for im in all_imgs if im["large"] != main]
+    fallback_img = prod.get("img_url") or meta.get("img_url") or ""
     return {
         "asin": asin, "parent_asin": parent, "child_asins": kids,
         "sku": meta.get("sku") or (prod.get("skus") or [""])[0],
         "title": amz.get("title") or meta.get("title") or prod.get("title") or "",
         "price": amz.get("price") or prod.get("price") or "",
         "price_from": "amazon" if amz.get("price") else ("sellfox" if prod.get("price") else ""),
-        "img_url": (imgs["images"][0]["large"] if imgs.get("images") else "") or prod.get("img_url") or meta.get("img_url") or "",
-        "images": imgs.get("images") or [],
-        "image_count": imgs.get("count") or 0,
+        "main_image": main or fallback_img,
+        "images": extra,                       # 附图(不含主图, 已跨子体去重)
+        "image_count": len(extra),             # 附图张数
+        "image_total": len(all_imgs),          # 含主图的总张数
         "images_by_asin": imgs.get("by_asin") or {},
+        "image_asins": imgs.get("sources") or [],
+        "child_count": len(kids),
+        "crawled_count": imgs.get("crawled_count") or 0,
+        "pending_asins": imgs.get("pending") or [],
         "amz": amz,
+        "img_url": main or fallback_img,       # 兼容旧字段
     }
 
 

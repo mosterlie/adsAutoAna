@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel
 
 import config
-from backend import amazon, amazon_product, crawler, database as db
+from backend import amazon, amazon_product, crawler, database as db, image_jobs
 from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
@@ -258,6 +258,39 @@ def product_images(asin: str = Query(...), domain: str = "", crawl: bool = False
         prof = db.get_parent_profile(a, dm)
     prof["crawl_status"] = status
     return prof
+
+
+@router.post("/product/images/crawl")
+def product_images_crawl(asin: str = Query(...), domain: str = "",
+                         refresh: bool = False, max_children: int = 0) -> Dict[str, Any]:
+    """后台抓取父 ASIN 的附图(父体 + **全部子体**, 逐个记录已抓取)
+
+    默认只抓「尚未抓过」的 ASIN, refresh=true 则全部重抓。
+    同步返回任务信息, 用 /product/images/status 轮询进度。
+    """
+    a = (asin or "").strip()
+    if not a:
+        raise HTTPException(400, "asin 不能为空")
+    dm = domain or config.AMAZON_DOMAIN
+    if dm not in amazon.MARKET:
+        raise HTTPException(400, f"不支持的站点: {dm}")
+    try:
+        return image_jobs.start(a, dm, refresh=refresh, max_children=max_children)
+    except Exception as e:      # noqa: BLE001
+        raise HTTPException(500, f"启动抓取失败: {str(e)[:200]}")
+
+
+@router.get("/product/images/status")
+def product_images_status(asin: str = Query(...), domain: str = "") -> Dict[str, Any]:
+    """附图抓取进度"""
+    a = (asin or "").strip()
+    if not a:
+        raise HTTPException(400, "asin 不能为空")
+    dm = domain or config.AMAZON_DOMAIN
+    st = image_jobs.get_status(a, dm)
+    if not st.get("running"):
+        st["profile"] = db.get_parent_profile(a, dm)
+    return st
 
 
 @router.get("/product/term_detail")

@@ -482,20 +482,21 @@ body.standalone{background:var(--bg)}
 .tg-main{flex:0 0 268px}
 .tg-main img{width:268px;height:268px;object-fit:contain;background:#fff;
   border:1px solid var(--bd);border-radius:6px;cursor:zoom-in}
-.tg-thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-width:268px}
-.tg-thumbs img{width:46px;height:46px;object-fit:cover;border:1px solid var(--bd);
-  border-radius:4px;cursor:pointer;background:#fff}
-.tg-thumbs img.active{border-color:#2f6fed;box-shadow:0 0 0 1px #2f6fed}
-.tg-thumbs .tg-more{font-size:11px;color:var(--muted);align-self:center}
 .tg-info{flex:1;min-width:0}
-.tg-title{font-size:15px;font-weight:600;line-height:1.5;margin-bottom:8px}
-.tg-price{font-size:22px;font-weight:700;color:#e5503a;margin:6px 0 12px}
-.tg-price small{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px}
-.tg-kv{display:flex;flex-wrap:wrap;gap:6px 26px;font-size:12.5px;color:var(--txt-2)}
+.tg-title{font-size:15px;font-weight:600;line-height:1.5;margin-bottom:6px}
+/* 价格 + 字段(父ASIN/父SKU/子体数/附图数) 同一行 */
+.tg-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 20px;margin-bottom:10px}
+.tg-price{font-size:22px;font-weight:700;color:#e5503a}
+.tg-kv{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:12.5px;color:var(--txt-2)}
 .tg-kv b{color:var(--txt);font-weight:600}
 .tg-asin{font-family:ui-monospace,Menlo,Consolas,monospace;cursor:pointer}
 .tg-asin:hover{color:#2f6fed;text-decoration:underline}
-.tg-imgnote{font-size:11.5px;color:var(--muted);margin-top:10px}
+/* 附图: 位于「价格 + 字段」下方 */
+.tg-thumb-bar{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.tg-thumbs{display:flex;flex-wrap:wrap;gap:6px}
+.tg-thumbs img{width:52px;height:52px;object-fit:contain;border:1px solid var(--bd);
+  border-radius:4px;cursor:pointer;background:#fff}
+.tg-thumbs img:hover{border-color:#2f6fed}
 
 /* 详情页区块 */
 .term-block{margin-top:10px}
@@ -504,14 +505,13 @@ body.standalone{background:var(--bg)}
 .term-sec-title{font-size:14px;font-weight:600}
 .term-sec-tools{display:flex;align-items:center;gap:10px}
 
-/* 搜索词指标卡 */
-.term-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
-.tm-card{border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:#fafbfd}
-.tm-card .k{font-size:11.5px;color:var(--muted);margin-bottom:5px;white-space:nowrap}
-.tm-card .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
-.tm-card.good .v{color:#02a15c}
-.tm-card.warn .v{color:#e5503a}
-.tm-card.muted .v{color:var(--muted)}
+/* 搜索词指标: 单行表格 (宽度随内容自适应, 不铺满整屏) */
+.term-metrics{overflow-x:auto}
+.tm-tbl{width:auto;border-collapse:collapse}
+.tm-tbl th,.tm-tbl td{border:1px solid var(--bd);padding:6px 12px;white-space:nowrap;
+  text-align:center;font-variant-numeric:tabular-nums}
+.tm-tbl th{background:#f6f7f9;color:var(--txt-2);font-size:11.5px;font-weight:400}
+.tm-tbl td{font-size:15px;font-weight:600}
 
 /* 亚马逊搜索结果卡片网格: 方形卡片, 图片占主体 */
 .amz-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:12px}

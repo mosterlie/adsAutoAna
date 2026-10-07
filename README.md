@@ -148,8 +148,10 @@ Headers: Content-Type: application/json / Origin / Referer
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/product/images` | 父 ASIN 图片(主图+附图)；`crawl=true` 时抓取父体+子体商品页 |
-| GET | `/api/product/term_detail` | 单个搜索词详情：父体资料(图片/标题/价格) + 词指标 + 明细变体 |
+| GET | `/api/product/images` | 父 ASIN 图片资料（主图 + 附图 + 抓取覆盖情况） |
+| POST | `/api/product/images/crawl` | **后台**抓取父体 + 全部子体商品页附图，返回任务信息 |
+| GET | `/api/product/images/status` | 附图抓取进度（running/total/done/current/images） |
+| GET | `/api/product/term_detail` | 单个搜索词详情：父体资料(主图/附图/标题/价格) + 词指标 + 明细变体 |
 | GET | `/api/amazon/metrics` | 新增 `images=true`，同时返回该 ASIN 的图片 |
 
 ### 新增表 / 列
@@ -157,4 +159,14 @@ Headers: Content-Type: application/json / Origin / Referer
 | 对象 | 说明 |
 | --- | --- |
 | 表 `amz_product_images` | 商品页图片（asin, domain, position, thumb, large, source） |
+| 表 `amz_image_crawls` | 附图抓取记录（asin 是否已抓过，含抓空），用于判断父体是否已全量覆盖、避免重复抓取 |
 | 列 `amz_product_metrics.price` | 商品页主价格（详情页展示用，回退赛狐商品行价格） |
+
+### 附图抓取与展示口径
+
+- **主图** = 父 ASIN 自己商品页的主图（没有则取第一张）
+- **附图** = 「父体 + 全部子体」商品页图廊的合集（按原图 URL 去重，**不含主图**），
+  因此不会出现首图与主图重复
+- 一个父体常有几十个子体，逐个抓取耗时长，故走**后台线程 + 前端轮询进度**；
+  默认只抓尚未抓过的 ASIN，重复进页面不会重复抓取
+- 快速模式：只取图片时缩短页面等待（等图廊出现即可，不等 BSR 等指标）

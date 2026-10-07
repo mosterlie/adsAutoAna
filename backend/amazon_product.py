@@ -124,8 +124,11 @@ def product_url(asin: str, domain: str = "co.jp") -> str:
 
 
 def _live_fetch(asin: str, url: str, cdp: str, timeout_ms: int,
-                screenshot: bool = False) -> Dict[str, Any]:
-    """打开浏览器加载商品页并抽取"""
+                screenshot: bool = False, fast: bool = False) -> Dict[str, Any]:
+    """打开浏览器加载商品页并抽取
+
+    fast=True 用于「只取附图」场景: 只等图廊出现(不等标题/BSR 等), 明显更快。
+    """
     from playwright.sync_api import sync_playwright
 
     out: Dict[str, Any] = {"asin": asin, "url": url, "blocked": False, "via": ""}
@@ -145,11 +148,19 @@ def _live_fetch(asin: str, url: str, cdp: str, timeout_ms: int,
         page = ctx.new_page()
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-            try:
-                page.wait_for_selector("#productTitle", timeout=20000)
-            except Exception:   # noqa: BLE001  可能遇验证码
-                pass
-            page.wait_for_timeout(2500)
+            if fast:
+                try:
+                    page.wait_for_selector("#landingImage, #altImages li img, #imgTagWrapperId img",
+                                           timeout=12000)
+                except Exception:   # noqa: BLE001  可能遇验证码
+                    pass
+                page.wait_for_timeout(1200)
+            else:
+                try:
+                    page.wait_for_selector("#productTitle", timeout=20000)
+                except Exception:   # noqa: BLE001  可能遇验证码
+                    pass
+                page.wait_for_timeout(2500)
             data = page.evaluate(EXTRACT_JS)
             bsr = data.get("bsr") or []
             images = data.get("images") or []
@@ -270,7 +281,7 @@ def fetch_images(asin: str, domain: Optional[str] = None, cdp: Optional[str] = N
     amazon.acquire_lock()
     try:
         amazon.pace()
-        out = _live_fetch(asin, product_url(asin, domain), cdp, timeout_ms)
+        out = _live_fetch(asin, product_url(asin, domain), cdp, timeout_ms, fast=True)
         images = out.get("images") or []
         db.save_amz_product_images(asin, domain, images)
         return {"asin": asin, "domain": domain, "images": images,
