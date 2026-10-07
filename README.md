@@ -117,3 +117,44 @@ Headers: Content-Type: application/json / Origin / Referer
 
 展示字段: 完整行存于 `raw_json`, 表头中文名由 `backend/sellfox_client.py: FIELD_LABELS` 映射,
 未知字段回落为原始 key。
+
+---
+
+## 六、产品视角 · 搜索词附图与详情
+
+### 交互链路（两段式新开页面）
+
+```
+产品视角 → 某父 ASIN 记录 → 点「搜索词」
+   → 新页面  /?page=terms&asin=<父ASIN>        列出该父体全部搜索词
+   → 点某个词 → 新页签 /?page=term&asin=<父ASIN>&term=<搜索词>
+        ├─ 上：父 ASIN 图片 + 全部附图（中等尺寸）+ 标题 + 价格
+        ├─ 中：该搜索词各项指标（曝光/点击/CTR/花费/CPC/订单/销售额/ACoS/ROAS/CVR/CPA…）
+        └─ 下：亚马逊搜索结果卡片网格（方形卡片：中等图片占主体，下方标题/价格/评分/标签）
+```
+
+### 附图（需求 1）
+
+**父 ASIN 的附图 = 该父体下各子 ASIN 亚马逊商品页图廊的合集**（子体详情页附图作为父体附图），
+父 ASIN 详情页集中展示全部附图。
+
+- 抓取：`backend/amazon_product.py` 的 `EXTRACT_JS` 从 `/dp/{ASIN}` 抽取
+  `#landingImage[data-a-dynamic-image]` + `#altImages li img`（去掉 `._SX679_` 之类尺寸后缀取原图）
+- 落库：表 `amz_product_images`（asin 粒度缓存，`thumb`/`large`/`source`）
+- 聚合：`database.get_parent_images(父ASIN)` 跨子体去重合并
+- 详情页若无附图，**首次进入自动抓取一次**（也可点「从亚马逊抓取附图」）
+
+### 新增接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/product/images` | 父 ASIN 图片(主图+附图)；`crawl=true` 时抓取父体+子体商品页 |
+| GET | `/api/product/term_detail` | 单个搜索词详情：父体资料(图片/标题/价格) + 词指标 + 明细变体 |
+| GET | `/api/amazon/metrics` | 新增 `images=true`，同时返回该 ASIN 的图片 |
+
+### 新增表 / 列
+
+| 对象 | 说明 |
+| --- | --- |
+| 表 `amz_product_images` | 商品页图片（asin, domain, position, thumb, large, source） |
+| 列 `amz_product_metrics.price` | 商品页主价格（详情页展示用，回退赛狐商品行价格） |

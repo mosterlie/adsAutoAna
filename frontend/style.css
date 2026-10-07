@@ -441,3 +441,74 @@ td.name{font-weight:500;color:#1f2d3d}
 .asin-more{font-size:10.5px;color:var(--muted);white-space:nowrap}
 .asin-chip{display:inline-block;font-size:11px;line-height:17px;padding:0 5px;margin:1px 3px 1px 0;
   border:1px solid #e3e7ee;border-radius:3px;background:#fafbfd;color:var(--txt-2);white-space:nowrap}
+
+/* ===================================================================
+   搜索词列表页 / 搜索词详情页 (独立页面 & 独立页签)
+   =================================================================== */
+body.standalone .topbar,
+body.standalone .subhead,
+body.standalone .tabbar,
+body.standalone #tableView,
+body.standalone #productView,
+body.standalone #onlineView{display:none !important}
+body.standalone{background:var(--bg)}
+#termsView,#termView{padding:10px 12px 40px}
+
+/* 详情页顶部: 产品(图片 + 附图 + 标题 + 价格) */
+.term-top{display:flex;gap:18px;align-items:flex-start;margin-bottom:10px}
+.tg-main{flex:0 0 268px}
+.tg-main img{width:268px;height:268px;object-fit:contain;background:#fff;
+  border:1px solid var(--bd);border-radius:6px;cursor:zoom-in}
+.tg-thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-width:268px}
+.tg-thumbs img{width:46px;height:46px;object-fit:cover;border:1px solid var(--bd);
+  border-radius:4px;cursor:pointer;background:#fff}
+.tg-thumbs img.active{border-color:#2f6fed;box-shadow:0 0 0 1px #2f6fed}
+.tg-thumbs .tg-more{font-size:11px;color:var(--muted);align-self:center}
+.tg-info{flex:1;min-width:0}
+.tg-title{font-size:15px;font-weight:600;line-height:1.5;margin-bottom:8px}
+.tg-price{font-size:22px;font-weight:700;color:#e5503a;margin:6px 0 12px}
+.tg-price small{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px}
+.tg-kv{display:flex;flex-wrap:wrap;gap:6px 26px;font-size:12.5px;color:var(--txt-2)}
+.tg-kv b{color:var(--txt);font-weight:600}
+.tg-asin{font-family:ui-monospace,Menlo,Consolas,monospace;cursor:pointer}
+.tg-asin:hover{color:#2f6fed;text-decoration:underline}
+.tg-imgnote{font-size:11.5px;color:var(--muted);margin-top:10px}
+
+/* 详情页区块 */
+.term-block{margin-top:10px}
+.term-sec-head{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;padding-bottom:9px;margin-bottom:12px;border-bottom:1px solid var(--bd)}
+.term-sec-title{font-size:14px;font-weight:600}
+.term-sec-tools{display:flex;align-items:center;gap:10px}
+
+/* 搜索词指标卡 */
+.term-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.tm-card{border:1px solid var(--bd);border-radius:6px;padding:10px 12px;background:#fafbfd}
+.tm-card .k{font-size:11.5px;color:var(--muted);margin-bottom:5px;white-space:nowrap}
+.tm-card .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.tm-card.good .v{color:#02a15c}
+.tm-card.warn .v{color:#e5503a}
+.tm-card.muted .v{color:var(--muted)}
+
+/* 亚马逊搜索结果卡片网格: 方形卡片, 图片占主体 */
+.amz-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:12px}
+.amz-card2{border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:#fff;
+  display:flex;flex-direction:column;transition:.15s}
+.amz-card2:hover{box-shadow:0 4px 16px rgba(0,0,0,.10);transform:translateY(-1px)}
+.amz-card2 .card-img{position:relative;width:100%;aspect-ratio:1/1;background:#fff;
+  display:flex;align-items:center;justify-content:center;border-bottom:1px solid #f0f2f5}
+.amz-card2 .card-img img{width:100%;height:100%;object-fit:contain;padding:10px;cursor:zoom-in}
+.amz-card2 .card-pos{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.55);color:#fff;
+  font-size:10.5px;line-height:16px;padding:0 6px;border-radius:8px}
+.amz-card2 .card-ad{position:absolute;right:6px;top:6px;background:#fdeeea;color:#e5503a;
+  font-size:10.5px;line-height:16px;padding:0 6px;border-radius:8px}
+.amz-card2 .card-body{padding:9px 10px 10px;display:flex;flex-direction:column;gap:5px;flex:1}
+.amz-card2 .card-title{font-size:12px;line-height:1.45;color:var(--txt);max-height:52px;overflow:hidden}
+.amz-card2 .card-price{font-size:15px;font-weight:700;color:#e5503a}
+.amz-card2 .card-price .list{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px;text-decoration:line-through}
+.amz-card2 .card-meta{font-size:11.5px;color:var(--txt-2);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.amz-card2 .card-brand{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amz-card2 .card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto}
+.amz-card2 .card-tags .amz-tag{font-size:10.5px;line-height:16px;padding:0 6px;border-radius:8px}
+.amz-card2 .star{color:#f0a020;font-weight:600}
+.amz-card2 .rev{color:var(--muted);font-size:11px}

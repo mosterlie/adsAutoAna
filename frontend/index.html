@@ -139,6 +139,37 @@
   </section>
 </div>
 
+<!-- ============ 搜索词列表页 (独立页面: /?page=terms&asin=父ASIN) ============ -->
+<div id="termsView" style="display:none">
+  <div class="crumbs" id="tCrumbs"></div>
+  <div class="panel p-bar" id="tBar"></div>
+  <section class="p-content">
+    <div class="table-wrap p-wrap" id="tWrap"></div>
+  </section>
+</div>
+
+<!-- ============ 搜索词详情页 (独立页签: /?page=term&asin=父ASIN&term=词) ============ -->
+<div id="termView" style="display:none">
+  <div class="term-top panel" id="termTop"></div>
+  <div class="panel term-block">
+    <div class="term-sec-head">
+      <div class="term-sec-title">搜索词指标</div>
+      <div class="term-sec-tools" id="termMetricsTools"></div>
+    </div>
+    <div class="term-metrics" id="termMetrics"></div>
+  </div>
+  <div class="panel term-block">
+    <div class="term-sec-head">
+      <div class="term-sec-title">亚马逊搜索结果 <span class="muted" id="amzCardsMeta"></span></div>
+      <div class="term-sec-tools">
+        <a class="link" id="termAmzOpen" target="_blank" rel="noopener">在亚马逊打开 ↗</a>
+        <button class="btn btn-mini" id="termAmzRefresh">重新抓取</button>
+      </div>
+    </div>
+    <div class="amz-cards" id="amzCards"></div>
+  </div>
+</div>
+
 <!-- 商品详情抽屉 -->
 <div class="ol-detail" id="olDetail">
   <div class="ol-detail-head">

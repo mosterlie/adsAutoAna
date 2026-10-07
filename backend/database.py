@@ -185,11 +185,27 @@ CREATE TABLE IF NOT EXISTS amz_product_metrics (
     bsr_big       INTEGER,     -- 大类目排名
     bsr_big_cat   TEXT,        -- 大类目名
     title         TEXT,
+    price         TEXT,        -- 主价格(如 "￥3,980")
     blocked       INTEGER DEFAULT 0,
     via           TEXT,
     fetched_at    TEXT,
     PRIMARY KEY(asin, domain)
 );
+
+-- 商品页图片(主图 + 附图图廊), 按 ASIN 粒度缓存;
+-- 父 ASIN 的附图 = 其子 ASIN 图片的合集(上层聚合)
+CREATE TABLE IF NOT EXISTS amz_product_images (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    asin         TEXT NOT NULL,
+    domain       TEXT NOT NULL,
+    position     INTEGER,
+    thumb        TEXT,        -- 页面原始缩略图地址
+    large        TEXT,        -- 去尺寸后缀的原始大图地址
+    source       TEXT,        -- main / alt
+    updated_at   TEXT,
+    UNIQUE(asin, domain, large)
+);
+CREATE INDEX IF NOT EXISTS idx_amz_img_asin ON amz_product_images(asin);
 """
 
 
@@ -218,6 +234,7 @@ _MIGRATIONS = [
     ("amz_results", "raw_json", "TEXT"),
     ("online_products", "is_variation", "TEXT"),
     ("online_products", "parent_asin", "TEXT"),
+    ("amz_product_metrics", "price", "TEXT"),
 ]
 
 
@@ -930,17 +947,96 @@ def save_amz_product_metrics(m: Dict[str, Any]) -> None:
     with _LOCK, get_conn() as conn:
         conn.execute(
             """INSERT INTO amz_product_metrics(asin, domain, rating, rating_count, bsr_small,
-                     bsr_small_cat, bsr_big, bsr_big_cat, title, blocked, via, fetched_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                     bsr_small_cat, bsr_big, bsr_big_cat, title, price, blocked, via, fetched_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(asin, domain) DO UPDATE SET
                  rating=excluded.rating, rating_count=excluded.rating_count,
                  bsr_small=excluded.bsr_small, bsr_small_cat=excluded.bsr_small_cat,
                  bsr_big=excluded.bsr_big, bsr_big_cat=excluded.bsr_big_cat,
-                 title=excluded.title, blocked=excluded.blocked, via=excluded.via,
+                 title=COALESCE(NULLIF(excluded.title,''), amz_product_metrics.title),
+                 price=COALESCE(NULLIF(excluded.price,''), amz_product_metrics.price),
+                 blocked=excluded.blocked, via=excluded.via,
                  fetched_at=excluded.fetched_at""",
             (m.get("asin"), m.get("domain") or "co.jp", m.get("rating"), m.get("rating_count"),
              m.get("bsr_small"), m.get("bsr_small_cat"), m.get("bsr_big"), m.get("bsr_big_cat"),
-             m.get("title"), 1 if m.get("blocked") else 0, m.get("via"), now()))
+             m.get("title"), m.get("price"), 1 if m.get("blocked") else 0, m.get("via"), now()))
+
+
+# ---------------------------------------------------------------------------
+# 商品页图片 (主图 + 附图)
+# ---------------------------------------------------------------------------
+def save_amz_product_images(asin: str, domain: str, images: List[Dict[str, Any]]) -> int:
+    """整体替换某 ASIN 的图片集合(先删后插, 保证与最新页面一致)"""
+    asin = str(asin or "").strip()
+    if not asin:
+        return 0
+    domain = domain or "co.jp"
+    ts = now()
+    clean: List[Dict[str, Any]] = []
+    seen = set()
+    for i, im in enumerate(images or []):
+        large = str((im or {}).get("large") or "").strip()
+        if not large or large in seen:
+            continue
+        seen.add(large)
+        clean.append({"thumb": (im or {}).get("thumb") or large,
+                      "large": large, "source": (im or {}).get("source") or "",
+                      "position": i})
+    with _LOCK, get_conn() as conn:
+        conn.execute("DELETE FROM amz_product_images WHERE asin=? AND domain=?", (asin, domain))
+        for c in clean:
+            conn.execute(
+                """INSERT INTO amz_product_images(asin, domain, position, thumb, large, source,
+                                                  updated_at)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (asin, domain, c["position"], c["thumb"], c["large"], c["source"], ts))
+    return len(clean)
+
+
+def get_amz_product_images(asin: str, domain: str = "co.jp") -> List[Dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT position, thumb, large, source FROM amz_product_images "
+            "WHERE asin=? AND domain=? ORDER BY position", (asin, domain or "co.jp")).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_parent_images(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
+    """父 ASIN 的附图集合 = 自身 + 全部子 ASIN 的商品页图片合集(去重)
+
+    需求: 子 ASIN 详情页的附图作为父 ASIN 的附图, 父 ASIN 详情页展示全部附图。
+    """
+    domain = domain or "co.jp"
+    with get_conn() as conn:
+        child2parent = _asin_parent_map(conn)
+        parent = child2parent.get(asin, asin)
+        kids = sorted(a for a, p in child2parent.items() if p == parent)
+        for a in (parent, asin):
+            if a and a not in kids:
+                kids.append(a)
+
+    ph = ",".join("?" * len(kids))
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT asin, position, thumb, large, source FROM amz_product_images "
+            f"WHERE domain=? AND asin IN ({ph}) ORDER BY asin, position",
+            [domain] + kids).fetchall()
+
+    by_asin: Dict[str, List[Dict[str, Any]]] = {}
+    seen = set()
+    merged: List[Dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        by_asin.setdefault(d["asin"], []).append(d)
+        key = d["large"]
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(d)
+    return {"asin": asin, "parent_asin": parent, "domain": domain,
+            "child_asins": kids, "count": len(merged),
+            "images": merged, "by_asin": by_asin,
+            "sources": list(by_asin.keys())}
 
 
 def get_amz_product_metrics(asin: str, domain: str = "co.jp",
@@ -1406,6 +1502,144 @@ def get_parent_terms(asin: str, scope: str = "", limit: int = 2000) -> Dict[str,
     rows = [m for m in all_rows if not scope or m["scope"] == scope]
     return {"parent_asin": parent, "child_asins": kids, "scope": scope, "counts": counts,
             "campaign_count": len(cids), "total": len(rows), "rows": rows[:limit]}
+
+
+def get_parent_profile(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
+    """父 ASIN 的资料: 标题 / 价格 / 主图 + 全部附图(来自子体商品页)
+
+    价格优先取亚马逊商品页, 回退赛狐商品行; 图片取「父体 + 全部子体」商品页附图合集。
+    """
+    domain = domain or "co.jp"
+    with get_conn() as conn:
+        child2parent = _asin_parent_map(conn)
+        parent = child2parent.get(asin, asin)
+        kids = sorted(a for a, p in child2parent.items() if p == parent)
+        if parent not in kids:
+            kids.append(parent)
+        meta = _parent_meta_map(conn).get(parent) or {}
+
+        # 赛狐商品行兜底(标题/图片/价格)
+        prod = {}
+        try:
+            pf, pa_ = _snapshot_filter(conn, "product")
+            for r in conn.execute(
+                    "SELECT raw_json FROM ad_records WHERE tab='product' "
+                    "AND json_extract(raw_json,'$.asin') IN (" +
+                    ",".join("?" * len(kids)) + ")" + pf, kids + pa_):
+                d = json.loads(r["raw_json"])
+                if not prod.get("title") and d.get("title"):
+                    prod["title"] = d.get("title")
+                if not prod.get("img_url") and d.get("imgUrl"):
+                    prod["img_url"] = d.get("imgUrl")
+                if not prod.get("price") and d.get("price"):
+                    prod["price"] = d.get("price")
+                prod.setdefault("skus", [])
+                if d.get("sku") and d["sku"] not in prod["skus"]:
+                    prod["skus"].append(d["sku"])
+        except Exception:       # noqa: BLE001
+            pass
+
+    # 亚马逊商品页指标(价格 / 星级 / 评论 / BSR)
+    amz = {}
+    try:
+        amz_map = get_amz_product_metrics_map([parent] + kids, domain)
+        for a in [parent] + kids:
+            m = amz_map.get(a)
+            if not m:
+                continue
+            if not amz.get("title") and m.get("title"):
+                amz["title"] = m["title"]
+            if not amz.get("price") and m.get("price"):
+                amz["price"] = m["price"]
+            if not amz.get("rating") and m.get("rating"):
+                amz["rating"] = m["rating"]
+                amz["rating_count"] = m.get("rating_count")
+            if not amz.get("bsr_small") and m.get("bsr_small"):
+                amz["bsr_small"] = m["bsr_small"]
+                amz["bsr_small_cat"] = m.get("bsr_small_cat")
+            amz.setdefault("sources", []).append(a)
+    except Exception:       # noqa: BLE001
+        pass
+
+    imgs = get_parent_images(parent, domain)
+    return {
+        "asin": asin, "parent_asin": parent, "child_asins": kids,
+        "sku": meta.get("sku") or (prod.get("skus") or [""])[0],
+        "title": amz.get("title") or meta.get("title") or prod.get("title") or "",
+        "price": amz.get("price") or prod.get("price") or "",
+        "price_from": "amazon" if amz.get("price") else ("sellfox" if prod.get("price") else ""),
+        "img_url": (imgs["images"][0]["large"] if imgs.get("images") else "") or prod.get("img_url") or meta.get("img_url") or "",
+        "images": imgs.get("images") or [],
+        "image_count": imgs.get("count") or 0,
+        "images_by_asin": imgs.get("by_asin") or {},
+        "amz": amz,
+    }
+
+
+def get_term_detail(asin: str, query: str, match_type: str = "",
+                    domain: str = "co.jp") -> Dict[str, Any]:
+    """单个搜索词在「某父 ASIN 全部活动」口径下的指标 + 父体商品资料
+
+    说明: 搜索词是活动级口径, 这里把该父体下所有活动里**同一个词**的指标合并累加。
+    """
+    q = str(query or "").strip()
+    pt = get_parent_terms(asin)
+    parent = pt["parent_asin"]
+    matched = [r for r in pt["rows"] if str(r.get("query") or "") == q]
+    if match_type:
+        mt = [r for r in matched if str(r.get("matchType") or "") == str(match_type)]
+        if mt:
+            matched = mt
+
+    agg = {
+        "query": q, "scope": "", "dimension": "", "matchType": match_type or "",
+        "impressions": 0.0, "clicks": 0.0, "adCost": 0.0, "adSales": 0.0,
+        "orderNum": 0.0, "adSaleNum": 0.0, "searchFrequencyRank": None,
+        "campaign_count": 0, "adGroupNames": [], "rows": len(matched),
+    }
+    cids, ags = set(), set()
+    for r in matched:
+        agg["impressions"] += _to_float(r.get("impressions"))
+        agg["clicks"] += _to_float(r.get("clicks"))
+        agg["adCost"] += _to_float(r.get("adCost"))
+        agg["adSales"] += _to_float(r.get("adSales"))
+        agg["orderNum"] += _to_float(r.get("orderNum"))
+        if not agg["scope"]:
+            agg["scope"] = r.get("scope") or ""
+            agg["dimension"] = r.get("dimension") or ""
+            agg["matchType"] = agg["matchType"] or r.get("matchType") or ""
+        if not agg["searchFrequencyRank"] and r.get("searchFrequencyRank"):
+            agg["searchFrequencyRank"] = r.get("searchFrequencyRank")
+        if r.get("campaign_count"):
+            cids.add(r.get("campaign_count"))
+        for n in (r.get("adGroupNames") or []):
+            ags.add(n)
+    agg["adGroupNames"] = sorted(ags)
+    # 涉及活动数: 汇总行里同词可能来自多个活动 -> 累加其 campaign_count
+    agg["campaign_count"] = sum(int(r.get("campaign_count") or 0) for r in matched)
+
+    imp, clk, cost = agg["impressions"], agg["clicks"], agg["adCost"]
+    sales, orders = agg["adSales"], agg["orderNum"]
+    agg["ctr"] = ratio(clk, imp) * 100
+    agg["cvr"] = ratio(orders, clk) * 100
+    agg["cpc"] = ratio(cost, clk)
+    agg["cpa"] = ratio(cost, orders)
+    agg["acos"] = ratio(cost, sales) * 100
+    agg["roas"] = ratio(sales, cost)
+    agg["aov"] = ratio(sales, orders)
+    agg["cpm"] = ratio(cost, imp) * 1000
+    agg["found"] = bool(matched)
+
+    return {
+        "parent_asin": parent, "query": q, "child_asins": pt["child_asins"],
+        "product": get_parent_profile(parent, domain),
+        "term": agg,
+        "variants": matched,
+    }
+
+
+def ratio(a: float, b: float) -> float:
+    return (a / b) if b else 0.0
 
 
 def get_campaign_terms(campaign_id: str, scope: str = "") -> Dict[str, Any]:

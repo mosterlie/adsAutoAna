@@ -70,12 +70,47 @@ EXTRACT_JS = r"""
     seen.add(cat);
     bsr.push({ category: cat, rank: m[2].replace(/,/g, "") });
   }
+  // 4) 价格
+  const price = txtOf("#corePrice_feature_div .a-offscreen")
+    || txtOf("#corePriceDisplay_desktop_feature_div .a-offscreen")
+    || txtOf("#priceblock_ourprice") || txtOf("#priceblock_dealprice")
+    || txtOf("#tp_price_block_total_price_ww .a-offscreen") || txtOf("span.a-price span.a-offscreen");
+
+  // 5) 图片: 主图 + 附图(图廊) —— 去掉尺寸后缀取原始大图
+  const up = (u) => u.replace(/\._[A-Za-z0-9_,]+_\.(jpg|jpeg|png|gif)/i, ".$1");
+  const pool = [];
+  const push = (u, src) => { u = t(u); if (u && /^https?:/.test(u)) pool.push({ u: u, src: src }); };
+  const landing = document.querySelector("#landingImage")
+    || document.querySelector("#imgTagWrapperId img")
+    || document.querySelector("#main-image-container img")
+    || document.querySelector("#imgBlkFront");
+  if (landing) {
+    const dyn = landing.getAttribute("data-a-dynamic-image");
+    if (dyn) { try { Object.keys(JSON.parse(dyn)).forEach((u) => push(u, "main")); } catch (e) {} }
+    push(landing.getAttribute("data-old-hires"), "main");
+    push(landing.getAttribute("src"), "main");
+  }
+  document.querySelectorAll("#altImages li img, #imageBlock_feature_div li img, #imageBlock li img")
+    .forEach((im) => {
+      push(im.getAttribute("src") || im.getAttribute("data-src"), "alt");
+      push(im.getAttribute("data-old-hires"), "alt");
+    });
+  const seenImg = new Set(); const images = [];
+  for (const p of pool) {
+    const key = up(p.u).replace(/\?.*$/, "");
+    if (seenImg.has(key)) continue;
+    seenImg.add(key);
+    images.push({ thumb: p.u, large: up(p.u), source: p.src });
+  }
+
   const bodyLow = (document.body ? document.body.innerText : "").slice(0, 4000);
   return {
     title: txtOf("#productTitle"),
+    price: price,
     star: star, star_num: starNum,
     review_num: cntNum,
     bsr: bsr.slice(0, 6),
+    images: images.slice(0, 12),
     blocked: (bodyLow.includes("ロボットではない") || bodyLow.includes("Enter the characters")
               || bodyLow.includes("api-services-support@amazon.com")),
   };
@@ -117,13 +152,18 @@ def _live_fetch(asin: str, url: str, cdp: str, timeout_ms: int,
             page.wait_for_timeout(2500)
             data = page.evaluate(EXTRACT_JS)
             bsr = data.get("bsr") or []
+            images = data.get("images") or []
             out.update({
                 "title": data.get("title"),
+                "price": data.get("price"),
                 "rating": _f(data.get("star_num")),
                 "rating_count": _i(data.get("review_num")),
                 "bsr_small": None, "bsr_small_cat": None,
                 "bsr_big": None, "bsr_big_cat": None,
                 "bsr_all": bsr,
+                # 附图(主图 + 图廊), 供父 ASIN 详情页展示
+                "images": images,
+                "main_image": (images[0]["large"] if images else ""),
                 "blocked": bool(data.get("blocked")),
                 "via": via,
             })
@@ -192,8 +232,49 @@ def fetch(asin: str, domain: Optional[str] = None, cdp: Optional[str] = None,
             db.save_amz_product_metrics(out)
         except Exception:       # noqa: BLE001
             pass
+        try:
+            db.save_amz_product_images(asin, domain, out.get("images") or [])
+        except Exception:       # noqa: BLE001
+            pass
         out["fetched_at"] = db.now()
         out["from_cache"] = False
         return out
+    finally:
+        amazon.release_lock()
+
+
+def fetch_images(asin: str, domain: Optional[str] = None, cdp: Optional[str] = None,
+                 timeout_ms: int = 45000, ttl: Optional[int] = None,
+                 refresh: bool = False) -> Dict[str, Any]:
+    """只取商品页**图片(主图 + 附图)**, 命中缓存直接返回。
+
+    父 ASIN 的附图 = 其子 ASIN 详情页图片的合集, 因此本函数按「单个 ASIN」粒度
+    缓存, 上层 (api) 负责按父体聚合。
+    """
+    domain = domain or config.AMAZON_DOMAIN
+    cdp = cdp or config.CDP_URL
+    ttl = config.AMAZON_PRODUCT_CACHE_TTL_SEC if ttl is None else ttl
+    asin = str(asin or "").strip()
+    if not asin:
+        raise ValueError("asin 不能为空")
+
+    if not refresh and ttl > 0:
+        hit = db.get_amz_product_images(asin, domain)
+        if hit:
+            return {"asin": asin, "domain": domain, "images": hit, "from_cache": True}
+    else:
+        hit = db.get_amz_product_images(asin, domain)
+        if hit:
+            return {"asin": asin, "domain": domain, "images": hit, "from_cache": True}
+
+    amazon.acquire_lock()
+    try:
+        amazon.pace()
+        out = _live_fetch(asin, product_url(asin, domain), cdp, timeout_ms)
+        images = out.get("images") or []
+        db.save_amz_product_images(asin, domain, images)
+        return {"asin": asin, "domain": domain, "images": images,
+                "blocked": bool(out.get("blocked")), "via": out.get("via"),
+                "from_cache": False, "fetched_at": db.now()}
     finally:
         amazon.release_lock()

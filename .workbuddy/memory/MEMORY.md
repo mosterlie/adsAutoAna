@@ -4,8 +4,24 @@
 - 服务端口 **8320**，`python3 run.py`；Python 用
   `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`（系统 3.13 无依赖）。
 - curl 一律要加 `--noproxy '*'`（本机有代理环境）。
-- **改后端必须重启服务**；重启用 Bash 工具的 `run_in_background=true`（macOS 无 setsid，
-  普通 `nohup &` 有时会被回收）。
+- **改后端必须重启服务**。重启务必用**双重 fork + setsid** 脱离会话（macOS 没有 `setsid`
+  命令；Bash 工具的 `run_in_background` 起的进程会在**该轮对话结束时被回收**）：
+
+```bash
+cd /Users/gx/Desktop/mypro/adsAutoAna && lsof -ti:8320 | xargs -r kill 2>/dev/null
+/Library/Frameworks/Python.framework/Versions/3.11/bin/python3 - <<'PY'
+import os, sys
+PY_EXE = "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
+os.chdir("/Users/gx/Desktop/mypro/adsAutoAna")
+if os.fork() > 0: sys.exit(0)
+os.setsid()
+if os.fork() > 0: os._exit(0)
+log = open("/tmp/adsautoana.log", "ab"); os.dup2(log.fileno(), 1); os.dup2(log.fileno(), 2)
+os.execv(PY_EXE, [PY_EXE, "run.py"])
+PY
+```
+
+  启完用 `lsof -nP -iTCP:8320 -sTCP:LISTEN` + `curl -s --noproxy '*' .../api/status` 确认。
 
 ## 赛狐接口要点（踩过的坑）
 - 广告管理：分页接口按页签不同，`tab` + `scope` 维度用 `:` 连接（如 `sp:keyword`）。

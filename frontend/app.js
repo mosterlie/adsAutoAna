@@ -64,6 +64,10 @@ function applyDefaultRange() {
 
 /* ---------- 初始化 ---------- */
 async function boot() {
+  // 独立页面 (?page=terms | ?page=term): 只渲染对应视图, 不加载主应用
+  const sp = new URLSearchParams(location.search);
+  if (sp.get("page")) { await bootStandalone(sp); return; }
+
   const meta = await api("/api/tabs");
   state.tabs = meta.tabs; state.today = meta.today; state.defaultStart = meta.default_start;
   state.tab = state.tabs[1] ? state.tabs[1].key : state.tabs[0].key;   // 默认「广告活动」
@@ -1018,10 +1022,9 @@ function renderProducts() {
     const p = pv.rows.find((x) => String(x.parent_asin || x.asin) === pa);
     loadCampaigns(pa, p);
   });
+  // 「搜索词」→ 在新页面打开该父体的搜索词列表(页面内点词再弹新页签)
   $("pWrap").querySelectorAll('button[data-act="pterms"]').forEach((btn) => btn.onclick = () => {
-    const pa = btn.dataset.pa;
-    const p = pv.rows.find((x) => String(x.parent_asin || x.asin) === pa);
-    loadParentTerms(pa, p);
+    openTermsPage(btn.dataset.pa);
   });
   bindPager();
 }
@@ -1842,5 +1845,334 @@ document.addEventListener("click", (e) => {
   }
 });
 $("olDetailClose").onclick = () => $("olDetail").classList.remove("open");
+
+/* ===================================================================
+   搜索词独立页面 / 详情页签
+   · /?page=terms&asin=父ASIN            —— 点击产品视角「搜索词」打开的新页面
+   · /?page=term&asin=父ASIN&term=搜索词  —— 在上一页点击某个词弹出的新页签
+   =================================================================== */
+
+/* 亚马逊图片取「中等尺寸」: 插入 ._SL500_ 后缀; 失败由全局 error 兜底回退原图 */
+function amzMidImage(u, size) {
+  if (!u) return "";
+  const s = size || 500;
+  return String(u).replace(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i, `._SL${s}_.$1$2`);
+}
+/* 图片加载失败 -> 回退 data-fallback (避免插入尺寸后缀被亚马逊拒绝时白图) */
+document.addEventListener("error", (e) => {
+  const el = e.target;
+  if (el && el.tagName === "IMG" && el.dataset.fallback && el.src !== el.dataset.fallback) {
+    const fb = el.dataset.fallback;
+    el.removeAttribute("data-fallback");
+    el.src = fb;
+  }
+}, true);
+
+function isStandalone() { return document.body.classList.contains("standalone"); }
+
+function openTermsPage(asin) {
+  if (!asin) return;
+  window.open(`/?page=terms&asin=${encodeURIComponent(asin)}`, "_blank", "noopener");
+}
+function openTermPage(asin, term, mt) {
+  if (!asin || !term) return;
+  const q = new URLSearchParams({ page: "term", asin, term });
+  if (mt) q.set("mt", mt);
+  window.open(`/?${q.toString()}`, "_blank", "noopener");
+}
+
+/* 抓取父体附图(来自各子 ASIN 商品页), 完成后原地刷新 */
+const _imgTried = new Set();
+async function doFetchParentImages(pa, term) {
+  if (!pa) return;
+  const msg = $("tgImgMsg"), btn = $("tgFetchImgs");
+  if (btn) { btn.disabled = true; btn.textContent = "抓取中…"; }
+  if (msg) msg.textContent = " 正在用浏览器抓取子 ASIN 商品页附图（约 10~40 秒）…";
+  try {
+    await api(`/api/product/images?asin=${encodeURIComponent(pa)}&crawl=true&max_children=3`);
+    const nd = await api("/api/product/term_detail?" + new URLSearchParams(
+      { asin: pa, term: term || "" }).toString());
+    renderTermTop(nd);
+  } catch (e) {
+    if (msg) msg.textContent = " 抓取失败: " + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = "从亚马逊抓取附图"; }
+  }
+}
+
+/* ---------------- 搜索词列表页 ---------------- */
+async function renderTermsPage(asin) {
+  document.title = `搜索词 · ${asin}`;
+  $("tCrumbs").innerHTML =
+    `<span class="cb cur">父 ASIN ${esc(asin)}</span>
+     <span class="sep">›</span><span class="cb cur">搜索词</span>
+     <span class="pmeta">点击任意搜索词 → 新页签打开详情</span>`;
+  $("tBar").innerHTML = `<div class="pline"><div class="p-tools">
+      <span class="ptitle">搜索词</span><span class="pmeta" id="tMeta">加载中…</span>
+      <span class="p-tools" id="tScopes"></span>
+    </div></div>`;
+  $("tWrap").innerHTML = `<div class="empty">加载中…</div>`;
+
+  const d = await api("/api/product/terms?asin=" + encodeURIComponent(asin));
+  const all = d.rows || [];
+  const cn = d.counts || {};
+  const dim = isStandalone() ? (new URLSearchParams(location.search).get("dim") || "sp:keyword") : "sp:keyword";
+
+  function paint(scope) {
+    const rows = scope ? all.filter((r) => r.scope === scope) : all;
+    const sum = rows.reduce((a, r) => {
+      a.imp += Number(r.impressions || 0); a.clk += Number(r.clicks || 0);
+      a.cost += Number(r.adCost || 0); a.ord += Number(r.orderNum || 0); return a;
+    }, { imp: 0, clk: 0, cost: 0, ord: 0 });
+    $("tMeta").innerHTML =
+      `共 <b>${rows.length}</b> 条 · 覆盖 ${d.campaign_count || 0} 个活动 · ` +
+      `花费 <b>${money(sum.cost)}</b> · 曝光 <b>${nf(sum.imp)}</b> · 点击 <b>${nf(sum.clk)}</b> · 订单 <b>${nf(sum.ord)}</b>`;
+    const body = rows.map((r) => `<tr class="t-row" data-q="${esc(r.query || "")}"
+        data-mt="${esc(r.matchType || "")}" style="cursor:pointer"
+        title="点击在新页签打开该搜索词详情">
+      <td><span class="dim-tag ${r.scope.endsWith("keyword") ? "kw" : "tg"}">${esc(r.dimension)}</span></td>
+      <td class="kw-cell"><span class="amz-link" data-q="${esc(r.query || "")}">${esc(r.query || "")}</span></td>
+      <td>${esc(r.matchType || "")}</td>
+      <td class="num">${r.campaign_count || 1}</td>
+      <td class="num">${nf(r.impressions)}</td>
+      <td class="num">${nf(r.clicks)}</td>
+      <td class="num">${money(r.adCost)}</td>
+      <td class="num">${r.orderNum ? nf(r.orderNum) : "-"}</td>
+      <td class="num">${r.searchFrequencyRank ? nf(r.searchFrequencyRank) : "-"}</td>
+      <td class="num"><button class="btn btn-mini btn-primary" data-open="1">详情 ↗</button></td>
+    </tr>`).join("");
+    $("tWrap").innerHTML = `<table><thead><tr>
+        <th>维度</th><th>搜索词 / 投放 ASIN</th><th>匹配方式</th><th class="num">涉及活动</th>
+        <th class="num">曝光</th><th class="num">点击</th><th class="num">花费</th>
+        <th class="num">订单</th><th class="num">搜索热度</th><th></th>
+      </tr></thead><tbody>${body}</tbody></table>` +
+      (rows.length ? "" : `<div class="empty">该父体在此维度下没有数据</div>`);
+    // 整行 / 词 / 按钮 都打开新页签
+    $("tWrap").querySelectorAll("tr.t-row").forEach((tr) => {
+      const open = () => openTermPage(asin, tr.dataset.q, tr.dataset.mt);
+      tr.onclick = open;
+      const link = tr.querySelector(".amz-link");
+      if (link) link.onclick = (ev) => { ev.stopPropagation(); open(); };
+    });
+  }
+
+  const scopes = [["sp:keyword", `只看搜索词 (${cn.keyword || 0})`],
+                  ["sp:asin", `只看商品投放 (${cn.targeting || 0})`],
+                  ["", `全部 (${cn.all || all.length})`]];
+  $("tScopes").innerHTML = scopes.map(([s, label]) =>
+    `<button class="btn btn-mini" data-s="${s}">${label}</button>`).join("");
+  $("tScopes").querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("btn-primary", b.dataset.s === dim);
+    b.onclick = () => {
+      $("tScopes").querySelectorAll("button").forEach((x) => x.classList.remove("btn-primary"));
+      b.classList.add("btn-primary");
+      paint(b.dataset.s);
+    };
+  });
+  paint(dim);
+}
+
+/* ---------------- 搜索词详情页签 ---------------- */
+async function renderTermPage(asin, term, mt) {
+  document.title = `${term} · 搜索词详情`;
+  $("termTop").innerHTML = `<div class="empty">加载中…</div>`;
+  $("termMetrics").innerHTML = "";
+  $("amzCards").innerHTML = `<div class="amz-loading">查询中…</div>`;
+
+  const q = new URLSearchParams({ asin, term });
+  if (mt) q.set("match_type", mt);
+  let d;
+  try {
+    d = await api("/api/product/term_detail?" + q.toString());
+  } catch (e) {
+    $("termTop").innerHTML = `<div class="empty">加载失败: ${esc(e.message)}</div>`;
+    return;
+  }
+  renderTermTop(d);
+  renderTermMetrics(d);
+  loadAmzCards(term, false);
+}
+
+function renderTermTop(d) {
+  const p = d.product || {};
+  const imgs = p.images || [];
+  const mainUrl = imgs.length ? imgs[0].large : (p.img_url || "");
+  const thumbs = imgs.slice(0, 8).map((im, i) => {
+    const t = im.thumb || im.large;
+    return `<img src="${esc(amzMidImage(t, 160))}" data-big="${esc(im.large)}"
+      data-fallback="${esc(t)}" data-idx="${i}" class="${i === 0 ? "active" : ""}"
+      title="${esc(im.source === "main" ? "主图" : "附图")} · 来自 ${esc(im.asin || "")}">`;
+  }).join("");
+  const amz = p.amz || {};
+  const bsr = amz.bsr_small
+    ? `${esc(amz.bsr_small_cat || "小类目")} ${nf(amz.bsr_small)}位` : "";
+  const noImg = imgs.length === 0;
+
+  $("termTop").innerHTML = `
+    <div class="tg-main">
+      ${mainUrl
+        ? `<img id="tgMainImg" src="${esc(amzMidImage(mainUrl))}" data-big="${esc(mainUrl)}"
+             data-fallback="${esc(mainUrl)}" data-cap="${esc(p.parent_asin || "")}" alt="">`
+        : `<div class="empty" style="padding:70px 0">暂无图片</div>`}
+      <div class="tg-thumbs">${thumbs}</div>
+    </div>
+    <div class="tg-info">
+      <div class="tg-title">${esc(p.title || "-")}</div>
+      <div class="tg-price">${p.price ? esc(p.price) : "-"}
+        <small>${p.price_from === "amazon" ? "来自亚马逊商品页" : (p.price_from === "sellfox" ? "来自赛狐商品行" : "未取到价格")}</small>
+      </div>
+      <div class="tg-kv">
+        <span>父 ASIN <b class="tg-asin" data-copy="${esc(p.parent_asin || d.parent_asin)}"
+          title="点击复制">${esc(p.parent_asin || d.parent_asin)}</b></span>
+        ${p.sku ? `<span>父 SKU <b>${esc(p.sku)}</b></span>` : ""}
+        <span>子体数 <b>${(p.child_asins || []).length}</b></span>
+        <span>附图 <b>${p.image_count || 0}</b> 张</span>
+        ${amz.rating ? `<span>星级 <b>${esc(amz.rating)}</b>${amz.rating_count ? ` (${nf(amz.rating_count)})` : ""}</span>` : ""}
+        ${bsr ? `<span>BSR <b>${bsr}</b></span>` : ""}
+      </div>
+      <div class="tg-imgnote">
+        附图来源：该父体下各子 ASIN 的亚马逊商品页图廊 → 作为父 ASIN 附图在此集中展示。
+        ${noImg ? `<button class="btn btn-mini" id="tgFetchImgs" style="margin-left:8px">从亚马逊抓取附图</button>` : ""}
+        <span id="tgImgMsg"></span>
+      </div>
+    </div>`;
+
+  const main = $("tgMainImg");
+  if (main) main.onclick = () => openImagePreview(main.dataset.big, main.dataset.cap, main.dataset.fallback);
+  $("termTop").querySelectorAll(".tg-thumbs img").forEach((im) => im.onclick = () => {
+    $("termTop").querySelectorAll(".tg-thumbs img").forEach((x) => x.classList.remove("active"));
+    im.classList.add("active");
+    const m = $("tgMainImg");
+    if (m) {
+      m.removeAttribute("data-fallback");
+      m.src = amzMidImage(im.dataset.big, 500);
+      m.dataset.big = im.dataset.big;
+      m.dataset.fallback = im.dataset.fallback;
+    }
+  });
+  const cp = $("termTop").querySelector(".tg-asin[data-copy]");
+  if (cp) cp.onclick = () => copyText(cp.dataset.copy, "父 ASIN ");
+  const fb = $("tgFetchImgs");
+  if (fb) fb.onclick = () => doFetchParentImages(p.parent_asin || d.parent_asin, d.query);
+  // 尚无附图 -> 首次进入自动抓取一次(每个父体只自动尝试一次)
+  const pa = p.parent_asin || d.parent_asin;
+  if (noImg && pa && !_imgTried.has(pa)) {
+    _imgTried.add(pa);
+    doFetchParentImages(pa, d.query);
+  }
+}
+
+function renderTermMetrics(d) {
+  const t = d.term || {};
+  const num = (v, dp) => nf(Number(v || 0), dp);
+  const cards = [
+    ["曝光", num(t.impressions)],
+    ["点击", num(t.clicks)],
+    ["点击率 CTR", (Number(t.ctr) || 0).toFixed(2) + "%"],
+    ["花费", money(t.adCost)],
+    ["CPC", money(t.cpc)],
+    ["订单", num(t.orderNum)],
+    ["销售额", money(t.adSales)],
+    ["广告成本销售比 ACoS", (Number(t.acos) || 0).toFixed(2) + "%",
+      Number(t.acos) > 0 && Number(t.acos) < 30 ? "good" : (Number(t.acos) >= 50 ? "warn" : "")],
+    ["ROAS", (Number(t.roas) || 0).toFixed(2),
+      Number(t.roas) >= 3 ? "good" : (Number(t.roas) > 0 && Number(t.roas) < 1 ? "warn" : "")],
+    ["转化率 CVR", (Number(t.cvr) || 0).toFixed(2) + "%"],
+    ["CPA", money(t.cpa)],
+    ["涉及活动", num(t.campaign_count)],
+    ["匹配方式", esc(t.matchType || "-"), "muted"],
+    ["维度", esc(t.dimension || "-"), "muted"],
+    ["ABA搜索词排名", t.searchFrequencyRank ? num(t.searchFrequencyRank) : "-", "muted"],
+  ];
+  $("termMetrics").innerHTML = cards.map(([k, v, cls]) =>
+    `<div class="tm-card ${cls || ""}"><div class="k">${esc(k)}</div><div class="v">${v}</div></div>`).join("");
+  const ags = t.adGroupNames || [];
+  $("termMetricsTools").innerHTML =
+    `<span class="pmeta">搜索词：<b>${esc(t.query || "")}</b></span>` +
+    (ags.length ? `<span class="pmeta">广告组：${esc(ags.slice(0, 3).join("、"))}${ags.length > 3 ? ` 等 ${ags.length} 个` : ""}</span>` : "") +
+    (t.found ? "" : `<span class="pmeta warn">⚠ 未在广告数据中匹配到该词（可能已过期）</span>`);
+}
+
+/* ---------------- 亚马逊搜索结果卡片 ---------------- */
+async function loadAmzCards(term, refresh) {
+  const url = `https://www.amazon.co.jp/s?k=${encodeURIComponent(term)}`;
+  $("termAmzOpen").href = url;
+  $("amzCardsMeta").textContent = "查询中…";
+  $("amzCards").innerHTML = `<div class="amz-loading">正在抓取亚马逊搜索结果…（命中缓存立即返回；否则用浏览器加载页面，约 10~25 秒）</div>`;
+  $("termAmzRefresh").disabled = true;
+  try {
+    const p = new URLSearchParams({ query: term });
+    if (refresh) p.set("refresh", "true");
+    const d = await api("/api/amazon/search?" + p.toString());
+    if (d.detail) {
+      $("amzCards").innerHTML = `<div class="amz-loading">抓取失败：${esc(d.detail)}</div>`;
+      $("amzCardsMeta").textContent = "失败";
+      return;
+    }
+    if (d.url) $("termAmzOpen").href = d.url;
+    const items = d.items || [];
+    $("amzCardsMeta").textContent =
+      (d.blocked ? "⚠ 疑似被验证码拦截 · " : "") +
+      `解析 ${d.item_count} 条 · ${d.from_cache ? "缓存" : "实时抓取"} · ${d.fetched_at || ""}`;
+    $("amzCards").innerHTML = items.map(amzCardHtml).join("") ||
+      `<div class="empty">没有抓到搜索结果（可能被验证码拦截，可点「重新抓取」）</div>`;
+    $("amzCards").querySelectorAll("img[data-preview]").forEach((img) => img.onclick = () =>
+      openImagePreview(img.dataset.preview, img.dataset.cap, img.dataset.fallback));
+  } finally {
+    const b = $("termAmzRefresh");
+    if (b) b.disabled = false;
+  }
+}
+
+function amzCardHtml(it) {
+  const img = it.image || it.image_big || "";
+  const big = it.image_big || it.image || "";
+  const price = it.price
+    ? `<div class="card-price">${esc(it.price)}${it.list_price ? `<span class="list">${esc(it.list_price)}</span>` : ""}</div>`
+    : `<div class="card-price">-</div>`;
+  const star = it.rating_value
+    ? `<span class="star">★${esc(it.rating_value)}</span>${it.review_count ? `<span class="rev">(${nf(it.review_count)})</span>` : ""}`
+    : "";
+  const ship = it.delivery ? `<span>${esc(String(it.delivery).slice(0, 24))}</span>` : "";
+  const tags = [it.points, it.coupon, it.discount, it.stock, it.bought_recently]
+    .filter(Boolean).slice(0, 3)
+    .map((x) => `<span class="amz-tag">${esc(String(x).slice(0, 16))}</span>`).join("");
+  const cap = `${it.asin || ""}${it.title ? " · " + it.title : ""}`;
+  return `<div class="amz-card2">
+    <div class="card-img">
+      <span class="card-pos">${esc(String(it.position ?? ""))}</span>
+      ${it.sponsored ? `<span class="card-ad">${esc(it.ad_label || "广告")}</span>` : ""}
+      ${img ? `<img src="${esc(amzMidImage(img, 320))}" loading="lazy" alt=""
+          data-preview="${esc(big)}" data-fallback="${esc(img)}" data-cap="${esc(cap)}">` : ""}
+    </div>
+    <div class="card-body">
+      ${it.brand ? `<div class="card-brand" title="${esc(it.brand)}">${esc(it.brand)}</div>` : ""}
+      <div class="card-title" title="${esc(it.title || "")}">
+        <a class="cell-link" href="${esc(it.url || "#")}" target="_blank" rel="noopener">${esc(it.title || "")}</a>
+      </div>
+      ${price}
+      <div class="card-meta">${star}${ship}</div>
+      <div class="card-tags">${tags}</div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- 独立页面入口 ---------------- */
+async function bootStandalone(sp) {
+  document.body.classList.add("standalone");
+  const page = sp.get("page");
+  const asin = (sp.get("asin") || "").trim();
+  if (page === "terms") {
+    $("termsView").style.display = "";
+    await renderTermsPage(asin);
+  } else if (page === "term") {
+    $("termView").style.display = "";
+    await renderTermPage(asin, (sp.get("term") || "").trim(), sp.get("mt") || "");
+  }
+}
+
+$("termAmzRefresh").onclick = () => {
+  const t = new URLSearchParams(location.search).get("term") || "";
+  if (t) loadAmzCards(t, true);
+};
 
 boot();

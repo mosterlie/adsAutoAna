@@ -166,7 +166,7 @@ def amazon_results(search_id: int = Query(...)) -> Dict[str, Any]:
 
 @router.get("/amazon/metrics")
 def amazon_metrics(asin: str = Query(...), domain: str = "", refresh: bool = False,
-                   ttl: Optional[int] = None) -> Dict[str, Any]:
+                   ttl: Optional[int] = None, images: bool = False) -> Dict[str, Any]:
     """按需补全单个 ASIN 的「星级评分 / 评分数 / 小类目-大类目排名」。
 
     赛狐 product/pageList 里这几列恒为 null, 只能从亚马逊商品页取:
@@ -180,9 +180,15 @@ def amazon_metrics(asin: str = Query(...), domain: str = "", refresh: bool = Fal
     if dm not in amazon.MARKET:
         raise HTTPException(400, f"不支持的站点: {dm}")
     try:
-        return amazon_product.fetch(a, domain=dm, refresh=refresh, ttl=ttl)
+        out = amazon_product.fetch(a, domain=dm, refresh=refresh, ttl=ttl)
     except Exception as e:      # noqa: BLE001
         raise HTTPException(500, f"抓取失败: {str(e)[:200]}")
+    if images:
+        try:
+            out["images"] = db.get_amz_product_images(a, dm)
+        except Exception:       # noqa: BLE001
+            out["images"] = []
+    return out
 
 
 # ---- 产品视角 (产品 -> 广告活动 -> 搜索词 逐级下钻) ----
@@ -221,6 +227,52 @@ def product_terms(campaign_id: str = "", scope: str = "", asin: str = "") -> Dic
     if not a:
         raise HTTPException(400, "campaign_id 与 asin 至少传一个")
     return db.get_parent_terms(a, scope)
+
+
+@router.get("/product/images")
+def product_images(asin: str = Query(...), domain: str = "", crawl: bool = False,
+                   refresh: bool = False, max_children: int = 3) -> Dict[str, Any]:
+    """父 ASIN 的图片(主图 + 全部附图)。
+
+    附图来源: 该父体下**各子 ASIN 商品页**的图廊 —— 子 ASIN 详情页的附图即父 ASIN 的附图。
+    crawl=true 时按需用浏览器抓取父体+子体商品页(受最小间隔限流), 再返回聚合结果。
+    """
+    a = (asin or "").strip()
+    if not a:
+        raise HTTPException(400, "asin 不能为空")
+    dm = domain or config.AMAZON_DOMAIN
+    if dm not in amazon.MARKET:
+        raise HTTPException(400, f"不支持的站点: {dm}")
+    prof = db.get_parent_profile(a, dm)
+    status = {"crawled": [], "failed": []}
+    if crawl:
+        targets = [prof["parent_asin"]] + [k for k in prof["child_asins"]
+                                           if k and k != prof["parent_asin"]]
+        limit = max(1, min(int(max_children or 3), 12))
+        for t in targets[:limit]:
+            try:
+                amazon_product.fetch_images(t, domain=dm, refresh=refresh)
+                status["crawled"].append(t)
+            except Exception as e:      # noqa: BLE001
+                status["failed"].append({t: str(e)[:120]})
+        prof = db.get_parent_profile(a, dm)
+    prof["crawl_status"] = status
+    return prof
+
+
+@router.get("/product/term_detail")
+def product_term_detail(asin: str = Query(...), term: str = Query(...),
+                        match_type: str = "", domain: str = "") -> Dict[str, Any]:
+    """单个搜索词的详情: 父体商品资料(图片/标题/价格) + 该词指标 + 明细变体
+
+    用于「产品视角 → 搜索词 → 点击某个词」弹出的详情页。
+    """
+    a = (asin or "").strip()
+    t = (term or "").strip()
+    if not a or not t:
+        raise HTTPException(400, "asin 与 term 不能为空")
+    dm = domain or config.AMAZON_DOMAIN
+    return db.get_term_detail(a, t, match_type, dm)
 
 
 # ---- 在线产品 (销售 > 在线产品) ----
