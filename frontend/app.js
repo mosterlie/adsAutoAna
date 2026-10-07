@@ -1617,7 +1617,10 @@ function renderOnline() {
 
   $("olPageType").querySelectorAll(".seg-btn").forEach((b) => b.onclick = () => {
     olSetPageType(b.dataset.v);
-    renderOnline(); loadOnlineProducts();
+    // 只切换按钮态, 不做整表重渲染 —— 否则会拿着上一页签的 rows 去请求 AI 品名
+    $("olPageType").querySelectorAll(".seg-btn")
+      .forEach((x) => x.classList.toggle("active", x === b));
+    loadOnlineProducts();
   });
   $("olQuery").onclick = () => { ol.keyword = $("olKw").value.trim(); ol.page = 1; loadOnlineProducts(); };
   $("olKw").onkeydown = (e) => { if (e.key === "Enter") $("olQuery").click(); };
@@ -1723,9 +1726,21 @@ function pollAiLabels(asins) {
     } catch (e) { return; }
     Object.assign(ol.aiLabels || (ol.aiLabels = {}), d.labels || {});
     paintAiLabels();
-    const running = d.job && d.job.running;
-    if (!running || rounds > 90) { clearInterval(_aiPoll); _aiPoll = null; }
-  }, 2000);
+    // 以「本页 ASIN 是否都拿到标签」为准, 不依赖后台任务状态
+    const left = asins.filter((a) => !(ol.aiLabels || {})[a]);
+    if (!left.length || rounds > 120) {
+      clearInterval(_aiPoll); _aiPoll = null;
+      if (left.length) markAiGaveUp();      // 超时仍未生成(如 Ollama 未启动)
+    }
+  }, 1500);
+}
+
+/* 轮询超时仍无结果: 把占位文案改掉, 避免一直显示「解析中…」 */
+function markAiGaveUp() {
+  document.querySelectorAll("#olWrap span[data-ai-asin].ol-ai-empty").forEach((el) => {
+    el.textContent = "—";
+    el.title = "未能解析（请确认本地 Ollama 已启动）";
+  });
 }
 
 function olPager() {

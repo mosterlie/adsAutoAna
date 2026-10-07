@@ -104,27 +104,36 @@ def ensure_labels(asins: List[str], refresh: bool = False) -> Dict[str, Any]:
 
     job = None
     if pending:
-        job = _start(pending, titles)
+        job = _start(items, pending, titles)
     return {"labels": labels, "pending": pending, "job": job}
 
 
-def _start(asins: List[str], titles: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
-    key = "|".join(sorted(asins))
+def _start(all_asins: List[str], pending: List[str],
+           titles: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
+    """启动后台生成
+
+    key 必须用**请求的完整列表**(而不是待生成的子集), 否则前端拿整页
+    ASIN 列表来查 job_state 会因 key 不一致永远查到 running=False。
+    """
+    key = _key_of(all_asins)
     with _LOCK:
         cur = JOBS.get(key)
         if cur and cur.get("running"):
             return {"running": True, "done": cur["done"], "total": cur["total"]}
-        JOBS[key] = {"running": True, "done": 0, "total": len(asins),
+        JOBS[key] = {"running": True, "done": 0, "total": len(pending),
                      "current": "", "ok": 0, "failed": 0, "error": ""}
-    t = threading.Thread(target=_work, args=(key, asins, titles), daemon=True)
+    t = threading.Thread(target=_work, args=(key, pending, titles), daemon=True)
     t.start()
-    return {"running": True, "done": 0, "total": len(asins)}
+    return {"running": True, "done": 0, "total": len(pending)}
+
+
+def _key_of(asins: List[str]) -> str:
+    return "|".join(sorted(str(a).strip() for a in (asins or []) if str(a).strip()))
 
 
 def job_state(asins: List[str]) -> Dict[str, Any]:
-    key = "|".join(sorted(str(a).strip() for a in (asins or []) if str(a).strip()))
     with _LOCK:
-        j = JOBS.get(key)
+        j = JOBS.get(_key_of(asins))
         return dict(j) if j else {"running": False, "done": 0, "total": 0}
 
 
