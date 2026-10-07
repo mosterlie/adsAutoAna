@@ -1905,7 +1905,7 @@ async function renderTermsPage(asin) {
   $("tCrumbs").innerHTML =
     `<span class="cb cur">父 ASIN ${esc(asin)}</span>
      <span class="sep">›</span><span class="cb cur">搜索词</span>
-     <span class="pmeta">点击任意搜索词 → 新页签打开详情</span>`;
+     <span class="pmeta">点击「搜索词」或「详情」按钮 → 新页签打开详情；点击表头可排序</span>`;
   $("tBar").innerHTML = `<div class="pline"><div class="p-tools">
       <span class="ptitle">搜索词</span><span class="pmeta" id="tMeta">加载中…</span>
       <span class="p-tools" id="tScopes"></span>
@@ -1917,20 +1917,26 @@ async function renderTermsPage(asin) {
   const cn = d.counts || {};
   const dim = isStandalone() ? (new URLSearchParams(location.search).get("dim") || "sp:keyword") : "sp:keyword";
 
+  let curScope = dim;
+  // 排序状态(默认按花费倒序); 点表头切换升降序
+  const tSort = { field: "adCost", dir: "desc" };
+
   function paint(scope) {
-    const rows = scope ? all.filter((r) => r.scope === scope) : all;
+    curScope = scope;
+    const filtered = scope ? all.filter((r) => r.scope === scope) : all.slice();
+    const rows = sortRows(filtered, tSort.field, tSort.dir);
     const sum = rows.reduce((a, r) => {
       a.imp += Number(r.impressions || 0); a.clk += Number(r.clicks || 0);
       a.cost += Number(r.adCost || 0); a.ord += Number(r.orderNum || 0); return a;
     }, { imp: 0, clk: 0, cost: 0, ord: 0 });
     $("tMeta").innerHTML =
       `共 <b>${rows.length}</b> 条 · 覆盖 ${d.campaign_count || 0} 个活动 · ` +
-      `花费 <b>${money(sum.cost)}</b> · 曝光 <b>${nf(sum.imp)}</b> · 点击 <b>${nf(sum.clk)}</b> · 订单 <b>${nf(sum.ord)}</b>`;
-    const body = rows.map((r) => `<tr class="t-row" data-q="${esc(r.query || "")}"
-        data-mt="${esc(r.matchType || "")}" style="cursor:pointer"
-        title="点击在新页签打开该搜索词详情">
+      `花费 <b>${money(sum.cost)}</b> · 曝光 <b>${nf(sum.imp)}</b> · 点击 <b>${nf(sum.clk)}</b> · 订单 <b>${nf(sum.ord)}</b>` +
+      `<span class="pmeta sort-hint">　点击表头可排序（再点一次切换升降序）</span>`;
+    const body = rows.map((r) => `<tr class="t-row">
       <td><span class="dim-tag ${r.scope.endsWith("keyword") ? "kw" : "tg"}">${esc(r.dimension)}</span></td>
-      <td class="kw-cell"><span class="amz-link" data-q="${esc(r.query || "")}">${esc(r.query || "")}</span></td>
+      <td class="kw-cell"><span class="amz-link kw-link" data-q="${esc(r.query || "")}"
+          data-mt="${esc(r.matchType || "")}" title="点击在新页签打开该搜索词详情">${esc(r.query || "")}</span></td>
       <td>${esc(r.matchType || "")}</td>
       <td class="num">${r.campaign_count || 1}</td>
       <td class="num">${nf(r.impressions)}</td>
@@ -1938,20 +1944,36 @@ async function renderTermsPage(asin) {
       <td class="num">${money(r.adCost)}</td>
       <td class="num">${r.orderNum ? nf(r.orderNum) : "-"}</td>
       <td class="num">${r.searchFrequencyRank ? nf(r.searchFrequencyRank) : "-"}</td>
-      <td class="num"><button class="btn btn-mini btn-primary" data-open="1">详情 ↗</button></td>
+      <td class="num"><button class="btn btn-mini btn-primary kw-link"
+          data-q="${esc(r.query || "")}" data-mt="${esc(r.matchType || "")}">详情 ↗</button></td>
     </tr>`).join("");
-    $("tWrap").innerHTML = `<table><thead><tr>
-        <th>维度</th><th>搜索词 / 投放 ASIN</th><th>匹配方式</th><th class="num">涉及活动</th>
-        <th class="num">曝光</th><th class="num">点击</th><th class="num">花费</th>
-        <th class="num">订单</th><th class="num">搜索热度</th><th></th>
+    $("tWrap").innerHTML = `<table class="tbl-terms"><thead><tr>
+        ${sortableTh(tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
+        ${sortableTh(tSort, { label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
+        ${sortableTh(tSort, { label: "匹配方式", en: "Match Type", field: "matchType" })}
+        ${sortableTh(tSort, { cls: "num", label: "涉及活动", en: "Campaigns", field: "campaign_count",
+          total: nf(sumBy(rows, "campaign_count")), totalTip: "当前列表涉及活动数合计" })}
+        ${sortableTh(tSort, { cls: "num", label: "曝光", en: "Impressions", field: "impressions",
+          total: nf(sumBy(rows, "impressions")), totalTip: "当前列表曝光合计" })}
+        ${sortableTh(tSort, { cls: "num", label: "点击", en: "Clicks", field: "clicks",
+          total: nf(sumBy(rows, "clicks")), totalTip: "当前列表点击合计" })}
+        ${sortableTh(tSort, { cls: "num", label: "花费", en: "Spend", field: "adCost",
+          total: money(sumBy(rows, "adCost")), totalTip: "当前列表花费合计" })}
+        ${sortableTh(tSort, { cls: "num", label: "订单", en: "Orders", field: "orderNum",
+          total: nf(sumBy(rows, "orderNum")), totalTip: "当前列表订单合计" })}
+        ${sortableTh(tSort, { cls: "num", label: "搜索热度", en: "Search Freq. Rank",
+          field: "searchFrequencyRank", title: "ABA 搜索词排名，数值越小越热门" })}
+        <th class="col-ops"></th>
       </tr></thead><tbody>${body}</tbody></table>` +
       (rows.length ? "" : `<div class="empty">该父体在此维度下没有数据</div>`);
-    // 整行 / 词 / 按钮 都打开新页签
-    $("tWrap").querySelectorAll("tr.t-row").forEach((tr) => {
-      const open = () => openTermPage(asin, tr.dataset.q, tr.dataset.mt);
-      tr.onclick = open;
-      const link = tr.querySelector(".amz-link");
-      if (link) link.onclick = (ev) => { ev.stopPropagation(); open(); };
+    // 排序
+    bindSortHeaders($("tWrap"), tSort, () => paint(curScope));
+    // 仅「搜索词」文字 与「详情」按钮 可跳转（整行不再响应点击）
+    $("tWrap").querySelectorAll(".kw-link").forEach((el) => {
+      el.onclick = (ev) => {
+        ev.stopPropagation();
+        openTermPage(asin, el.dataset.q, el.dataset.mt);
+      };
     });
   }
 
