@@ -879,6 +879,16 @@ def get_online_counts() -> Dict[str, int]:
             "total": get_online_count()}
 
 
+def get_asin_parent_map() -> Dict[str, str]:
+    """子 ASIN -> 父 ASIN 映射 (来自在线产品的变体关系)
+
+    没有变体关系的商品不在映射里, 调用方自行回退为「父=自身」。
+    在线产品未采集时返回空字典, 不影响广告数据。
+    """
+    with get_conn() as conn:
+        return _asin_parent_map(conn)
+
+
 def save_online_meta(k: str, v: Any) -> None:
     with _LOCK, get_conn() as conn:
         conn.execute(

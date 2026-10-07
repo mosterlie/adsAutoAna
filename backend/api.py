@@ -8,7 +8,9 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel
 
 import config
-from backend import ai_label, amazon, amazon_product, crawler, database as db, image_jobs
+from backend import (ai_label, amazon, amazon_prefetch, amazon_product,
+                     amazon_store, amazon_targets, crawler, database as db,
+                     image_jobs)
 from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
@@ -189,6 +191,96 @@ def amazon_metrics(asin: str = Query(...), domain: str = "", refresh: bool = Fal
         except Exception:       # noqa: BLE001
             out["images"] = []
     return out
+
+
+# ---- 亚马逊搜索页「本地文件仓库 + 批量预抓取」 ----
+class AmzPrefetchReq(BaseModel):
+    min_clicks: int = config.AMAZON_PREFETCH_MIN_CLICKS   # 只抓点击量达标的搜索词
+    limit: int = 0              # 0 = 全部达标搜索词
+    refresh: bool = False       # True = 已抓过的也重抓
+    gap_min: Optional[float] = None
+    gap_max: Optional[float] = None
+    screenshot: bool = True
+    scrolls: int = 2
+    images: bool = True         # 是否下载搜索结果里各商品的主图
+    image_limit: int = 0        # 每个搜索词最多下几张主图, 0=全部
+    skip_done_parents: bool = True   # 已标记完成的父 ASIN 整组跳过
+
+
+@router.get("/amazon/targets")
+def amazon_targets_list(min_clicks: Optional[int] = None, limit: int = 2000) -> Dict[str, Any]:
+    """预抓取目标: 点击量达标的搜索词 → 归属父 ASIN → 本地是否已抓
+
+    数据链路: 搜索词 → 广告活动 → 广告产品 ASIN → 在线产品变体关系 → 父 ASIN。
+    抓取按父 ASIN 逐组进行, groups 里给的就是这个顺序与各组完成情况。
+    """
+    mc = config.AMAZON_PREFETCH_MIN_CLICKS if min_clicks is None else min_clicks
+    items = amazon_targets.build(mc)
+    rows = []
+    for t in items[:max(1, min(limit, 5000))]:
+        ent = amazon_store.info(t["query"]) or {}
+        rows.append({
+            "query": t["query"], "clicks": t["clicks"], "adCost": round(t["adCost"], 2),
+            "impressions": t["impressions"], "parents": t["parents"],
+            "asins": t["asins"], "match_types": t["match_types"],
+            "cached": amazon_store.exists(t["query"]),
+            "cached_at": ent.get("fetched_at"),
+            "images": ent.get("images") or {},
+        })
+    pstate = amazon_store.parents_state()
+    groups = amazon_targets.group_by_parent(items)
+    parents = []
+    for g in groups:
+        st = pstate.get(g["parent"]) or {}
+        parents.append({
+            "parent": g["parent"], "terms": len(g["terms"]), "clicks": g["clicks"],
+            "adCost": g["adCost"], "done": bool(st),
+            "images": st.get("images"), "finished_at": st.get("finished_at"),
+        })
+    summ = amazon_targets.summary(items)
+    summ["parents_done"] = len(pstate)
+    return {"min_clicks": mc, "summary": summ, "groups": parents, "rows": rows}
+
+
+@router.get("/amazon/local")
+def amazon_local(parent: str = "", limit: int = 500) -> Dict[str, Any]:
+    """本地仓库概况 + 已缓存的搜索词清单(可按父 ASIN 过滤)
+
+    页面查看某个搜索词时, 只要本地有数据就直接用它, 不再访问亚马逊。
+    """
+    n = max(1, min(limit, 5000))
+    return {"stats": amazon_store.stats(), "rows": amazon_store.list_local(parent)[:n]}
+
+
+@router.post("/amazon/prefetch")
+def amazon_prefetch_start(
+        req: AmzPrefetchReq = Body(default=AmzPrefetchReq())) -> Dict[str, Any]:
+    """批量预抓取「点击量达标」的搜索词 → 按父 ASIN 落本地(后台任务)
+
+    进度查 /amazon/prefetch/state。串行抓取 + 随机间隔 + 批内长休 + 撞验证码退避,
+    断点续抓(本地已有的跳过, 只缺主图则只补图片)。
+    """
+    try:
+        return amazon_prefetch.start(
+            min_clicks=req.min_clicks, limit=req.limit, refresh=req.refresh,
+            gap_min=req.gap_min, gap_max=req.gap_max,
+            screenshot=req.screenshot, scrolls=req.scrolls,
+            images=req.images, image_limit=req.image_limit,
+            skip_done_parents=req.skip_done_parents)
+    except Exception as e:      # noqa: BLE001
+        raise HTTPException(400, str(e))
+
+
+@router.get("/amazon/prefetch/state")
+def amazon_prefetch_state() -> Dict[str, Any]:
+    """预抓取进度(含最近日志与本地文件数)"""
+    return amazon_prefetch.get_state()
+
+
+@router.post("/amazon/prefetch/stop")
+def amazon_prefetch_stop() -> Dict[str, Any]:
+    """停止预抓取(当前这条抓完即退出, 已抓成果保留)"""
+    return amazon_prefetch.stop()
 
 
 # ---- 产品视角 (产品 -> 广告活动 -> 搜索词 逐级下钻) ----

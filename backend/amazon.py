@@ -10,12 +10,17 @@
   * **落库**: 每次真实抓取写入 amz_searches(元信息) + amz_results(明细)。
 """
 import os
+import random
+import socket
+import subprocess
 import threading
 import time
 import urllib.parse
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import config
+from backend import amazon_store
 from backend import database as db
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -27,9 +32,6 @@ MARKET: Dict[str, str] = {
     "de": "https://www.amazon.de",
     "co.uk": "https://www.amazon.co.uk",
 }
-
-SHOT_DIR = os.path.join(config.DATA_DIR, "amazon")
-os.makedirs(SHOT_DIR, exist_ok=True)
 
 # 同一时刻只允许一个抓取任务 (共用浏览器/避免相互打断)
 _LOCK = threading.Lock()
@@ -313,6 +315,11 @@ EXTRACT_JS = r"""
 """
 
 
+# 统计已渲染的结果卡数量 (用于等懒渲染完成, 别只拿到前几张)
+COUNT_JS = ('() => document.querySelectorAll('
+            '\'div.s-main-slot div[data-component-type="s-search-result"]\').length')
+
+
 def search_url(query: str, domain: str = "co.jp") -> str:
     base = MARKET.get(domain, MARKET["co.jp"])
     return f"{base}/s?k={urllib.parse.quote(query)}&language=ja_JP"
@@ -329,18 +336,107 @@ def release_lock() -> None:
 
 
 def pace(min_interval: Optional[float] = None) -> None:
-    """真实抓取的最小间隔限流; 搜索页与商品页共用同一节拍, 更安全"""
+    """真实抓取的最小间隔限流(含随机抖动); 搜索页与商品页共用同一节拍, 更安全
+
+    固定节拍本身也是特征, 所以在最小间隔之上再叠加一段随机等待,
+    让相邻两次访问的时间间隔没有规律可循。
+    """
     global _LAST_REAL_FETCH
     iv = config.AMAZON_MIN_INTERVAL_SEC if min_interval is None else min_interval
-    wait = iv - (time.time() - _LAST_REAL_FETCH)
+    wait = iv + random.uniform(0, max(0.0, config.AMAZON_PACE_JITTER_SEC)) \
+        - (time.time() - _LAST_REAL_FETCH)
     if wait > 0:
         time.sleep(wait)
     _LAST_REAL_FETCH = time.time()
 
 
+def cdp_alive(cdp: str = "", timeout: float = 5) -> bool:
+    """调试 Chrome 的 CDP 端口通不通"""
+    url = cdp or config.CDP_URL
+    host, port = "127.0.0.1", 9222
+    try:
+        u = urlparse(url)
+        host = u.hostname or host
+        port = u.port or port
+    except Exception:       # noqa: BLE001
+        pass
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def find_chrome() -> str:
+    """找一个可用的 Chrome 可执行文件"""
+    for p in config.CHROME_EXE_CANDIDATES:
+        if p and os.path.exists(p):
+            return p
+    return ""
+
+
+def ensure_cdp(cdp: str = "", wait: float = 30.0) -> bool:
+    """确保调试 Chrome 可用: 已在跑就直接用, 没跑就自动拉起
+
+    抓取依赖这个浏览器(真实指纹 + 已登录), 它被关掉时整批都会失败,
+    所以这里做一次自愈: 按同样的参数把调试 Chrome 拉起来再连。
+    """
+    if cdp_alive(cdp):
+        return True
+    if not config.CHROME_AUTO_START:
+        return False
+    exe = find_chrome()
+    if not exe:
+        return False
+    u = urlparse(cdp or config.CDP_URL)
+    port = u.port or 9222
+    args = [exe, f"--remote-debugging-port={port}",
+            f"--user-data-dir={config.CHROME_DEBUG_USER_DATA}",
+            "--no-first-run", "--no-default-browser-check"]
+    try:
+        subprocess.Popen(args, close_fds=True)
+    except Exception:       # noqa: BLE001
+        return False
+    t0 = time.time()
+    while time.time() - t0 < wait:      # 等端口起来
+        if cdp_alive(cdp, timeout=3):
+            time.sleep(1.5)             # 再给浏览器一点初始化时间
+            return True
+        time.sleep(1.5)
+    return False
+
+
+def force_jpy(ctx, page) -> str:
+    """强制亚马逊日本站按**日元**展示
+
+    代理出口 IP 不在日本时, 亚马逊会按美元报价(实测拿到 USD 29.11),
+    而运营看的是日本站真实售价(￥4,598), 所以抓取前统一把币种偏好写成 JPY。
+    返回生效方式(仅用于日志)。
+    """
+    cookie = {"name": "i18n-prefs", "value": "JPY",
+              "domain": ".amazon.co.jp", "path": "/"}
+    try:
+        ctx.add_cookies([cookie])
+        return "cookie"
+    except Exception:       # noqa: BLE001  CDP 接入的浏览器可能不允许 add_cookies
+        pass
+    try:
+        page.context.new_cdp_session(page).send("Network.setCookie", cookie)
+        return "cdp"
+    except Exception:       # noqa: BLE001
+        return ""
+
+
 def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
-                timeout_ms: int) -> Dict[str, Any]:
-    """真正打开浏览器加载页面并抽取 (不加缓存/不落库)"""
+                timeout_ms: int, domain: str = "co.jp") -> Dict[str, Any]:
+    """真正打开浏览器加载页面并抽取 (不加缓存/不落库)
+
+    反爬要点(与限流配合):
+      * 复用用户已登录的调试 Chrome, 浏览器指纹/环境与真人一致;
+      * 加载后不立即取数, 先随机停顿, 再分几步随机滚动(带随机停顿),
+        模拟"翻看列表"的行为, 也让懒加载卡片渲染出来;
+      * 不注入脚本、不改 UA、不做高频重试。
+    """
     from playwright.sync_api import sync_playwright
 
     out: Dict[str, Any] = {"query": query, "url": url, "items": [], "item_count": 0,
@@ -348,34 +444,72 @@ def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
     with sync_playwright() as pw:
         browser = None
         via = ""
+        if not cdp_alive(cdp):
+            ensure_cdp(cdp)             # 浏览器被关了 → 自动拉起来再连
         try:
             browser = pw.chromium.connect_over_cdp(cdp, timeout=15000)
             via = f"cdp:{cdp}"
-        except Exception:       # noqa: BLE001  调试 Chrome 不可用时自起 Chromium
-            browser = pw.chromium.launch(headless=True)
-            via = "headless-chromium"
+        except Exception as e:      # noqa: BLE001
+            try:                    # 退路: 自起 Chromium(需已 playwright install chromium)
+                browser = pw.chromium.launch(headless=True)
+                via = "headless-chromium"
+            except Exception as e2:     # noqa: BLE001
+                raise RuntimeError(
+                    f"连不上调试 Chrome({cdp}): {str(e)[:60]}; 且自带 Chromium 不可用: "
+                    f"{str(e2)[:60]}。请先启动调试 Chrome"
+                    f"(--remote-debugging-port=9222 --user-data-dir=C:\\ChromeDebugUser)"
+                    f"后重试") from e2
 
         connected = via.startswith("cdp")
         if connected and browser.contexts:
             ctx = browser.contexts[0]
         else:
-            ctx = browser.new_context(locale="ja-JP", user_agent=UA,
-                                      viewport={"width": 1440, "height": 900})
+            ctx = browser.new_context(
+                locale="ja-JP", user_agent=UA, timezone_id="Asia/Tokyo",
+                viewport={"width": random.choice([1366, 1440, 1536]),
+                          "height": random.choice([768, 900, 864])})
         page = ctx.new_page()
         try:
+            jpy = force_jpy(ctx, page)      # 代理出口不在日本时亚马逊按美元报价, 统一改成日元
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            # 落地后随机停顿, 避免"请求→立即取数"的机械节奏
+            page.wait_for_timeout(random.randint(600, 1600))
             try:
                 page.wait_for_selector(
                     'div.s-main-slot div[data-component-type="s-search-result"]',
                     timeout=20000)
             except Exception:   # noqa: BLE001  可能遇到验证码
                 pass
-            for _ in range(max(0, scrolls)):
-                page.mouse.wheel(0, 2400)
+            # 等卡片数量稳定: 亚马逊是懒渲染, 只等"第一张出现"就取, 会只拿到前几张
+            last = -1
+            for _ in range(10):             # 最多约 7 秒
+                try:
+                    cur = int(page.evaluate(COUNT_JS) or 0)
+                except Exception:           # noqa: BLE001
+                    cur = 0
+                if cur and cur == last:
+                    break
+                last = cur
                 page.wait_for_timeout(700)
+            # 分几步滚动: 每步距离/停顿都随机
+            for _ in range(max(0, scrolls)):
+                page.mouse.wheel(0, random.randint(1600, 3200))
+                page.wait_for_timeout(random.randint(500, 1300))
 
             data = page.evaluate(EXTRACT_JS)
             low = data.get("bodyText") or ""
+            # 币种兜底: 还是美元就再补一次(页面级 cookie)并刷新一次
+            if "USD" in low and "￥" not in low:
+                try:
+                    page.evaluate("() => { document.cookie = "
+                                  "'i18n-prefs=JPY; domain=.amazon.co.jp; path=/'; }")
+                    page.reload(wait_until="domcontentloaded", timeout=timeout_ms)
+                    page.wait_for_timeout(random.randint(800, 1500))
+                    data = page.evaluate(EXTRACT_JS)
+                    low = data.get("bodyText") or ""
+                    jpy = (jpy + "+reload") if jpy else "reload"
+                except Exception:       # noqa: BLE001  兜底失败就用现有结果
+                    pass
             items = data.get("items") or []
             if config.AMAZON_MAX_ITEMS:
                 items = items[:config.AMAZON_MAX_ITEMS]
@@ -383,11 +517,14 @@ def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
                 "page_title": data.get("pageTitle"),
                 "item_count": data.get("count"),
                 "items": items,
-                "blocked": ("ロボットではない" in low or "Enter the characters" in low),
+                "blocked": ("ロボットではない" in low or "Enter the characters" in low
+                            or "api-services-support@amazon.com" in low),
                 "via": via,
+                "jpy": jpy,
+                "usd": ("USD" in low),          # 记录是否仍是美元(便于排查)
             })
             if screenshot:
-                shot = os.path.join(SHOT_DIR, f"{query[:16]}.png")
+                shot = amazon_store.shot_path(query)
                 page.screenshot(path=shot)
                 out["screenshot"] = shot
         finally:
@@ -398,43 +535,67 @@ def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
 def fetch(query: str, domain: str = "co.jp", cdp: Optional[str] = None,
           scrolls: int = 1, screenshot: bool = False, timeout_ms: int = 45000,
           ttl: Optional[int] = None, refresh: bool = False,
-          use_cache: bool = True) -> Dict[str, Any]:
-    """取搜索结果: 命中缓存则直接返回; 否则限流+抓取+落库。
+          use_cache: bool = True, parents: Optional[List[str]] = None) -> Dict[str, Any]:
+    """取搜索结果: 本地文件/库缓存命中则直接返回; 否则限流+抓取+落本地+落库。
 
-    ttl: 缓存有效期(秒), None 取 config.AMAZON_CACHE_TTL_SEC
-    refresh: True 强制重新抓取(忽略缓存)
+    读取优先级(命中任一层都**不再访问亚马逊**):
+      1) 本地文件仓库 <AMAZON_DATA_DIR>/<父ASIN>/json/<搜索词>.json  → 永久有效;
+      2) SQLite 里 TTL 内的近一次抓取                                  → 兼容历史数据;
+      3) 都没有才真正打开浏览器抓取, 抓完同时写本地文件与库。
+
+    parents: 该搜索词归属的父 ASIN 列表(落本地时按父 ASIN 分目录, 每个父目录各一份)
+    ttl:     库缓存有效期(秒), None 取 config.AMAZON_CACHE_TTL_SEC
+    refresh: True 强制重新抓取(忽略本地文件与库缓存)
     """
     ttl = config.AMAZON_CACHE_TTL_SEC if ttl is None else ttl
     cdp = cdp or config.CDP_URL
     url = search_url(query, domain)
-    # ttl<=0 视为"不使用缓存"
-    want_cache = use_cache and not refresh and ttl > 0
+    want_cache = use_cache and not refresh
+
+    if parents is None:                 # 未指定时自行解析归属父 ASIN
+        try:
+            from backend import amazon_targets
+            parents = amazon_targets.parents_of(query)
+        except Exception:               # noqa: BLE001
+            parents = []
 
     if want_cache:
-        hit = db.get_cached_amazon_search(query, domain, ttl)
+        hit = amazon_store.find(query)
         if hit:
             return hit
+        if ttl > 0:
+            cached = db.get_cached_amazon_search(query, domain, ttl)
+            if cached:
+                cached["from_local"] = False
+                return cached
 
-    global _LAST_REAL_FETCH
     with _LOCK:
-        # 双检: 等锁期间可能已被其它请求抓取并落库
+        # 双检: 等锁期间可能已被其它请求抓取并落盘
         if want_cache:
-            hit = db.get_cached_amazon_search(query, domain, ttl)
+            hit = amazon_store.find(query)
             if hit:
                 return hit
+            if ttl > 0:
+                cached = db.get_cached_amazon_search(query, domain, ttl)
+                if cached:
+                    cached["from_local"] = False
+                    return cached
 
-        # 最小间隔限流
-        wait = config.AMAZON_MIN_INTERVAL_SEC - (time.time() - _LAST_REAL_FETCH)
-        if wait > 0:
-            time.sleep(wait)
+        pace()                  # 最小间隔 + 随机抖动
+        out = _live_fetch(query, url, cdp, scrolls, screenshot, timeout_ms, domain)
+        out["fetched_at"] = db.now()
+        out["from_cache"] = False
+        out["from_local"] = False
 
-        out = _live_fetch(query, url, cdp, scrolls, screenshot, timeout_ms)
-        _LAST_REAL_FETCH = time.time()
-
+        try:                    # 先落本地文件(预抓取的成果), 再落库
+            saved = amazon_store.save_result(query, parents or [], out)
+            out["local_paths"] = saved
+            out["local_path"] = next(iter(saved.values()), None)
+            out["parents"] = parents or []
+        except Exception:       # noqa: BLE001  落本地失败不影响返回
+            out["local_path"] = None
         try:
             out["search_id"] = db.save_amazon_search(query, domain, out)
         except Exception:       # noqa: BLE001  落库失败不影响返回
             out["search_id"] = None
-        out["fetched_at"] = db.now()
-        out["from_cache"] = False
         return out

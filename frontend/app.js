@@ -10,7 +10,8 @@ const state = {
   tab: "", page: 1, pageSize: 200, total: 0,
   columns: [], rows: [], hidden: {}, keyword: "", orderField: "", orderDir: "desc",
   filters: {}, searchField: "", searchMode: "blur", filterMeta: null,
-  amzQuery: "", amzItems: [],
+  amzQuery: "", amzItems: [], amzCached: new Set(),   // amzCached: 本地已抓过的搜索词
+  prefetchRunning: false, prefetchTimer: null,
   polling: null,
 };
 
@@ -77,6 +78,7 @@ async function boot() {
   await Promise.all([loadStatus(), loadShops(), loadPortfolios()]);
   applyDefaultRange();          // loadStatus 拿到快照区间后再对齐一次
   await loadFilterMeta();
+  await loadAmzCached();        // 先拿到"哪些搜索词本地已有", 表格才能标出可直读的词
   await loadAll();
   tick();
   setInterval(tick, 1000);
@@ -93,7 +95,10 @@ function renderTabs() {
   $("tabbar").querySelectorAll(".tab").forEach((el) => el.onclick = () => {
     state.tab = el.dataset.tab; state.page = 1; state.orderField = ""; state.hidden = {};
     state.filters = {}; state.searchField = ""; state.keyword = ""; $("fKeyword").value = "";
-    renderTabs(); renderScopeOptions(); loadFilterMeta().then(loadAll);
+    renderTabs(); renderScopeOptions();
+    // 切到「搜索词」页签时刷新本地缓存清单(后台可能刚抓完新的词)
+    if (state.tab === "search") loadAmzCached().then(loadFilterMeta).then(loadAll);
+    else loadFilterMeta().then(loadAll);
   });
 }
 
@@ -308,16 +313,35 @@ function renderTable() {
 function cellHtml(c, r) {
   const v = fmtCell(c.key, r[c.key]);
   const isTerm = state.tab === "search" && (c.key === "query" || c.key === "keywordText") && r[c.key];
-  if (isTerm) return `<span class="amz-link" data-q="${esc(r[c.key])}" title="点击打开亚马逊搜索结果页并取回数据">${v}</span>`;
+  if (isTerm) {
+    const cached = state.amzCached.has(r[c.key]);
+    const tip = cached
+      ? "已有本地抓取结果：点击直接查看，不会跳转亚马逊"
+      : "本地没有：点击打开亚马逊搜索结果页并取回数据（约 10~25 秒）";
+    return `<span class="amz-link${cached ? " cached" : ""}" data-q="${esc(r[c.key])}"`
+      + ` title="${esc(tip)}">${v}</span>`;
+  }
   return v;
 }
 
-/* 打开亚马逊搜索结果页 + 用浏览器取回该页数据 */
+/* 打开亚马逊搜索结果页 + 用浏览器取回该页数据
+   本地已有结果时不再开新标签, 直接看本地数据 */
 function openAmazon(q) {
   if (!q) return;
-  const url = `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}`;
-  window.open(url, "_blank", "noopener");
+  if (!state.amzCached.has(q)) {
+    const url = `https://www.amazon.co.jp/s?k=${encodeURIComponent(q)}`;
+    window.open(url, "_blank", "noopener");
+  }
   showAmazon(q, false);
+}
+
+/* 拉一次「本地已抓过的搜索词」清单, 用于判断点击时要不要跳亚马逊 */
+async function loadAmzCached() {
+  try {
+    const d = await api("/api/amazon/local?limit=5000");
+    state.amzCached = new Set((d.rows || []).map((r) => r.query).filter(Boolean));
+  } catch (e) { /* 忽略: 拿不到就按"没抓过"处理 */ }
+  return state.amzCached;
 }
 
 /* 亚马逊搜索结果卡: 字段清单(有啥爬啥) —— 顺序即详情面板的展示顺序 */
@@ -382,7 +406,7 @@ async function showAmazon(q, refresh) {
   $("amzMeta").textContent = refresh ? "强制重新抓取中…" : "查询中…";
   $("amzBody").innerHTML = `<div class="amz-loading">${refresh
     ? "正在重新打开亚马逊抓取最新页面…"
-    : "正在查询（命中缓存立即返回；否则用浏览器加载页面，约 10~25 秒）…"}</div>`;
+    : "正在查询（本地已有数据则立即返回；否则才打开浏览器加载，约 10~25 秒）…"}</div>`;
   $("amzModal").classList.add("open");
   $("amzRefresh").disabled = true;
   try {
@@ -395,14 +419,19 @@ async function showAmazon(q, refresh) {
       return;
     }
     if (d.url) $("amzOpen").href = d.url;
-    const src = d.from_cache ? "缓存" : "实时抓取";
+    const src = d.from_local ? "本地文件（未访问亚马逊）"
+      : (d.from_cache ? "库缓存" : "实时抓取");
     const items = d.items || [];
     state.amzItems = items;
     const covered = AMZ_FIELD_LABELS
       .filter(([k]) => items.some((it) => amzVal(it, k))).length;
+    const pa = (d.local_parent || (d.parents || [])[0] || "");
     $("amzMeta").textContent = (d.blocked ? "⚠ 疑似被验证码拦截 · " : "") +
+      (pa ? `父ASIN ${pa} · ` : "") +
       `页面「${d.page_title || ""}」· 解析 ${d.item_count} 条 · ` +
       `抓到 ${covered} 类字段 · ${src} · 抓取于 ${d.fetched_at || "-"} · #${d.search_id || "-"}`;
+    $("amzMeta").title = d.local_path ? "本地文件: " + d.local_path : "";
+    if (!d.blocked) state.amzCached.add(q);      // 已落本地 → 下次点击不再跳亚马逊
     const rows = items.map((it, idx) => {
       const star = it.rating_value
         ? `<b>★${it.rating_value}</b>${it.review_count ? `<span class="amz-rev">(${nf(it.review_count)})</span>` : ""}`
@@ -599,6 +628,79 @@ $("drawerClose").onclick = () => $("drawer").classList.remove("open");
 $("amzClose").onclick = () => $("amzModal").classList.remove("open");
 $("amzModal").onclick = (e) => { if (e.target.id === "amzModal") $("amzModal").classList.remove("open"); };
 $("amzRefresh").onclick = () => { if (state.amzQuery) showAmazon(state.amzQuery, true); };
+
+/* 预抓取: 把「点击量达标」的搜索词提前抓到本地(按父 ASIN 分目录)
+   (串行限速 + 随机间隔 + 断点续抓; 抓完查看搜索词直接读本地, 不再访问亚马逊) */
+async function startPrefetch() {
+  if (!confirm("将按父 ASIN 逐个预抓取点击量达标的搜索词。\n\n"
+    + "· 抓取范围: 点击 >= 2 的搜索词(商品定位已排除)\n"
+    + "· 顺序: 一个父 ASIN 下的词全部抓完, 再抓下一个; 各自标记完成\n"
+    + "· 落盘: <父ASIN>\\json\\<搜索词>.json、<父ASIN>\\主图\\<搜索词>\\、<父ASIN>\\_done.json\n"
+    + "· 售价按日本站日元抓取(￥)\n"
+    + "· 串行抓取, 每个搜索词之间随机间隔 8~15 秒, 每 20 条长休一次\n"
+    + "· 已抓过的词/已完成的父 ASIN 自动跳过\n"
+    + "· 耗时较长, 期间可关闭本窗口, 进度会继续\n\n开始?")) return;
+  const r = await api("/api/amazon/prefetch", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+  });
+  if (r.detail) { toast(r.detail); return; }
+  toast("预抓取已启动 → " + (r.root || "本地目录"));
+  pollPrefetch();
+}
+
+async function stopPrefetch() {
+  const r = await api("/api/amazon/prefetch/stop", { method: "POST" });
+  toast(r.stopping ? "已请求停止, 当前这条抓完即退出" : "任务未在运行");
+}
+
+function renderPrefetch(s) {
+  const btn = $("amzPrefetch");
+  if (btn) btn.textContent = s.running ? "停止预抓取" : "预抓取达标搜索词";
+  if (s.running || s.done) {
+    const loc = s.local || {};
+    $("amzMeta").textContent =
+      `预抓取 父ASIN ${s.parents_done || 0}/${s.parents_total || 0}`
+      + ` · 词 ${s.done}/${s.total}(点击>=${s.min_clicks})`
+      + ` · 新抓 ${s.ok} · 跳过 ${s.skipped} · 失败 ${s.failed}`
+      + ` · 主图 +${s.img_new || 0}`
+      + ` · 本地 ${loc.terms || 0}词/${loc.images || 0}图`
+      + (s.parent ? ` · 当前父ASIN ${s.parent}` : "")
+      + (s.current ? `「${s.current}」` : "");
+    $("amzMeta").title = s.root || "";
+  }
+}
+
+async function pollPrefetch() {
+  const tick = async () => {
+    let s;
+    try { s = await api("/api/amazon/prefetch/state"); } catch (e) { return; }
+    state.prefetchRunning = !!s.running;
+    renderPrefetch(s);
+    if (!s.running) {
+      clearInterval(state.prefetchTimer); state.prefetchTimer = null;
+      toast(`预抓取结束: 新抓 ${s.ok} · 跳过 ${s.skipped} · 失败 ${s.failed}`);
+      loadAmzCached().then(() => { if (state.tab === "search") renderTable(); });
+      if (state.amzQuery && $("amzModal").classList.contains("open")) {
+        showAmazon(state.amzQuery, false);      // 重新读一次, 现在应命中本地文件
+      }
+    }
+  };
+  if (state.prefetchTimer) return;
+  state.prefetchTimer = setInterval(tick, 2000);
+  tick();
+}
+
+$("amzPrefetch").onclick = () => (state.prefetchRunning ? stopPrefetch() : startPrefetch());
+
+/* 打开页面时同步一次预抓取状态: 后台正在跑(比如服务端/命令行启的)就自动开始显示进度 */
+async function initPrefetchState() {
+  try {
+    const s = await api("/api/amazon/prefetch/state");
+    state.prefetchRunning = !!s.running;
+    renderPrefetch(s);
+    if (s.running) pollPrefetch();
+  } catch (e) { /* 忽略: 不影响主流程 */ }
+}
 
 /* 图片大图预览 (产品视角/在线产品 的缩略图)
    赛狐给的主图是 75px 缩略图(URL 里带 ._SL75_ 之类的尺寸后缀)。
@@ -2348,3 +2450,4 @@ $("termAmzRefresh").onclick = () => {
 };
 
 boot();
+initPrefetchState();      // 页面打开就同步预抓取进度(有任务在跑时自动显示)

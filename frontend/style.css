@@ -146,6 +146,9 @@ td.name{font-weight:500;color:#1f2d3d}
 /* 亚马逊搜索结果弹层 */
 .amz-link{color:var(--blue);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .amz-link:hover{color:var(--blue-d)}
+/* 本地已有抓取结果的搜索词: 点击直接读本地, 不跳亚马逊 (绿色 + 实线提示) */
+.amz-link.cached{color:var(--green);text-decoration-color:var(--green);text-decoration-style:solid}
+.amz-link.cached:hover{color:#018a4e}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;z-index:70;
   align-items:center;justify-content:center;padding:24px}
 .modal.open{display:flex}
