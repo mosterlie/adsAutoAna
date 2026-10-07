@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛狐ERP - 广告管理</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<!-- 顶层导航 (一级菜单已去掉, 只保留品牌与登录态) -->
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span>
+    <span class="logo-sub">广告管理</span></div>
+  <div class="topbar-right">
+    <span id="clock" class="clock">--:--:--</span>
+    <button class="btn btn-ghost" id="btnSyncCookie" title="从调试 Chrome 同步登录态">同步登录态</button>
+  </div>
+</header>
+
+<!-- 二级页头 -->
+<div class="subhead">
+  <div class="subhead-left">
+    <div class="seg" id="viewSwitch">
+      <button class="seg-btn active" data-view="table">数据表格</button>
+      <button class="seg-btn" data-view="product">产品视角</button>
+      <button class="seg-btn" data-view="online">在线产品</button>
+    </div>
+    <button class="btn btn-primary" id="btnCrawl">同步数据</button>
+  </div>
+  <div class="subhead-right">
+    <span id="lastUpdated" class="muted">数据未同步</span>
+  </div>
+</div>
+
+<!-- ================= 表格视角 ================= -->
+<div id="tableView">
+
+<!-- 页签 -->
+<div class="tabbar" id="tabbar"></div>
+
+<!-- 筛选区 -->
+<div class="panel">
+  <div class="filters" id="filters">
+    <div class="fld"><label>店铺</label>
+      <select id="fShop"><option value="">全部店铺</option></select>
+    </div>
+    <div class="fld"><label>时间范围</label>
+      <input type="date" id="fStart">
+      <span class="tilde">~</span>
+      <input type="date" id="fEnd">
+    </div>
+    <div class="fld"><label>广告类型</label>
+      <select id="fScope"><option value="">全部</option></select>
+    </div>
+    <div class="fld"><label>搜索字段</label>
+      <select id="fSearchField"><option value="">全部字段</option></select>
+    </div>
+    <div class="fld"><label>匹配</label>
+      <select id="fSearchMode">
+        <option value="blur">模糊</option>
+        <option value="exact">精确</option>
+      </select>
+    </div>
+    <div class="fld grow"><label>关键词</label>
+      <input type="text" id="fKeyword" placeholder="输入关键词后点查询">
+    </div>
+    <div class="fld">
+      <button class="btn btn-primary" id="btnQuery">查询</button>
+      <button class="btn" id="btnReset">重置</button>
+    </div>
+  </div>
+
+  <!-- 动态高级筛选 (按当前页签数据自动生成) -->
+  <div class="filters adv" id="advFilters"></div>
+
+  <!-- 统计条 -->
+  <div class="chips" id="chips"></div>
+</div>
+
+<!-- 主体: 左树 + 右表 -->
+<div class="main">
+  <aside class="sidebar">
+    <div class="side-tabs"><span class="active">广告组合</span><span>标签</span></div>
+    <div class="side-search"><input id="fPortfolio" placeholder="搜索广告组合"></div>
+    <ul class="tree" id="tree"></ul>
+  </aside>
+
+  <section class="content">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="btn" id="btnExport">导出 CSV</button>
+        <button class="btn" id="btnRefresh">刷新</button>
+        <span class="sel-info" id="selInfo">已选 0 条</span>
+      </div>
+      <div class="toolbar-right">
+        <div class="col-menu" id="colMenu"></div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="grid">
+        <thead><tr id="headRow"></tr></thead>
+        <tbody id="bodyRow"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none">暂无数据</div>
+    </div>
+
+    <div class="pager">
+      <span id="pagerTotal">共 0 条</span>
+      <select id="pageSize">
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+        <option value="200" selected>200条/页</option>
+      </select>
+      <button class="btn btn-mini" id="prevPage">上一页</button>
+      <span id="pageInfo">1 / 1</span>
+      <button class="btn btn-mini" id="nextPage">下一页</button>
+      <span>前往</span><input type="number" id="jumpPage" class="jump" value="1"><span>页</span>
+    </div>
+  </section>
+</div>
+
+</div><!-- /表格视角 -->
+
+<!-- ================= 产品视角: 产品 -> 广告活动 -> 搜索词 (逐级下钻) ================= -->
+<div id="productView" style="display:none">
+  <div class="crumbs" id="pCrumbs"></div>
+  <div class="panel p-bar" id="pBar"></div>
+  <section class="p-content">
+    <div class="table-wrap p-wrap" id="pWrap"></div>
+  </section>
+</div>
+
+<!-- ================= 在线产品: 销售 > 在线产品 (1:1 复刻) ================= -->
+<div id="onlineView" style="display:none">
+  <div class="panel p-bar" id="olBar"></div>
+  <section class="p-content">
+    <div class="table-wrap p-wrap" id="olWrap"></div>
+  </section>
+</div>
+
+<!-- 商品详情抽屉 -->
+<div class="ol-detail" id="olDetail">
+  <div class="ol-detail-head">
+    <b id="olDetailTitle">商品详情</b>
+    <span class="close" id="olDetailClose">×</span>
+  </div>
+  <div class="ol-detail-body" id="olDetailBody"></div>
+</div>
+
+<!-- 亚马逊搜索结果弹层 (点击搜索词触发) -->
+<div class="modal" id="amzModal">
+  <div class="modal-card amz-card">
+    <div class="modal-head">
+      <b id="amzTitle">亚马逊搜索结果</b>
+      <span class="close" id="amzClose">×</span>
+    </div>
+    <div class="modal-tools">
+      <a class="link" id="amzOpen" target="_blank" rel="noopener">在亚马逊打开该搜索页 ↗</a>
+      <button class="btn btn-mini" id="amzRefresh">重新抓取</button>
+      <button class="btn btn-mini" id="amzExpandAll">展开全部详情</button>
+      <span class="muted" id="amzMeta"></span>
+    </div>
+    <div class="modal-body" id="amzBody"></div>
+  </div>
+</div>
+
+<!-- 同步进度抽屉 -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><b>同步进度</b><span class="close" id="drawerClose">×</span></div>
+  <pre class="drawer-body" id="drawerBody"></pre>
+</div>
+
+<!-- 子 ASIN 列表弹层 (点击产品视角的「子ASIN」列触发) -->
+<div class="modal" id="kidModal">
+  <div class="modal-card kid-card">
+    <div class="modal-head">
+      <b id="kidTitle">子 ASIN</b>
+      <span class="close" id="kidClose">×</span>
+    </div>
+    <div class="modal-tools kid-tools">
+      <span class="kid-meta" id="kidMeta"></span>
+      <span class="kid-legend"><i class="dot-ad"></i>蓝底＝正在投放广告</span>
+      <input type="text" id="kidFilter" placeholder="筛选 ASIN">
+    </div>
+    <div class="modal-body kid-body" id="kidBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 图片大图预览 (点击商品缩略图触发) -->
+<div class="img-preview" id="imgPreview">
+  <img id="imgPreviewImg" src="" alt="商品大图">
+  <div class="img-preview-cap" id="imgPreviewCap"></div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

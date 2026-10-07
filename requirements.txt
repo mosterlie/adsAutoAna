@@ -1,0 +1,5 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+requests>=2.31
+# 仅用于「从调试 Chrome 同步登录 Cookie」(可选)
+playwright>=1.40

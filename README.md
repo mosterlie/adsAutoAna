@@ -1,0 +1,119 @@
+# 赛狐广告数据平台 (adsAutoAna)
+
+爬取 **赛狐ERP → 广告管理** 下全部子菜单数据并落库, 并附带一套 **复刻赛狐样式/布局** 的前端页面。
+
+- **采集方式**: 后端 `requests` 直连接口 (非 DOM 解析), 依赖登录 Cookie
+- **时间范围**: 2026-08-01 ~ 今天 (可配置)
+- **其他筛选**: 全状态 (status / servingStatus 全部置空)
+- **覆盖页签**: 广告组合 / 广告活动 / 广告组 / 广告产品 / 投放 / 搜索词 / 否定投放 / 广告位 / 广告日志
+
+---
+
+## 一、目录结构
+
+```
+adsAutoAna/
+├── run.py                      # 启动服务 (uvicorn)
+├── scripts_sync_cookies.py     # 从调试 Chrome 同步登录 Cookie
+├── config.py                   # 全局配置 (DB/接口/默认时间范围)
+├── requirements.txt
+├── backend/
+│   ├── sellfox_client.py       # 赛狐接口客户端 (页签定义 + 请求体 + 字段中文名)
+│   ├── crawler.py              # 采集编排 (店铺→页签→分页→落库)
+│   ├── database.py             # SQLite 落库/查询
+│   ├── cookies.py              # Cookie 管理 (落盘/读取/从浏览器同步)
+│   ├── api.py                  # FastAPI 路由
+│   └── main.py                 # 服务入口 (API + 静态前端)
+├── frontend/                   # 复刻赛狐样式的页面
+│   ├── index.html / style.css / app.js
+├── data/                       # ads.db / cookies.json / logs/
+└── explore/                    # 逆向分析脚本与产物 (可选)
+```
+
+---
+
+## 二、快速开始
+
+```bash
+cd adsAutoAna
+python3 -m pip install -r requirements.txt
+
+# 1) 启动调试 Chrome (已登录赛狐)
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --remote-debugging-port=9222 --user-data-dir="$HOME/ChromeDebugUser"
+
+# 2) 同步登录态 → data/cookies.json
+python3 scripts_sync_cookies.py
+
+# 3) 启动服务
+python3 run.py            # http://127.0.0.1:8320
+```
+
+打开 http://127.0.0.1:8320 , 点击「**同步数据**」即开始采集 (后台线程, 右下角显示进度)。
+
+---
+
+## 三、接口
+
+### 采集控制
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/crawl` | 启动采集 `{start_date,end_date,tabs?,shop_ids?,cookie_string?}` |
+| GET  | `/api/crawl/state` | 采集进度/日志 |
+| GET  | `/api/crawl/runs` | 最近一次采集批次 |
+| POST | `/api/cookies/sync` | 从 9222 调试 Chrome 同步 Cookie |
+| POST | `/api/cookies` | 手动粘贴 Cookie 字符串 |
+
+### 数据查询
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/tabs` | 页签元数据 (含可用维度 sp/sb/sd) |
+| GET | `/api/status` | 各页签落库数量 / 最近同步时间 |
+| GET | `/api/shops` `/api/portfolios` | 店铺 / 广告组合 |
+| GET | `/api/records` | 分页查询 `tab,page,page_size,keyword,shop_id,scope,order_field,order_dir` |
+| GET | `/api/stats` | 统计条 (有成交/有点击无成交/有曝光无点击/无曝光) |
+
+---
+
+## 四、采集原理 (实测逆向)
+
+所有数据接口统一前缀:
+
+```
+POST https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/<...>
+Headers: Content-Type: application/json / Origin / Referer
+鉴权:    登录 Cookie (关键 sf_u)
+分页:    pageNo / pageSize(<=200), 响应 data.page.{rows,totalSize,totalPage}
+```
+
+| 页签 | 列表接口 | 唯一键 |
+| --- | --- | --- |
+| 广告组合 | `multiple/portfolio/getAllPortfolioData` | portfolioId |
+| 广告活动 | `campaign/getAllCampaignData` | campaignId |
+| 广告组 | `multiple/group/getAllGroupData` | adGroupId |
+| 广告产品 | `multiple/adProduct/getAdProductList` | id |
+| 投放 | `multiple/target/getAllTargetData` | targetId |
+| 搜索词 | `multiple/search/getAllSearchData` | queryId |
+| 否定投放 | `multiple/neTarget/getAllNeTargetData` | id |
+| 广告位 | `multiple/placement/getAllPlacementData` | placementId |
+| 广告日志 | `log/sellfoxAndAuto/getPage` | id |
+
+- 店铺/广告组合来源: `commonMultiShop/getPortfolioListProductRight`
+- `pageSign` 参数**非必需**; 广告类型维度通过 `adType`/`type`/`types` 字段切换 (sp/sb/sd)
+- sb/sd 在部分店铺/页签不受支持, 接口返回业务错误 → 采集层已优雅跳过
+
+---
+
+## 五、数据表
+
+| 表 | 说明 |
+| --- | --- |
+| `ad_records` | 全量记录 (tab, scope, shop_id, biz_key, raw_json, 唯一键去重) |
+| `ad_stats` | 各页签汇总 (aggregate) 原始响应 |
+| `ad_shops` / `ad_portfolios` | 店铺 / 广告组合 |
+| `crawl_runs` | 采集批次 (状态/耗时/数量) |
+
+展示字段: 完整行存于 `raw_json`, 表头中文名由 `backend/sellfox_client.py: FIELD_LABELS` 映射,
+未知字段回落为原始 key。

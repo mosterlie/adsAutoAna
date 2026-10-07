@@ -1,0 +1,26 @@
+# ── 数据与凭证 (严禁入库) ──
+data/
+*.db
+*.sqlite
+cookies.json
+*cookie*.json
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── 逆向分析产物 (截图/抓包样本, 含业务数据) ──
+explore/*.png
+explore/*.json
+explore/shots/
+explore/**/*.png
+
+# ── 系统/IDE ──
+.DS_Store
+.idea/
+.vscode/
+*.log
