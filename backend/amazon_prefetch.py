@@ -90,12 +90,8 @@ def cdp_ok(cdp: str = "") -> bool:
         return False
 
 
-def net_ok(host: str = "www.amazon.co.jp", port: int = 443, timeout: float = 8) -> bool:
-    """能不能到亚马逊(抓取前先探一下, 免得把整批都跑成失败)
-
-    配了代理就必须**走代理**测: 浏览器自动走系统代理, 直连 socket 测不出真实情况。
-    亚马逊对非浏览器 TLS 指纹常给 503/403, 所以只要拿到 HTTP 响应就算通。
-    """
+def _net_once(host: str = "www.amazon.co.jp", port: int = 443,
+              timeout: float = 8) -> bool:
     pm = config.proxy_map()
     if pm:
         try:
@@ -109,6 +105,40 @@ def net_ok(host: str = "www.amazon.co.jp", port: int = 443, timeout: float = 8) 
         with socket.create_connection((host, port), timeout=timeout):
             return True
     except OSError:
+        return False
+
+
+def net_ok(retries: int = 3) -> bool:
+    """Python(requests)侧能不能到亚马逊 —— 主图下载走这条路
+
+    代理会抖动, 一次失败不代表真断, 所以失败后重试几次再下结论。
+    """
+    for i in range(max(1, retries)):
+        if _net_once():
+            return True
+        if i < retries - 1:
+            time.sleep(3)
+    return False
+
+
+def browser_ok(timeout_ms: int = 30000) -> bool:
+    """浏览器能不能打开亚马逊 —— 页面抓取真正走的是这条路
+
+    代理抖动时 Python 侧可能连不上, 但浏览器(走系统代理)照样能抓页面;
+    此时只影响主图下载, 不该因此把整批中止。
+    """
+    from playwright.sync_api import sync_playwright
+    try:
+        with sync_playwright() as pw:
+            b = pw.chromium.connect_over_cdp(config.CDP_URL, timeout=15000)
+            page = b.contexts[0].new_page()
+            try:
+                page.goto("https://www.amazon.co.jp/", wait_until="domcontentloaded",
+                          timeout=timeout_ms)
+                return True
+            finally:
+                page.close()
+    except Exception:       # noqa: BLE001
         return False
 
 
@@ -170,11 +200,16 @@ def _worker(min_clicks: int, limit: int, refresh: bool, gap_min: float, gap_max:
 
     # 先探一下网络: 连不上就别把整批都跑成失败
     if not net_ok():
-        _log("✗ 连不上 www.amazon.co.jp:443(网络不通或被墙), 本次不抓; "
-             "网络恢复后重跑即可(已抓成果保留)")
-        _set(running=False, error="网络不通: www.amazon.co.jp:443",
-             finished_at=db.now())
-        return
+        # Python 侧不通还可能只是代理抖动; 页面抓取走浏览器, 以浏览器为准
+        if browser_ok():
+            _log("! Python 侧到亚马逊不通(代理抖动?), 但浏览器可正常打开 → "
+                 "继续抓页面; 主图下载可能失败, 稍后重跑会自动补")
+        else:
+            _log("✗ 连不上 www.amazon.co.jp(网络不通或被墙), 本次不抓; "
+                 "网络恢复后重跑即可(已抓成果保留)")
+            _set(running=False, error="网络不通: www.amazon.co.jp",
+                 finished_at=db.now())
+            return
 
     # 再探浏览器: 抓取走的是调试 Chrome, 没开着就自动拉起(拉不起来才放弃)
     if not cdp_ok():
