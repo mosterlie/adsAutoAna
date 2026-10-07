@@ -1025,51 +1025,59 @@ def get_amz_product_images(asin: str, domain: str = "co.jp") -> List[Dict[str, A
 
 
 def get_parent_images(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
-    """父 ASIN 的附图集合 = 自身 + 全部子 ASIN 的商品页图片合集(去重)
+    """父 ASIN 的附图 = **某一个子 ASIN** 商品页的**全部**图片
 
-    需求: 子 ASIN 详情页的附图作为父 ASIN 的附图, 父 ASIN 详情页展示全部附图。
+    需求: 只取一个子 ASIN 的详情页附图作为父 ASIN 的附图, 但要把它取全。
+    因此这里固定挑一个「图片源子 ASIN」:
+      子体按顺序取第一个已抓到图片的; 都没抓到则取第一个子体作为待抓源;
+      没有子体时回退父体自身。
     """
     domain = domain or "co.jp"
     with get_conn() as conn:
         child2parent = _asin_parent_map(conn)
         parent = child2parent.get(asin, asin)
         kids = sorted(a for a, p in child2parent.items() if p == parent)
-        for a in (parent, asin):
-            if a and a not in kids:
-                kids.append(a)
+        if parent not in kids:
+            kids.append(parent)
 
-    ph = ",".join("?" * len(kids))
+    # 候选顺序: 子体优先(需求要求取子 ASIN), 父体兜底
+    candidates = [a for a in kids if a != parent] or [parent]
+
     with get_conn() as conn:
-        rows = conn.execute(
-            f"SELECT asin, position, thumb, large, source FROM amz_product_images "
-            f"WHERE domain=? AND asin IN ({ph}) ORDER BY asin, position",
-            [domain] + kids).fetchall()
+        counts = {r["asin"]: r["c"] for r in conn.execute(
+            f"SELECT asin, COUNT(*) c FROM amz_product_images "
+            f"WHERE domain=? AND asin IN ({','.join('?' * len(candidates))}) GROUP BY asin",
+            [domain] + candidates)}
+        crawled_set = {r["asin"] for r in conn.execute(
+            f"SELECT asin FROM amz_image_crawls "
+            f"WHERE domain=? AND asin IN ({','.join('?' * len(candidates))})",
+            [domain] + candidates)}
 
-    by_asin: Dict[str, List[Dict[str, Any]]] = {}
+    source = next((a for a in candidates if counts.get(a)), None) or candidates[0]
+    rows = []
+    with get_conn() as conn:
+        if source:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT asin, position, thumb, large, source FROM amz_product_images "
+                "WHERE domain=? AND asin=? ORDER BY position", (domain, source)).fetchall()]
+
+    # 「取全」: 同源页面内按原图 URL 去重(不同尺寸后缀视为同一张)
     seen = set()
-    merged: List[Dict[str, Any]] = []
-    for r in rows:
-        d = dict(r)
-        by_asin.setdefault(d["asin"], []).append(d)
-        key = d["large"]
-        if key in seen:
+    images: List[Dict[str, Any]] = []
+    for d in rows:
+        key = str(d.get("large") or "")
+        if not key or key in seen:
             continue
         seen.add(key)
-        merged.append(d)
+        images.append(d)
 
-    # 已抓取(含抓空)的子体 -> 判断是否已全量覆盖
-    crawled: List[str] = []
-    with get_conn() as conn:
-        for r in conn.execute(
-                f"SELECT asin FROM amz_image_crawls WHERE domain=? AND asin IN ({ph})",
-                [domain] + kids):
-            crawled.append(r["asin"])
-    pending = [a for a in kids if a not in crawled]
+    pending = [source] if source and source not in crawled_set else []
     return {"asin": asin, "parent_asin": parent, "domain": domain,
-            "child_asins": kids, "count": len(merged),
-            "images": merged, "by_asin": by_asin,
-            "sources": list(by_asin.keys()),
-            "crawled": crawled, "crawled_count": len(crawled),
+            "child_asins": kids, "count": len(images),
+            "images": images, "by_asin": ({source: images} if images else {}),
+            "sources": ([source] if images else []),
+            "source_asin": source,
+            "crawled": sorted(crawled_set), "crawled_count": len(crawled_set),
             "pending": pending, "pending_count": len(pending)}
 
 
@@ -1148,6 +1156,16 @@ def _to_float(v: Any) -> float:
         return float(v or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _median(vals: List[float]) -> float:
+    """中位数 (空列表返回 0)"""
+    xs = sorted(float(v) for v in (vals or []))
+    n = len(xs)
+    if not n:
+        return 0.0
+    mid = n // 2
+    return xs[mid] if n % 2 else (xs[mid - 1] + xs[mid]) / 2.0
 
 
 def _term_counts_by_campaign(conn, tab: str = "search") -> Dict[str, Dict[str, int]]:
@@ -1282,7 +1300,7 @@ def get_products(keyword: str = "", order_field: str = "ad_cost",
         d = agg.setdefault(parent, {
             "asin": parent, "parent_asin": parent, "title": "", "img_url": "",
             "sku": "", "price": "",
-            "_kids": set(), "_camps": set(),
+            "_kids": set(), "_camps": set(), "_prices": [],
             "ad_cost": 0.0, "impressions": 0.0, "clicks": 0.0,
             "ad_sales": 0.0, "order_num": 0.0, "active_campaign_count": 0,
         })
@@ -1295,6 +1313,13 @@ def get_products(keyword: str = "", order_field: str = "ad_cost",
             d["sku"] = r["sku"]
         if not d["price"] and r.get("price"):
             d["price"] = r["price"]
+        # 收集各子体的售价, 供父 ASIN 取中位数
+        try:
+            pv = float(str(r.get("price")).replace(",", ""))
+            if pv > 0:
+                d["_prices"].append(pv)
+        except (TypeError, ValueError):
+            pass
         cid = str(r.get("campaignId") or "")
         if cid:
             d["_camps"].add(cid)
@@ -1335,6 +1360,12 @@ def get_products(keyword: str = "", order_field: str = "ad_cost",
         d["ctr"] = (d["clicks"] / d["impressions"]) if d["impressions"] else 0.0
         d["acos"] = (d["ad_cost"] / d["ad_sales"]) if d["ad_sales"] else 0.0
         d["cvr"] = (d["order_num"] / d["clicks"]) if d["clicks"] else 0.0
+        # 父 ASIN 售价 = 该父体下全部子体售价的**中位数**
+        prices = d.pop("_prices", [])
+        d["price_median"] = _median(prices)
+        d["price_child_count"] = len(prices)
+        if not d["price"] and d["price_median"]:
+            d["price"] = f"{d['price_median']:.2f}"
         rows.append(d)
 
     if keyword:
@@ -1356,7 +1387,7 @@ def get_products(keyword: str = "", order_field: str = "ad_cost",
         "term_campaign_count", "search_term_count",
         "keyword_term_count", "targeting_term_count",
         "child_count", "all_child_count",
-        "ctr", "acos", "cvr",
+        "ctr", "acos", "cvr", "price_median", "price_child_count",
     }
     TEXT_KEYS = {"asin", "parent_asin", "sku", "title"}
     key = order_field if order_field in (NUM_KEYS | TEXT_KEYS) else "ad_cost"
@@ -1396,6 +1427,9 @@ def _sum_product_rows(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "ctr": (clk / imp) if imp else 0.0,
         "acos": (cost / sales) if sales else 0.0,
         "cvr": (orders / clk) if clk else 0.0,
+        # 售价列不给"合计"(无意义), 表头显示各父体售价中位数
+        "price_median": _median([r.get("price_median") for r in rows
+                                 if r.get("price_median")]) if rows else 0.0,
     }
 
 
@@ -1493,6 +1527,17 @@ def get_parent_terms(asin: str, scope: str = "", limit: int = 2000) -> Dict[str,
            "AND json_extract(raw_json,'$.campaignId') IN (" + ph + ")")
     with get_conn() as conn:
         raw = conn.execute(sql, list(cids)).fetchall()
+        # ABA 搜索词排名: 部分活动/行不带该字段, 用「全库同名词」的排名回填, 提升覆盖率
+        rank_map: Dict[str, Any] = {}
+        for r in conn.execute("SELECT raw_json FROM ad_records WHERE tab='search'"):
+            try:
+                dd = json.loads(r["raw_json"])
+            except Exception:       # noqa: BLE001
+                continue
+            q = str(dd.get("query") or "")
+            rk = dd.get("searchFrequencyRank")
+            if q and rk not in (None, "", 0, "0") and q not in rank_map:
+                rank_map[q] = rk
 
     merged: Dict[tuple, Dict[str, Any]] = {}
     for r in raw:
@@ -1524,6 +1569,9 @@ def get_parent_terms(asin: str, scope: str = "", limit: int = 2000) -> Dict[str,
     for m in merged.values():
         m["campaign_count"] = len(m.pop("_cids"))
         m["adGroupNames"] = sorted(m["adGroupNames"])
+        # ABA 排名缺失时用全库同名词回填
+        if m["searchFrequencyRank"] in (None, "", 0, "0"):
+            m["searchFrequencyRank"] = rank_map.get(str(m.get("query") or ""))
         all_rows.append(m)
     all_rows.sort(key=lambda r: -r["adCost"])
 
@@ -1596,11 +1644,12 @@ def get_parent_profile(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
         pass
 
     imgs = get_parent_images(parent, domain)
+    source_asin = imgs.get("source_asin") or ""
     all_imgs = imgs.get("images") or []
-    # 主图 = 父 ASIN 自己的主图(没有则取第一张); 其余为「附图」
+    # 主图 = 图片来源子 ASIN 的主图; 其余为「附图」
     main = ""
     for im in all_imgs:
-        if im.get("asin") == parent and im.get("source") == "main":
+        if im.get("source") == "main":
             main = im["large"]
             break
     if not main and all_imgs:
@@ -1614,11 +1663,13 @@ def get_parent_profile(asin: str, domain: str = "co.jp") -> Dict[str, Any]:
         "price": amz.get("price") or prod.get("price") or "",
         "price_from": "amazon" if amz.get("price") else ("sellfox" if prod.get("price") else ""),
         "main_image": main or fallback_img,
-        "images": extra,                       # 附图(不含主图, 已跨子体去重)
+        "images": extra,                       # 附图 = 来源子体的其余图片(不含主图)
         "image_count": len(extra),             # 附图张数
-        "image_total": len(all_imgs),          # 含主图的总张数
+        "image_total": len(all_imgs),          # 来源子体商品页图片总数
         "images_by_asin": imgs.get("by_asin") or {},
         "image_asins": imgs.get("sources") or [],
+        "image_source_asin": source_asin,      # 图片来源子 ASIN
+        "image_source_crawled": source_asin in (imgs.get("crawled") or []),
         "child_count": len(kids),
         "crawled_count": imgs.get("crawled_count") or 0,
         "pending_asins": imgs.get("pending") or [],

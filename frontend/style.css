@@ -277,13 +277,14 @@ td.name{font-weight:500;color:#1f2d3d}
    注意: 所有列都必须显式给宽度。table-layout:fixed 下未指定宽度的列会被压到极窄,
    数字会**溢出到相邻单元格**造成重叠(花费/曝光 曾经就是这样)。
    表宽 = 各列之和 → 容器不够宽时由 .p-wrap 横向滚动。 */
-#pWrap table.tbl-products{table-layout:fixed;width:100%;min-width:1720px}
+#pWrap table.tbl-products{table-layout:fixed;width:100%;min-width:1840px}
 #pWrap table.tbl-products th{white-space:normal;line-height:1.25;vertical-align:middle}
 #pWrap .col-img{width:52px}
 #pWrap .col-asin{width:128px}
 #pWrap .col-sku{width:92px}
 #pWrap .col-kid{width:200px}
 #pWrap .col-title{width:140px}
+#pWrap .col-price{width:112px}
 #pWrap .col-kids{width:76px}
 #pWrap .col-camp{width:86px}
 #pWrap .col-terms{width:86px}

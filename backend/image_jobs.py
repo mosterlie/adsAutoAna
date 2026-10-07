@@ -52,13 +52,10 @@ def start(asin: str, domain: str = "", refresh: bool = False,
 
     prof = db.get_parent_profile(asin, dm)
     parent = prof["parent_asin"]
-    if refresh:
-        targets: List[str] = [parent] + [c for c in prof["child_asins"] if c != parent]
-    else:
-        # 只抓未抓过的 (父体 + 子体)
-        targets = [a for a in prof.get("pending_asins") or []]
-        if parent not in (prof.get("crawled") or []) and parent not in targets:
-            targets.insert(0, parent)
+    # 只抓「图片来源子 ASIN」一个商品页(需求: 只取某一个子 ASIN 的全部附图)
+    source = prof.get("image_source_asin") or parent
+    pending = prof.get("pending_asins") or []
+    targets: List[str] = [source] if (refresh or source in pending) else []
     if max_children and max_children > 0:
         targets = targets[:max_children]
 

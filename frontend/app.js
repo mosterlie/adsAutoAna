@@ -924,6 +924,7 @@ function renderProducts() {
       <td class="col-sku cell-ellip" title="父SKU：${esc(r.sku || "-")}">${esc(r.sku || "-")}</td>
       <td class="col-kid kid-cell" data-kid="${esc(pa)}" title="${esc(tip)}">${kidHtml}</td>
       <td class="col-title p-title-cell" title="${esc(r.title)}">${esc(r.title || "")}</td>
+      <td class="col-price num" title="父ASIN售价 = 该父体下 ${r.price_child_count || 0} 个子体售价的中位数">${r.price_median ? money(r.price_median) : "-"}</td>
       <td class="col-kids num" title="有广告投放 ${adv.length} 个 / 全部子体 ${ordered.length} 个">
         ${adv.length}<span class="kid-ratio">/${ordered.length}</span></td>
       <td class="col-camp num">${r.campaign_count}</td>
@@ -957,6 +958,10 @@ function renderProducts() {
       <th class="col-kid" title="蓝底 = 正在投放广告的子 ASIN（已排在最前）；灰字 = 未投放广告的变体。点击单元格查看全部并跳转">子ASIN</th>
       ${sortableTh(sort1, { cls: "col-title", label: "标题", field: "title",
         title: "点击按标题排序" })}
+      ${sortableTh(sort1, { cls: "col-price num", label: "售价", en: "Price(median)",
+        field: "price_median", total: T1.price_median ? money(T1.price_median) : "",
+        title: "父 ASIN 售价 = 该父体下全部子体售价的中位数；点击按售价排序",
+        totalTip: `当前查询全部父体的售价中位数` })}
       ${sortableTh(sort1, { cls: "col-kids num", label: "子体数", en: "Variations",
         field: "all_child_count", total: nf(T1.all_child_count),
         title: "点击按全部子 ASIN 数排序（含未投放）",
@@ -1983,12 +1988,12 @@ async function renderTermsPage(asin) {
       <td class="kw-cell"><span class="amz-link kw-link" data-q="${esc(r.query || "")}"
           data-mt="${esc(r.matchType || "")}" title="点击在新页签打开该搜索词详情">${esc(r.query || "")}</span></td>
       <td>${esc(r.matchType || "")}</td>
+      <td class="num">${r.searchFrequencyRank ? nf(r.searchFrequencyRank) : "-"}</td>
       <td class="num">${r.campaign_count || 1}</td>
       <td class="num">${nf(r.impressions)}</td>
       <td class="num">${nf(r.clicks)}</td>
       <td class="num">${money(r.adCost)}</td>
       <td class="num">${r.orderNum ? nf(r.orderNum) : "-"}</td>
-      <td class="num">${r.searchFrequencyRank ? nf(r.searchFrequencyRank) : "-"}</td>
       <td class="num"><button class="btn btn-mini btn-primary kw-link"
           data-q="${esc(r.query || "")}" data-mt="${esc(r.matchType || "")}">详情 ↗</button></td>
     </tr>`).join("");
@@ -1996,6 +2001,9 @@ async function renderTermsPage(asin) {
         ${sortableTh(tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
         ${sortableTh(tSort, { cls: "col-term", label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
         ${sortableTh(tSort, { cls: "col-match", label: "匹配方式", en: "Match Type", field: "matchType" })}
+        ${sortableTh(tSort, { cls: "num col-freq", label: "ABA搜索词排名", en: "ABA Search Rank",
+          field: "searchFrequencyRank", dir: "asc",
+          title: "亚马逊 ABA 搜索词排名，数值越小越热门；点击排序" })}
         ${sortableTh(tSort, { cls: "num col-camp", label: "涉及活动", en: "Campaigns", field: "campaign_count",
           total: nf(sumBy(rows, "campaign_count")), totalTip: "当前列表涉及活动数合计" })}
         ${sortableTh(tSort, { cls: "num col-imp", label: "曝光", en: "Impressions", field: "impressions",
@@ -2006,8 +2014,6 @@ async function renderTermsPage(asin) {
           total: money(sumBy(rows, "adCost")), totalTip: "当前列表花费合计" })}
         ${sortableTh(tSort, { cls: "num col-ord", label: "订单", en: "Orders", field: "orderNum",
           total: nf(sumBy(rows, "orderNum")), totalTip: "当前列表订单合计" })}
-        ${sortableTh(tSort, { cls: "num col-freq", label: "搜索热度", en: "Search Freq. Rank",
-          field: "searchFrequencyRank", title: "ABA 搜索词排名，数值越小越热门" })}
         <th class="col-ops"></th>
       </tr></thead><tbody>${body}</tbody></table>` +
       (rows.length ? "" : `<div class="empty">该父体在此维度下没有数据</div>`);
@@ -2098,7 +2104,9 @@ function renderTermTop(d) {
       </div>
       <div class="tg-thumb-bar">
         <button class="btn btn-mini" id="tgFetchImgs"
-          title="抓取该父体下全部子 ASIN 商品页的附图">抓取全部附图</button>
+          title="抓取该父体的图片来源子 ASIN 商品页, 取其全部附图">抓取附图</button>
+        ${p.image_source_asin ? `<span class="pmeta">图片来源子体 <b>${esc(p.image_source_asin)}</b>
+          ${p.image_source_crawled ? "" : "（未抓取）"}</span>` : ""}
         <span class="pmeta" id="tgImgMsg"></span>
       </div>
       <div class="tg-thumbs">${thumbHtml || '<span class="pmeta">暂无附图</span>'}</div>
@@ -2120,8 +2128,8 @@ function renderTermTop(d) {
   if (fb) fb.onclick = () => doFetchParentImages(pa, d.query, true);
   if (_imgDoneMsg && $("tgImgMsg")) $("tgImgMsg").textContent = _imgDoneMsg;
 
-  // 尚有子体没抓过 -> 首次进入自动补抓一次(每个父体每次打开只自动触发一次)
-  if (pa && (p.crawled_count || 0) < childN && !_imgTried.has(pa)) {
+  // 图片来源子体尚未抓过 -> 首次进入自动抓一次(每个父体每次打开只自动触发一次)
+  if (pa && !p.image_source_crawled && !_imgTried.has(pa)) {
     _imgTried.add(pa);
     doFetchParentImages(pa, d.query, false);
   }
