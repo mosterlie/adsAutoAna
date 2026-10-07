@@ -174,6 +174,15 @@ CREATE TABLE IF NOT EXISTS online_meta (
     updated_at   TEXT
 );
 
+-- 在线产品「品名」AI 解析结果 (本地 Ollama): 按 ASIN 缓存, 标题变化后重算
+CREATE TABLE IF NOT EXISTS ol_ai_labels (
+    asin         TEXT PRIMARY KEY,
+    label        TEXT,
+    model        TEXT,
+    title_hash   TEXT,
+    updated_at   TEXT
+);
+
 -- 亚马逊商品页补全指标 (赛狐 pageList 里 rating/bsr 恒为 null, 改从商品页抓)
 CREATE TABLE IF NOT EXISTS amz_product_metrics (
     asin          TEXT NOT NULL,
@@ -889,6 +898,85 @@ def get_online_meta(k: str) -> Any:
         return row["v"]
 
 
+def get_online_titles(asins: List[str]) -> Dict[str, Dict[str, str]]:
+    """ASIN -> {title, title_hash} (供 AI 品名解析判断是否需要重算)"""
+    from backend.ai_label import title_hash
+    vals = [str(a) for a in (asins or []) if a]
+    if not vals:
+        return {}
+    out: Dict[str, Dict[str, str]] = {}
+    with get_conn() as conn:
+        for i in range(0, len(vals), 400):
+            chunk = vals[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            for r in conn.execute(
+                    f"SELECT asin, title FROM online_products WHERE asin IN ({ph})", chunk):
+                if r["asin"] and r["asin"] not in out:
+                    out[r["asin"]] = {"title": r["title"] or "",
+                                      "title_hash": title_hash(r["title"])}
+    return out
+
+
+def get_ai_labels(asins: List[str]) -> Dict[str, Dict[str, str]]:
+    vals = [str(a) for a in (asins or []) if a]
+    if not vals:
+        return {}
+    out: Dict[str, Dict[str, str]] = {}
+    with get_conn() as conn:
+        for i in range(0, len(vals), 400):
+            chunk = vals[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            for r in conn.execute(
+                    f"SELECT asin, label, model, title_hash, updated_at "
+                    f"FROM ol_ai_labels WHERE asin IN ({ph})", chunk):
+                out[r["asin"]] = {"label": r["label"], "model": r["model"],
+                                  "title_hash": r["title_hash"], "updated_at": r["updated_at"]}
+    return out
+
+
+def save_ai_label(asin: str, label: str, model: str, th: str) -> None:
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO ol_ai_labels(asin, label, model, title_hash, updated_at)
+               VALUES(?,?,?,?,?)
+               ON CONFLICT(asin) DO UPDATE SET
+                 label=excluded.label, model=excluded.model,
+                 title_hash=excluded.title_hash, updated_at=excluded.updated_at""",
+            (asin, label, model, th, now()))
+
+
+def _child_price_median_map(parent_asins: List[str]) -> Dict[str, Dict[str, Any]]:
+    """父 ASIN -> {price_median, child_price_count}
+
+    价格取子体行的 standardPrice(无则 landedPrice), 再取中位数。
+    """
+    vals = [str(p) for p in (parent_asins or []) if p]
+    if not vals:
+        return {}
+    buckets: Dict[str, List[float]] = {}
+    with get_conn() as conn:
+        for i in range(0, len(vals), 400):
+            chunk = vals[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            for r in conn.execute(
+                    f"""SELECT json_extract(raw_json,'$.parentAsin') pa,
+                               json_extract(raw_json,'$.standardPrice') sp,
+                               json_extract(raw_json,'$.landedPrice') lp
+                        FROM online_products
+                        WHERE is_variation='2'
+                          AND json_extract(raw_json,'$.parentAsin') IN ({ph})""", chunk):
+                pa = r["pa"]
+                if not pa:
+                    continue
+                v = _to_float(r["sp"])
+                if v <= 0:
+                    v = _to_float(r["lp"])
+                if v > 0:
+                    buckets.setdefault(str(pa), []).append(v)
+    return {p: {"price_median": _median(v), "child_price_count": len(v)}
+            for p, v in buckets.items()}
+
+
 def get_online_products(page: int = 1, page_size: int = 50, keyword: str = "",
                         search_field: str = "", filters: Optional[Dict[str, List[str]]] = None,
                         order_field: str = "", order_dir: str = "desc") -> Dict[str, Any]:
@@ -909,7 +997,12 @@ def get_online_products(page: int = 1, page_size: int = 50, keyword: str = "",
         args.append(f"%{keyword.lower()}%")
     sql_where = (" WHERE " + " AND ".join(where)) if where else ""
 
-    if order_field and is_safe_field(order_field):
+    # 父体视角: 需要补「子体价格中位数」; 该值不在 raw_json 里, 排序要在 Python 侧做
+    parent_mode = str(((filters or {}).get("isVariation") or [""])[0]) == "1"
+    sort_by_price = parent_mode and order_field == "priceMedian"
+    reverse = str(order_dir).lower() != "asc"
+
+    if order_field and is_safe_field(order_field) and not sort_by_price:
         direction = "DESC" if str(order_dir).lower() == "desc" else "ASC"
         if order_field in NUMERIC_FIELDS:
             order_sql = f" ORDER BY CAST(json_extract(raw_json,'$.{order_field}') AS REAL) {direction}"
@@ -920,10 +1013,27 @@ def get_online_products(page: int = 1, page_size: int = 50, keyword: str = "",
 
     with get_conn() as conn:
         total = conn.execute(f"SELECT COUNT(*) c FROM online_products{sql_where}", args).fetchone()["c"]
-        rows = conn.execute(
-            f"SELECT raw_json FROM online_products{sql_where}{order_sql} LIMIT ? OFFSET ?",
-            args + [page_size, max(0, (page - 1) * page_size)]).fetchall()
-    data = [json.loads(r["raw_json"]) for r in rows]
+        if sort_by_price:
+            raw = conn.execute(
+                f"SELECT raw_json FROM online_products{sql_where}", args).fetchall()
+        else:
+            raw = conn.execute(
+                f"SELECT raw_json FROM online_products{sql_where}{order_sql} LIMIT ? OFFSET ?",
+                args + [page_size, max(0, (page - 1) * page_size)]).fetchall()
+    data = [json.loads(r["raw_json"]) for r in raw]
+
+    # 父体: 补「子体价格中位数」
+    if parent_mode and data:
+        pm = _child_price_median_map([d.get("asin") for d in data])
+        for d in data:
+            hit = pm.get(str(d.get("asin") or ""))
+            d["_price_median"] = hit["price_median"] if hit else 0.0
+            d["_price_child_count"] = hit["child_price_count"] if hit else 0
+        if sort_by_price:
+            data.sort(key=lambda x: _to_float(x.get("_price_median")), reverse=reverse)
+            start = max(0, (page - 1) * page_size)
+            data = data[start:start + page_size]
+
     # 合并「亚马逊商品页补全指标」(赛狐接口里 rating/bsr 恒为 null)
     mm = get_amz_product_metrics_map([d.get("asin") for d in data])
     for d in data:

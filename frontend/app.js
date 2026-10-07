@@ -1330,6 +1330,7 @@ const ol = {
   orderField: "", orderDir: "desc",
   fields: [], shops: [], filterMeta: [], updated: "", counts: { child: 0, parent: 0, total: 0 },
   visible: null,          // Set(列 key)
+  aiLabels: {},           // asin -> AI 品名(本地 Ollama 解析)
   loaded: false,
 };
 
@@ -1338,8 +1339,11 @@ const OL_COLUMNS = [
   { key: "onlineStatus", label: "状态", fields: ["onlineStatus"], type: "status" },
   { key: "image", label: "图片", fields: ["mainBigImage"], type: "image" },
   { key: "asinSku", label: "ASIN/MSKU", fields: ["asin", "sku"], type: "asinlink" },
+  // 品名 = 本地 Ollama 解析标题得到的「这是什么」(≤5 个词), 展示在标题列之前
+  { key: "aiTitle", label: "品名", fields: [], type: "ai" },
   { key: "title", label: "标题", fields: ["title"], type: "title" },
-  { key: "analyze", label: "分析", fields: [], type: "icons" },
+  // 原「分析」列替换为价格列: 父体 = 全部子体售价中位数
+  { key: "priceMedian", label: "价格", fields: ["priceMedian"], type: "medianprice" },
   { key: "variationChildStr", label: "属性", fields: ["variationChildStr"] },
   { key: "labelName", label: "产品标签", fields: ["labelName"] },
   { key: "parentAsin", label: "父ASIN", fields: ["parentAsin"] },
@@ -1385,7 +1389,8 @@ const OL_COLUMNS = [
 ];
 const OL_KEYS = OL_COLUMNS.map((c) => c.key);
 const OL_DASH = /^(null|undefined|)$/i;
-const OL_NUM_TYPES = new Set(["money", "money2", "profit", "num0", "num1", "num4", "tri", "tri1", "triMoney"]);
+const OL_NUM_TYPES = new Set(["money", "money2", "profit", "num0", "num1", "num4",
+  "tri", "tri1", "triMoney", "medianprice"]);
 
 /* 原站状态文案 */
 const OL_STATUS = { Active: ["在售", "on"], active: ["在售", "on"],
@@ -1434,8 +1439,20 @@ function olCell(col, r) {
       return `<div class="ol-asin"><a class="link" href="https://www.amazon.co.jp/dp/${esc(a)}" target="_blank" rel="noopener">${esc(a)}</a></div>
               <div class="ol-sku" title="${esc(s)}">${esc(String(s).slice(0, 22))}</div>`;
     }
+    case "ai": {
+      const a = esc(r.asin || "");
+      const lab = (ol.aiLabels || {})[r.asin];
+      return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${a}"
+        title="${lab ? esc(lab) : "正在用本地模型解析标题…"}">${lab ? esc(lab) : "解析中…"}</span>`;
+    }
     case "title":
-      return `<div class="p-title-cell" title="${esc(olVal(r.title))}">${olPlain(r.title)}</div>`;
+      return `<div class="ol-title-in" title="${esc(olVal(r.title))}">${olPlain(r.title)}</div>`;
+    case "medianprice": {
+      const v = Number(r._price_median || 0);
+      if (!v) return "-";
+      const n = r._price_child_count || 0;
+      return `<span title="该父体下 ${n} 个子体售价的中位数">${olMoney(v)}</span>`;
+    }
     case "icons":
       return `<span class="ol-icons">🔍 💬</span>`;
     case "ops":
@@ -1552,6 +1569,7 @@ async function loadOnlineProducts() {
 }
 
 function renderOnline() {
+  if (_aiPoll) { clearInterval(_aiPoll); _aiPoll = null; }
   const opt = (arr, cur) => arr.map((o) =>
     `<option value="${esc(o.value)}"${String(cur) === String(o.value) ? " selected" : ""}>${esc(o.label)}${o.count != null ? ` (${o.count})` : ""}</option>`).join("");
   const sel = (id, label, key) => {
@@ -1619,10 +1637,15 @@ function renderOnline() {
   renderOlStatusPick();
 
   const cols = OL_COLUMNS.filter((c) => ol.visible.has(c.key));
+  const HEAD_TIPS = {
+    aiTitle: "本地模型解析标题得出的「这是什么」(≤5 个词)",
+    priceMedian: "父体价格 = 该父体下全部子体售价的中位数；点击排序",
+  };
   const head = cols.map((c) => {
     const num = olIsNumCol(c);
     const sortable = c.fields.length === 1;
-    return `<th class="${num ? "num" : ""}" data-k="${c.key}"${sortable ? ` title="点击排序"` : ""}>${esc(c.label)}
+    const tip = HEAD_TIPS[c.key] || (sortable ? "点击排序" : "");
+    return `<th class="${num ? "num" : ""}" data-k="${c.key}"${tip ? ` title="${tip}"` : ""}>${esc(c.label)}
       ${ol.orderField === c.fields[0] ? (ol.orderDir === "desc" ? "↓" : "↑") : ""}</th>`;
   }).join("");
 
@@ -1655,7 +1678,54 @@ function renderOnline() {
     }
     openOlDetail(ol.rows[+tr.dataset.i]);
   });
+  // 父体: 拉取「品名」AI 标签(本地 Ollama, 后台生成 + 轮询回填)
+  if (ol.pageType === "parent") {
+    ensureAiLabels(ol.rows.map((r) => r.asin).filter(Boolean));
+  }
   olBindPager();
+}
+
+/* ---------- 在线产品「品名」AI 标签 (本地 Ollama) ---------- */
+let _aiPoll = null;
+
+async function ensureAiLabels(asins) {
+  const list = (asins || []).filter(Boolean);
+  if (!list.length) return;
+  try {
+    const r = await api("/api/online/ai_labels", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asins: list }),
+    });
+    Object.assign(ol.aiLabels || (ol.aiLabels = {}), r.labels || {});
+    paintAiLabels();
+    if ((r.pending || []).length) pollAiLabels(list);
+  } catch (e) { /* Ollama 不可用时保持「解析中…」 */ }
+}
+
+function paintAiLabels() {
+  document.querySelectorAll("#olWrap span[data-ai-asin]").forEach((el) => {
+    const v = (ol.aiLabels || {})[el.dataset.aiAsin];
+    if (!v) return;
+    el.textContent = v;
+    el.title = v;
+    el.classList.remove("ol-ai-empty");   // 去掉「解析中」占位样式 -> 变蓝色标签
+  });
+}
+
+function pollAiLabels(asins) {
+  if (_aiPoll) clearInterval(_aiPoll);
+  let rounds = 0;
+  _aiPoll = setInterval(async () => {
+    rounds += 1;
+    let d;
+    try {
+      d = await api("/api/online/ai_labels/status?asins=" + encodeURIComponent(asins.join(",")));
+    } catch (e) { return; }
+    Object.assign(ol.aiLabels || (ol.aiLabels = {}), d.labels || {});
+    paintAiLabels();
+    const running = d.job && d.job.running;
+    if (!running || rounds > 90) { clearInterval(_aiPoll); _aiPoll = null; }
+  }, 2000);
 }
 
 function olPager() {
@@ -1850,6 +1920,16 @@ document.addEventListener("click", (e) => {
   }
 });
 $("olDetailClose").onclick = () => $("olDetail").classList.remove("open");
+/* 详情抽屉展开后: 点击其他任意位置自动隐藏
+   (抽屉内部 / 表格行(会切换详情) / 大图预览 除外) */
+document.addEventListener("click", (e) => {
+  const d = $("olDetail");
+  if (!d || !d.classList.contains("open")) return;
+  if (e.target.closest("#olDetail")) return;
+  if (e.target.closest("#olWrap")) return;
+  if (e.target.closest("#imgPreview")) return;
+  d.classList.remove("open");
+});
 
 /* ===================================================================
    搜索词独立页面 / 详情页签

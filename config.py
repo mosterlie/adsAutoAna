@@ -41,3 +41,9 @@ AMAZON_MAX_ITEMS = 0                  # 落库条数上限, 0=不限
 # 亚马逊商品页(评分/评分数/BSR 排名)抓取
 # 评分与排名变化很慢, 缓存给长一点
 AMAZON_PRODUCT_CACHE_TTL_SEC = 86400  # 同一 ASIN 缓存有效期(秒), 默认 1 天
+
+# 本地 Ollama: 解析父 ASIN 标题, 提炼「这是什么」的短语(≤5 个词)
+OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_MODEL = "qwen2.5:1.5b-instruct-q4_K_M"
+OLLAMA_TIMEOUT = 60                   # 单次生成超时(秒)
+OLLAMA_LABEL_MAX_WORDS = 5            # 短语词数上限

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel
 
 import config
-from backend import amazon, amazon_product, crawler, database as db, image_jobs
+from backend import ai_label, amazon, amazon_product, crawler, database as db, image_jobs
 from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
@@ -330,6 +330,29 @@ def online_products(page: int = 1, page_size: int = 50, keyword: str = "",
     page_size = max(1, min(page_size, 500))
     return db.get_online_products(page, page_size, keyword, search_field,
                                   _parse_filters_obj(filters), order_field, order_dir)
+
+
+class AiLabelReq(BaseModel):
+    asins: List[str] = []
+    refresh: bool = False
+
+
+@router.post("/online/ai_labels")
+def online_ai_labels(req: AiLabelReq = Body(default=AiLabelReq())) -> Dict[str, Any]:
+    """按 ASIN 取「品名」AI 标签(本地 Ollama 解析标题, ≤5 个词)
+
+    已缓存的立即返回; 缺失的在后台生成, 用 /online/ai_labels/status 轮询。
+    """
+    return ai_label.ensure_labels(req.asins, refresh=req.refresh)
+
+
+@router.get("/online/ai_labels/status")
+def online_ai_labels_status(asins: str = "") -> Dict[str, Any]:
+    items = [a.strip() for a in (asins or "").split(",") if a.strip()]
+    cached = db.get_ai_labels(items)
+    return {"labels": {k: v["label"] for k, v in cached.items() if v.get("label")},
+            "job": ai_label.job_state(items),
+            "ollama": ai_label.available()}
 
 
 def _parse_filters_obj(raw: str) -> Dict[str, List[str]]:

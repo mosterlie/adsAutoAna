@@ -176,3 +176,36 @@ Headers: Content-Type: application/json / Origin / Referer
 
 - 产品列表（父 ASIN 维度）新增 **售价** 列：取该父体下**全部子体售价的中位数**
 - 支持点击表头排序（服务端排序，字段 `price_median`）；表头 Σ 显示各父体售价的中位数
+
+---
+
+## 七、在线产品（父体）
+
+### 价格列（替换原「分析」列）
+
+- 父体价格 = 该父体下**全部子体** `standardPrice` 的**中位数**（无值回退 `landedPrice`）
+- 服务端排序：`order_field=priceMedian`（该值不在 `raw_json` 里，走 Python 侧排序后分页）
+- 返回字段：`_price_median`（中位数）、`_price_child_count`（参与计算的子体数）
+
+### 品名列（本地 Ollama 解析标题，位于标题列之前）
+
+`backend/ai_label.py`：用本地 Ollama 把商品标题提炼成「这是什么」的短语（≤5 个词）。
+
+```
+POST /api/online/ai_labels        {asins:[...]}   → 已缓存的立即返回, 缺失的后台生成
+GET  /api/online/ai_labels/status?asins=a,b,c     → 轮询缓存结果 + 任务进度
+```
+
+- 结果按 ASIN 缓存在 `ol_ai_labels` 表；标题哈希变化才重新解析
+- 一页几十个 ASIN 逐个跑会慢 → 后台线程串行生成，前端每 2s 轮询并原地回填
+- 配置：`config.py` 的 `OLLAMA_URL` / `OLLAMA_MODEL`（默认 `qwen2.5:1.5b-instruct-q4_K_M`）
+- 本机地址强制绕过系统代理（Clash 等会把 `127.0.0.1` 也拦成 502）
+- 提示词含 few-shot 示例，引导模型只描述**商品本体**（不罗列用途/场景），实测单条 0.1~0.4s
+
+### 标题列
+
+- 标题列调窄（230px），超出部分省略号显示，不再换行撑高行高
+
+### 详情抽屉
+
+- 展开后**点击其他任意位置自动隐藏**（抽屉内部、表格行、大图预览除外）
