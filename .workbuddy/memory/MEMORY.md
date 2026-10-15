@@ -4,7 +4,11 @@
 - 服务端口 **8320**，`python3 run.py`；Python 用
   `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`（系统 3.13 无依赖）。
 - curl 一律要加 `--noproxy '*'`（本机有代理环境）。
-- **改后端必须重启服务**。重启务必用**双重 fork + setsid** 脱离会话（macOS 没有 `setsid`
+- **改后端必须重启服务**。日志在 **`data/logs/server.log`**（`/tmp/adsautoana.log` 是
+  10-05 之前的老路径，已失效，别再用它排查）。确认服务在跑只需两步：
+  `lsof -nP -iTCP:8320 -sTCP:LISTEN` + `curl -s --noproxy '*' .../api/status`。
+  项目是 git 仓库，重启前可 `git log -1` 看工作区是否比运行中的进程更新。
+- 重启务必用**双重 fork + setsid** 脱离会话（macOS 没有 `setsid`
   命令；Bash 工具的 `run_in_background` 起的进程会在**该轮对话结束时被回收**）：
 
 ```bash
@@ -70,20 +74,17 @@ PY
   `bindSortHeaders` 只在 `!th.title` 时才写「点击排序」，否则会冲掉列的说明与合计口径。
 
 ## 测试
-- `verify_ui.py` 全量回归（当前 **187 项**）：D 接口契约 / A+B+C 界面 / H 子体父体 /
-  I 产品视角父ASIN合并与交互 / K 亚马逊结果字段 / M 搜索词默认口径与过滤 /
-  N 表头合计 / E 与原系统对比 / F 表头查询框对照 / G 评分补全。新增功能务必同步补测试。
+> 全量回归统一看 **`verify_ui.py`（当前 187 项）**；不要再引用「172 项」那个旧数字。
+- 分段：D 接口契约 / A+B+C 界面 / H 子体父体 / I 产品视角父ASIN合并与交互 / K 亚马逊结果字段 /
+  M 搜索词默认口径与过滤 / N 表头合计 / E 与原系统对比 / F 表头查询框对照 / G 评分补全。
+  新增功能务必同步补测试。
 - **搜索词视图默认「只看搜索词」**（`TERM_DEFAULT_SCOPE="sp:keyword"`，因为
   `sp:asin` 是竞品商品投放、不是搜索词）：`loadTerms/loadParentTerms` 的 `dim===undefined`
   → 默认 keyword，显式 `""` 才是全部。若该活动/父体**一条搜索词都没有**则自动回退「全部」。
   过滤按钮上的 `(N)` 用后端返回的 `counts{all,keyword,targeting}`（统计在过滤**之前**，
   父体级按合并后行数），否则过滤后会变成 0。
-
-## 测试
-- `verify_ui.py` 全量回归（当前 **172 项**）：D 接口契约 / A+B+C 界面 / H 子体父体 /
-  I 产品视角父ASIN合并与交互 / K 亚马逊结果字段 / **M 搜索词默认口径与过滤** /
-  E 与原系统对比 / F 表头查询框对照 / G 评分补全。新增功能务必同步补测试。
-- `verify_fixes.py`(13) / `verify_filters.py`(15) / `compare_with_origin.py` 为历史回归。
+- `verify_fixes.py`(13) / `verify_filters.py`(15) / `verify_term_relevance.py`(28) /
+  `compare_with_origin.py` 为专项/历史回归。
 - 排查脚本放 `explore/`，命名 `probe_*.py`。
 - 产品视角表格改列宽时记得同步改 `verify_ui.py` 的 I17/I18（断言列宽上限），
   以及 I14 取父 ASIN 要用 `.asin-copy`（该单元格还含 ↗ 跳转按钮）。
@@ -97,6 +98,31 @@ PY
 - 广告位 href 是 `/sspa/click?…` → `url` 一律用 `/dp/{ASIN}`，原链存 `url_href`。
 - 高清图走 `img.s-image` 的 **`srcset` 最大档**（`._AC_UL960_`，960px），别去猜尺寸后缀。
 - 落库：`amz_results.raw_json` 存完整 item；读回走 `_amz_item()` 合并（老数据兼容）。
+
+## 搜索词 × SKU 相关性分析（10-15 新增）
+- `backend/term_relevance.py`（打分核心）+ `analyze_term_relevance.py`（出报告，`--min-cost` 默认 100）
+  + `verify_term_relevance.py`（T 段 28 项）。产物落 `data/reports/term_relevance.{html,md,json}`。
+- 口径：`score = 0.60×coverage + 0.25×contig + 0.15×lcs`。**别再退回用 Dice 当第二成分** ——
+  长标题会把 Dice 稀释，导致「整串就是标题子串」只拿 0.78。
+- 分档：≥0.85 高度相关 / ≥0.60 相关 / ≥0.35 弱相关 / <0.35 不相关。
+- **janome 会把片假名复合词并成一个词**（`ワイヤーメッシュフェンス` 不拆），
+  必须走 `covered_ratio()` greedy 最长匹配拆解，否则误判。
+- `normalize()` 的 `_KANA_PUNCT` 黑名单不能删：`・`(U+30FB) 落在假名区间 U+3040–U+30FF 内，
+  不剔掉会污染匹配（「ー」U+30FC 要保留）。
+- 搜索词记录**没有 asin 字段**，ASIN 只能从 `campaignName`/`adGroupName` 的 `B0XXXXXXXX` 前缀取。
+- 同一「词 × ASIN」跨活动会重复出现，**必须先合并累加再比阈值**，否则漏行（41→45）。
+
+## 图片相似度判别（10-15 新增）
+- `explore/probe_image_similarity.py`；产物 `data/reports/image_similarity.md` +
+  `image_similarity_check.png`（原图/掩膜/主体裁剪三联图）。
+- **判断「是不是同一个商品」优先看 ORB 好匹配数**，别看直方图：
+  同物换角度通常 80~500 对好匹配且 RANSAC 内点率 60%+；不同物会掉到个位数甚至拟合不出变换。
+- **整图指标会被「白底 + 居中斜放摆拍」这个电商通用套路抬高**：
+  灰度直方图相关性 0.993、三维 HSV 0.969 也照样是两个不同商品。
+  必须**剥掉白底只看主体**再算一遍，才是真实差距。
+- 环境已就绪：pillow 9.5.0 / numpy 2.4.6 / cv2 4.11.0。
+  Chrome 在 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，
+  可用 `--headless=new --screenshot=... --window-size=W,H` 自查 HTML 报告排版。
 
 ## 已知遗留
 - 性能债：`get_stats` 全表 JSON 扫描、keyword LIKE 全表、JSON 排序无索引 → 建议抽实体列+索引。

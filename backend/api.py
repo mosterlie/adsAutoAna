@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """FastAPI 路由: 采集控制 + 数据查询"""
 import json
+import urllib.request
 from datetime import date
 from typing import Any, Dict, List, Optional
 
@@ -10,7 +11,7 @@ from pydantic import BaseModel
 import config
 from backend import (ai_label, amazon, amazon_prefetch, amazon_product,
                      amazon_store, amazon_targets, crawler, database as db,
-                     image_jobs)
+                     image_jobs, relevance)
 from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
@@ -516,3 +517,214 @@ def sync_cookies() -> Dict[str, Any]:
     except Exception as e:      # noqa: BLE001
         raise HTTPException(400, str(e))
     return {"saved": True, "count": len(c), "keys": list(c.keys())[:20]}
+
+
+# ---- 搜索词 × SKU 相关性 ----
+@router.get("/term_relevance")
+def term_relevance(min_spend: float = Query(100.0), use_ai: bool = True) -> Dict[str, Any]:
+    """花费>阈值的搜索词 × 其活动内 SKU 的相关性(文本分即时返回; 语义分后台补)"""
+    return relevance.analyze(min_spend, use_ai=use_ai)
+
+
+@router.get("/term_relevance/status")
+def term_relevance_status(min_spend: float = Query(100.0)) -> Dict[str, Any]:
+    """相关性语义判断进度 + 最新结果(含缓存)"""
+    return relevance.status(min_spend)
+
+
+@router.get("/term_relevance/pair")
+def term_relevance_pair(term: str = Query(...), asin: str = Query(...),
+                        force: bool = False) -> Dict[str, Any]:
+    """单个搜索词 × 父 SKU 标题 的相关性(搜索词详情页用)
+
+    asin 传父/子 ASIN 均可; 语义分未缓存时现场调大模型(约 2~5 秒);
+    force=true 忽略缓存重新判断。
+    """
+    t = (term or "").strip()
+    a = (asin or "").strip()
+    if not t or not a:
+        raise HTTPException(400, "term 与 asin 不能为空")
+    title = db.get_parent_title(a)
+    out = relevance.check_pair(t, title, force=force, asin=a, source="pair")
+    out["asin"] = a
+    return out
+
+
+class BatchRelReq(BaseModel):
+    asins: List[str]
+    mode: str = "top"                 # top=花费前N | threshold=花费>=X
+    top_n: int = 10
+    min_spend: float = 100.0
+
+
+@router.post("/term_relevance/batch")
+def term_relevance_batch(req: BatchRelReq = Body(...)) -> Dict[str, Any]:
+    """批量关联度分析: 选中多个父 SKU, 按选词方式批量判断 (后台任务)"""
+    asins = [a.strip() for a in (req.asins or []) if a.strip()]
+    if not asins:
+        raise HTTPException(400, "请先勾选至少一个父 SKU")
+    if req.mode not in ("top", "threshold"):
+        raise HTTPException(400, "mode 须为 top 或 threshold")
+    try:
+        return relevance.start_batch(asins, req.mode, req.top_n, req.min_spend)
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/term_relevance/batch/status")
+def term_relevance_batch_status() -> Dict[str, Any]:
+    """批量关联度分析进度与结果"""
+    return relevance.batch_status()
+
+
+@router.post("/image_similarity")
+def image_similarity_start(asin: str = Query(...), term: str = Query(...),
+                           top_n: int = Query(10),
+                           engine: str = Query("llm")) -> Dict[str, Any]:
+    """深度检测: SKU 主图 × 亚马逊搜索结果前 N 主图 的相似度 (后台任务)
+
+    - engine=llm(默认): 用「配置管理」页选定的**视觉大模型**逐对比较;
+      单张失败自动回落本地感知特征(0.6×dHash + 0.4×颜色直方图);
+    - engine=phash: 直接用本地算法(不调模型);
+    - 只读已缓存的搜索结果(不触发抓取)。
+    用 /image_similarity/status 轮询进度与结果。
+    """
+    from backend import image_sim
+    t = (term or "").strip()
+    a = (asin or "").strip()
+    if not t or not a:
+        raise HTTPException(400, "term 与 asin 不能为空")
+    if engine not in ("llm", "phash"):
+        raise HTTPException(400, "engine 须为 llm 或 phash")
+    return image_sim.start_job(a, t, max(1, min(top_n, 20)), engine)
+
+
+@router.get("/image_similarity/status")
+def image_similarity_status(asin: str = Query(...), term: str = Query("")
+                            ) -> Dict[str, Any]:
+    """深度检测进度与结果"""
+    from backend import image_sim
+    return image_sim.job_status((asin or "").strip(), (term or "").strip())
+
+
+# ---- 深度检测: 标题同类 + 词级结论 ----
+@router.post("/title_similarity")
+def title_similarity_start(asin: str = Query(...), term: str = Query(...),
+                           top_n: int = Query(10)) -> Dict[str, Any]:
+    """标题同类匹配: 我的标题 × 每条竞品标题 (后台任务, 逐条落库)
+
+    比较前剥离尺寸/颜色/数量等噪声, 只判断是否同一类物品。
+    """
+    from backend import deep_check
+    t, a = (term or "").strip(), (asin or "").strip()
+    if not t or not a:
+        raise HTTPException(400, "term 与 asin 不能为空")
+    return deep_check.start_title_job(a, t, max(1, min(top_n, 20)))
+
+
+@router.get("/title_similarity/status")
+def title_similarity_status(asin: str = Query(...), term: str = Query("")
+                            ) -> Dict[str, Any]:
+    from backend import deep_check
+    return deep_check.title_job_status((asin or "").strip(), (term or "").strip())
+
+
+@router.get("/deep_check")
+def deep_check_eval(asin: str = Query(...), term: str = Query(...),
+                    refresh: bool = False) -> Dict[str, Any]:
+    """词级结论: 该词的结果集与我的品有多像 + 是否否定建议
+
+    综合: 词级判断(搜索意图) + 标题同类匹配率 + 图片相似率 + 广告表现(花费/订单)
+    """
+    from backend import deep_check
+    t, a = (term or "").strip(), (asin or "").strip()
+    if not t or not a:
+        raise HTTPException(400, "term 与 asin 不能为空")
+    return deep_check.evaluate(a, t, refresh=refresh)
+
+
+# ---- 配置管理 ----
+class SettingsReq(BaseModel):
+    wb_model: Optional[str] = None
+    wb_vision_model: Optional[str] = None
+    ollama_model: Optional[str] = None
+
+
+def _ollama_models() -> List[str]:
+    try:
+        req = urllib.request.Request(config.OLLAMA_URL + "/api/tags")
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
+                req, timeout=3) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        return [m.get("name") for m in data.get("models") or [] if m.get("name")]
+    except Exception:           # noqa: BLE001
+        return []
+
+
+@router.get("/settings")
+def get_settings() -> Dict[str, Any]:
+    from workbuddy.client import KNOWN_MODELS
+    return {
+        "wb_model": relevance.current_model("workbuddy"),
+        "wb_vision_model": relevance.current_model("vision"),
+        "wb_models": list(KNOWN_MODELS),
+        "ollama_model": relevance.current_model("ollama"),
+        "ollama_models": _ollama_models(),
+        "updated_at": db.get_online_meta("wb_model_updated_at"),
+    }
+
+
+@router.post("/settings")
+def save_settings(req: SettingsReq = Body(default=SettingsReq())) -> Dict[str, Any]:
+    from workbuddy.client import KNOWN_MODELS
+    changed = {}
+    for val, key in ((req.wb_model, "wb_model"),
+                     (req.wb_vision_model, "wb_vision_model")):
+        if val:
+            if val not in KNOWN_MODELS:
+                raise HTTPException(400, f"未知模型: {val}")
+            db.save_online_meta(key, val)
+            changed[key] = val
+    if req.ollama_model:
+        db.save_online_meta("ollama_model", req.ollama_model)
+        changed["ollama_model"] = req.ollama_model
+    if changed:
+        db.save_online_meta("wb_model_updated_at", db.now())
+    return {"saved": True, **changed}
+
+
+@router.post("/settings/test")
+def settings_test(kind: str = Query("text")) -> Dict[str, Any]:
+    """验证当前模型可用性 (kind=text 文本判断 / vision 视觉比对)"""
+    import time as _t
+    from backend import image_sim
+    t0 = _t.time()
+    if kind == "vision":
+        # 用两张某商品的真实主图做一次视觉比对
+        try:
+            rows = db.latest_amazon_results("金網フェンス", 2) or db.latest_amazon_results("", 2)
+        except Exception:       # noqa: BLE001
+            rows = []
+        try:
+            if len(rows) >= 2:
+                a, b = rows[0]["image"], rows[1]["image"]
+            else:
+                a = b = db.get_parent_main_image("B0HJ1MX7Y4")
+            if not a or not b:
+                return {"ok": False, "elapsed": round(_t.time() - t0, 1),
+                        "error": "没有可用图片做视觉测试"}
+            j = image_sim.vision_judge(image_sim._b64(a), image_sim._b64(b),
+                                       image_sim.vision_model())
+            return {"ok": True, "elapsed": round(_t.time() - t0, 1),
+                    "score": j["score"], "reason": j["reason"],
+                    "model": j.get("model")}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "elapsed": round(_t.time() - t0, 1),
+                    "error": str(e)[:200]}
+    try:
+        j = relevance._ai_judge("蔦巻きポール", "蔦巻きポール トマト支柱 園芸支柱 植物サポート 耐候性")
+        return {"ok": True, "elapsed": round(_t.time() - t0, 1),
+                "score": j["score"], "reason": j["reason"], "model": j.get("model")}
+    except Exception as e:      # noqa: BLE001
+        return {"ok": False, "elapsed": round(_t.time() - t0, 1),
+                "error": str(e)[:200]}

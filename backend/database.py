@@ -183,6 +183,90 @@ CREATE TABLE IF NOT EXISTS ol_ai_labels (
     updated_at   TEXT
 );
 
+-- 搜索词 × SKU 标题 相关性语义判断 (本地 Ollama): 按 (词,标题哈希) 缓存
+CREATE TABLE IF NOT EXISTS term_relevance (
+    term         TEXT NOT NULL,
+    title_hash   TEXT NOT NULL,
+    title        TEXT,
+    score        INTEGER,        -- 语义相关性 0~10
+    reason       TEXT,           -- 一句话理由
+    text_score   INTEGER,        -- 文本匹配分 0~100 (冗余, 便于核对)
+    model        TEXT,
+    updated_at   TEXT,
+    PRIMARY KEY(term, title_hash)
+);
+
+-- 相关性「比较过程」流水: 每次比较(含缓存命中)都记一条, 重算结果覆盖 term_relevance
+CREATE TABLE IF NOT EXISTS relevance_compare_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    term         TEXT,
+    asin         TEXT,
+    title_hash   TEXT,
+    title        TEXT,
+    text_score   INTEGER,
+    full_match   INTEGER,        -- 词整词出现在标题
+    ai_score     INTEGER,        -- 未调模型(缓存命中/跳过)为 NULL
+    ai_reason    TEXT,
+    model        TEXT,
+    source       TEXT,           -- pair / batch / analyze
+    cached       INTEGER,        -- 1=命中旧缓存未新调模型
+    created_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_rclog_term ON relevance_compare_log(term);
+
+-- 深度检测: 标题同类判断 (我的标题 × 竞品标题): 按 (父ASIN, 词, 对方ASIN) 覆盖更新
+CREATE TABLE IF NOT EXISTS title_similarity (
+    asin         TEXT NOT NULL,
+    term         TEXT NOT NULL,
+    other_asin   TEXT NOT NULL,
+    position     INTEGER,
+    score        INTEGER,        -- 同类度 0~100
+    reason       TEXT,
+    core_a       TEXT,           -- 我的核心品类词
+    core_b       TEXT,           -- 竞品核心品类词
+    model        TEXT,
+    updated_at   TEXT,
+    PRIMARY KEY(asin, term, other_asin)
+);
+
+-- 词级综合结论 (结果集评估 + 是否否定建议), 按 (父ASIN, 词) 覆盖更新
+CREATE TABLE IF NOT EXISTS term_verdict (
+    asin         TEXT NOT NULL,
+    term         TEXT NOT NULL,
+    my_title     TEXT,
+    score        INTEGER,        -- 词级: 搜索意图 vs 我的品 0~100
+    same_category INTEGER,
+    term_intent  TEXT,
+    reason       TEXT,
+    model        TEXT,
+    updated_at   TEXT,
+    PRIMARY KEY(asin, term)
+);
+
+-- 深度检测结果 (SKU 主图 × 搜索结果主图): 按 (父ASIN, 词, 对方ASIN) 缓存并覆盖更新
+CREATE TABLE IF NOT EXISTS image_similarity (
+    asin         TEXT NOT NULL,
+    term         TEXT NOT NULL,
+    other_asin   TEXT NOT NULL,
+    position     INTEGER,
+    score        INTEGER,        -- 最终相似度 0~100
+    via          TEXT,           -- llm / phash
+    reason       TEXT,
+    model        TEXT,
+    other_image  TEXT,
+    updated_at   TEXT,
+    PRIMARY KEY(asin, term, other_asin)
+);
+
+-- 图片感知特征缓存 (dHash + 直方图): 按 URL 缓存, 深度匹配不重复下载
+CREATE TABLE IF NOT EXISTS image_phash (
+    url_hash     TEXT PRIMARY KEY,
+    url          TEXT,
+    dhash        TEXT,           -- 64 位差分哈希 ("0"/"1" 串)
+    hist         TEXT,           -- RGB 各 8 bin 归一化直方图 (JSON)
+    updated_at   TEXT
+);
+
 -- 亚马逊商品页补全指标 (赛狐 pageList 里 rating/bsr 恒为 null, 改从商品页抓)
 CREATE TABLE IF NOT EXISTS amz_product_metrics (
     asin          TEXT NOT NULL,
@@ -953,6 +1037,212 @@ def save_ai_label(asin: str, label: str, model: str, th: str) -> None:
                  label=excluded.label, model=excluded.model,
                  title_hash=excluded.title_hash, updated_at=excluded.updated_at""",
             (asin, label, model, th, now()))
+
+
+# ---------------------------------------------------------------------------
+# 搜索词 × SKU 标题 相关性
+# ---------------------------------------------------------------------------
+def get_relevance(term: str, title_hash: str) -> Optional[Dict[str, Any]]:
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT score, reason, text_score, model, updated_at "
+            "FROM term_relevance WHERE term=? AND title_hash=?",
+            (term, title_hash)).fetchone()
+    return dict(r) if r else None
+
+
+def save_relevance(term: str, title_hash: str, title: str, score: int,
+                   reason: str, text_score: int, model: str) -> None:
+    """语义判断结果落库 (重算后覆盖更新同一行)"""
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO term_relevance(term, title_hash, title, score, reason,
+                                          text_score, model, updated_at)
+               VALUES(?,?,?,?,?,?,?,?)
+               ON CONFLICT(term, title_hash) DO UPDATE SET
+                 title=excluded.title, score=excluded.score, reason=excluded.reason,
+                 text_score=excluded.text_score, model=excluded.model,
+                 updated_at=excluded.updated_at""",
+            (term, title_hash, title, score, reason, text_score, model, now()))
+
+
+def log_compare(term: str, asin: str, title_hash: str, title: str,
+                text_score: int, full_match: bool, ai_score: Optional[int],
+                ai_reason: str, model: str, source: str, cached: bool) -> None:
+    """比较过程流水: 每次比较(含缓存命中)记一条"""
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO relevance_compare_log
+               (term, asin, title_hash, title, text_score, full_match,
+                ai_score, ai_reason, model, source, cached, created_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (term, asin, title_hash, title, text_score, int(bool(full_match)),
+             ai_score, ai_reason, model, source, int(bool(cached)), now()))
+
+
+# ---------------------------------------------------------------------------
+# 图片感知特征缓存 + 深度匹配数据源
+# ---------------------------------------------------------------------------
+def save_image_phash(url: str, dhash: str, hist: List[float]) -> None:
+    import hashlib
+    uh = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO image_phash(url_hash, url, dhash, hist, updated_at)
+               VALUES(?,?,?,?,?)
+               ON CONFLICT(url_hash) DO UPDATE SET
+                 dhash=excluded.dhash, hist=excluded.hist, updated_at=excluded.updated_at""",
+            (uh, url, dhash, json.dumps(hist), now()))
+
+
+def save_image_sim(asin: str, term: str, other_asin: str, position: Any,
+                   score: Optional[int], via: str, reason: str, model: str,
+                   other_image: str) -> None:
+    """深度检测结果落库 (重算覆盖同一行)"""
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO image_similarity(asin, term, other_asin, position, score,
+                                            via, reason, model, other_image, updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(asin, term, other_asin) DO UPDATE SET
+                 position=excluded.position, score=excluded.score, via=excluded.via,
+                 reason=excluded.reason, model=excluded.model,
+                 other_image=excluded.other_image, updated_at=excluded.updated_at""",
+            (asin, term, str(other_asin or ""), position, score, via, reason,
+             model, other_image, now()))
+
+
+def get_image_sims(asin: str, term: str) -> Dict[str, Dict[str, Any]]:
+    """某 (父ASIN, 词) 已缓存的深度检测结果, 以对方 ASIN 为键"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT other_asin, position, score, via, reason, model, updated_at "
+            "FROM image_similarity WHERE asin=? AND term=?", (asin, term)).fetchall()
+    return {r["other_asin"]: dict(r) for r in rows}
+
+
+# ---- 深度检测: 标题同类 / 词级结论 ----
+def save_title_sim(asin: str, term: str, other_asin: str, position: Any,
+                   score: Optional[int], reason: str, core_a: str, core_b: str,
+                   model: str) -> None:
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO title_similarity(asin, term, other_asin, position, score,
+                                            reason, core_a, core_b, model, updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(asin, term, other_asin) DO UPDATE SET
+                 position=excluded.position, score=excluded.score, reason=excluded.reason,
+                 core_a=excluded.core_a, core_b=excluded.core_b,
+                 model=excluded.model, updated_at=excluded.updated_at""",
+            (asin, term, str(other_asin or ""), position, score, reason,
+             core_a, core_b, model, now()))
+
+
+def get_title_sims(asin: str, term: str) -> Dict[str, Dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT other_asin, position, score, reason, core_a, core_b, model "
+            "FROM title_similarity WHERE asin=? AND term=?", (asin, term)).fetchall()
+    return {r["other_asin"]: dict(r) for r in rows}
+
+
+def save_term_verdict(asin: str, term: str, my_title: str, score: int,
+                      same: bool, intent: str, reason: str, model: str) -> None:
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO term_verdict(asin, term, my_title, score, same_category,
+                                        term_intent, reason, model, updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(asin, term) DO UPDATE SET
+                 my_title=excluded.my_title, score=excluded.score,
+                 same_category=excluded.same_category, term_intent=excluded.term_intent,
+                 reason=excluded.reason, model=excluded.model,
+                 updated_at=excluded.updated_at""",
+            (asin, term, my_title, score, int(bool(same)), intent, reason, model, now()))
+
+
+def get_term_verdict(asin: str, term: str) -> Optional[Dict[str, Any]]:
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT score, same_category, term_intent, reason, model, updated_at "
+            "FROM term_verdict WHERE asin=? AND term=?", (asin, term)).fetchone()
+    if not r:
+        return None
+    return {"score": r["score"], "same": bool(r["same_category"]),
+            "intent": r["term_intent"], "reason": r["reason"],
+            "model": r["model"], "updated_at": r["updated_at"]}
+
+
+def get_term_metrics(asin: str, term: str) -> Dict[str, float]:
+    """某父 ASIN 下某个搜索词的合并指标(花费/订单/曝光/点击)"""
+    out = {"adCost": 0.0, "orderNum": 0.0, "impressions": 0.0, "clicks": 0.0}
+    try:
+        pt = get_parent_terms(asin)
+    except Exception:                           # noqa: BLE001
+        return out
+    q = str(term or "").strip()
+    for r in pt.get("rows") or []:
+        if str(r.get("query") or "").strip() == q:
+            out["adCost"] += _to_float(r.get("adCost"))
+            out["orderNum"] += _to_float(r.get("orderNum"))
+            out["impressions"] += _to_float(r.get("impressions"))
+            out["clicks"] += _to_float(r.get("clicks"))
+    return {k: round(v, 2) for k, v in out.items()}
+
+
+def get_image_phash(url: str) -> Optional[Dict[str, Any]]:
+    import hashlib
+    uh = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    with get_conn() as conn:
+        r = conn.execute("SELECT dhash, hist FROM image_phash WHERE url_hash=?",
+                         (uh,)).fetchone()
+    if not r:
+        return None
+    try:
+        return {"dhash": r["dhash"], "hist": json.loads(r["hist"])}
+    except Exception:                           # noqa: BLE001
+        return None
+
+
+def get_parent_main_image(asin: str) -> str:
+    """父 SKU 主图 (赛狐商品行, 取最大可用尺寸由调用方处理)"""
+    with get_conn() as conn:
+        child2parent = _asin_parent_map(conn)
+        parent = child2parent.get(asin, asin)
+        kids = [parent] + sorted(a for a, p in child2parent.items() if p == parent)
+        try:
+            pf, pa_ = _snapshot_filter(conn, "product")
+        except Exception:                       # noqa: BLE001
+            pf, pa_ = "", []
+        for r in conn.execute(
+                "SELECT raw_json FROM ad_records WHERE tab='product' "
+                "AND json_extract(raw_json,'$.asin') IN (" +
+                ",".join("?" * len(kids)) + ")" + pf, kids + pa_):
+            d = json.loads(r["raw_json"])
+            u = d.get("imgUrl") or d.get("main_image") or d.get("image")
+            if u:
+                return str(u)
+    return ""
+
+
+def latest_amazon_results(query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    """某搜索词最近一次亚马逊抓取的结果明细 (缓存只读, 不触发抓取)"""
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT id FROM amz_searches WHERE query=? ORDER BY id DESC LIMIT 1",
+            (str(query or "").strip(),)).fetchone()
+        if not r:
+            return []
+        sid = r["id"]
+        rows = conn.execute(
+            "SELECT * FROM amz_results WHERE search_id=? ORDER BY position LIMIT ?",
+            (sid, max(1, min(limit, 50)))).fetchall()
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        d = _amz_item(row)
+        if d.get("image"):
+            out.append(d)
+    return out
 
 
 def _child_price_median_map(parent_asins: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -1862,6 +2152,29 @@ def get_term_detail(asin: str, query: str, match_type: str = "",
 
 def ratio(a: float, b: float) -> float:
     return (a / b) if b else 0.0
+
+
+def get_parent_title(asin: str) -> str:
+    """父 ASIN 的标题(轻量版: 只读赛狐商品行, 不碰亚马逊)
+
+    asin 传父/子 ASIN 均可; 优先父体自身商品行, 回退其子体任一标题。
+    """
+    with get_conn() as conn:
+        child2parent = _asin_parent_map(conn)
+        parent = child2parent.get(asin, asin)
+        kids = [parent] + sorted(a for a, p in child2parent.items() if p == parent)
+        try:
+            pf, pa_ = _snapshot_filter(conn, "product")
+        except Exception:       # noqa: BLE001
+            pf, pa_ = "", []
+        for r in conn.execute(
+                "SELECT raw_json FROM ad_records WHERE tab='product' "
+                "AND json_extract(raw_json,'$.asin') IN (" +
+                ",".join("?" * len(kids)) + ")" + pf, kids + pa_):
+            t = (json.loads(r["raw_json"]).get("title") or "").strip()
+            if t:
+                return t
+    return ""
 
 
 def get_campaign_terms(campaign_id: str, scope: str = "") -> Dict[str, Any]:

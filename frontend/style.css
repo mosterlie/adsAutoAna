@@ -547,3 +547,84 @@ body.standalone{background:var(--bg)}
 .amz-card2 .card-tags .amz-tag{font-size:10.5px;line-height:16px;padding:0 6px;border-radius:8px}
 .amz-card2 .star{color:#f0a020;font-weight:600}
 .amz-card2 .rev{color:var(--muted);font-size:11px}
+
+/* ================= 搜索词 × 父 SKU 关联度 ================= */
+.rel-grid{display:flex;gap:22px;align-items:flex-start;padding:6px 2px}
+.rel-score-cell{flex:0 0 170px;display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+.rel-badge{display:inline-block;font-size:15px;font-weight:700;line-height:1;padding:9px 13px;
+  border-radius:20px;border:1px solid transparent}
+.rel-badge i{font-style:normal;font-size:11px;font-weight:400;opacity:.75;margin-left:1px}
+.rel-high{background:#e8f7ee;color:#0f9d58;border-color:#bfe8d2}
+.rel-mid{background:#fff7e6;color:#d48806;border-color:#f5e0a8}
+.rel-low{background:#fff1f0;color:#d46b08;border-color:#ffd6cc}
+.rel-bad{background:#fdeaea;color:#d93025;border-color:#f5c6c6}
+.rel-none{background:#f2f4f7;color:#5f6b7a;border-color:#dde3ea}
+.rel-model{font-size:11.5px;color:var(--muted);word-break:break-all}
+.rel-detail{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.rel-row{display:flex;gap:10px;font-size:12.5px;line-height:1.55}
+.rel-k{flex:0 0 118px;color:var(--muted);text-align:right}
+.rel-v{flex:1;min-width:0;color:var(--txt)}
+.rel-v b{color:var(--pri)}
+.rel-title{color:var(--txt-2)}
+.rel-meters{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+.meter{display:flex;align-items:center;gap:10px;font-size:12px}
+.meter-k{flex:0 0 118px;color:var(--muted);text-align:right}
+.meter-bar{flex:1;height:8px;background:#eef1f5;border-radius:4px;overflow:hidden}
+.meter-bar i{display:block;height:100%;border-radius:4px;
+  background:linear-gradient(90deg,#7fb2e8,var(--pri))}
+.meter b{flex:0 0 34px;font-size:12px}
+
+/* ================= 配置管理 ================= */
+.settings-wrap{max-width:860px}
+.st-card{margin-bottom:12px}
+.st-title{font-size:14.5px;font-weight:600;margin-bottom:6px}
+.st-desc{font-size:12.5px;color:var(--txt-2);line-height:1.6;margin-bottom:14px}
+.st-form{display:flex;flex-direction:column;gap:12px;max-width:520px}
+.st-form .fld{display:flex;flex-direction:column;gap:5px}
+.st-form .fld label{font-size:12.5px;color:var(--txt-2)}
+.st-form select{height:34px;border:1px solid var(--bd);border-radius:4px;padding:0 8px;
+  font-size:13px;background:#fff}
+.st-actions{display:flex;align-items:center;gap:10px;margin-top:4px}
+.st-test{margin-top:14px;padding:10px 12px;border-radius:4px;font-size:12.5px;line-height:1.6}
+.st-ok{background:#e8f7ee;color:#0f9d58;border:1px solid #bfe8d2;border-radius:4px;padding:9px 12px}
+.st-err{background:#fdeaea;color:#d93025;border:1px solid #f5c6c6;border-radius:4px;padding:9px 12px}
+.st-notes{margin:0;padding-left:18px;font-size:12.5px;color:var(--txt-2);line-height:2}
+.st-notes b{color:var(--txt)}
+
+/* ================= 批量关联度分析 ================= */
+.relbatch-card{width:min(1080px,94vw)}
+.relbatch-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rb-mode{display:flex;align-items:center;gap:5px;font-size:12.5px;white-space:nowrap}
+.rb-num{width:76px;height:28px;border:1px solid var(--bd);border-radius:4px;padding:0 8px;font-size:12.5px}
+.rb-progress{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.rb-bar{flex:1;height:10px;background:#eef1f5;border-radius:5px;overflow:hidden}
+.rb-bar i{display:block;height:100%;border-radius:5px;
+  background:linear-gradient(90deg,#7fb2e8,var(--pri));transition:width .4s}
+.rb-pct{font-size:12.5px;white-space:nowrap}
+.rb-cur{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:300px}
+.rb-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.rb-tbl th{position:sticky;top:0;background:#f7f9fb;text-align:left;padding:7px 8px;
+  border-bottom:1px solid var(--bd);font-weight:600;white-space:nowrap;z-index:1}
+.rb-tbl th.num,.rb-tbl td.num{text-align:right}
+.rb-tbl td{padding:6px 8px;border-bottom:1px solid #f0f2f5;vertical-align:top}
+.rb-tbl tr:hover td{background:#f8fafd}
+.rb-asin{white-space:nowrap;font-family:monospace}
+.rb-term{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.rb-reason{max-width:260px;color:var(--txt-2)}
+.rb-title{max-width:220px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-tbl .rel-badge{font-size:11px;padding:3px 8px;border-radius:10px}
+.col-chk{width:34px;text-align:center}
+
+/* ================= 深度匹配 ================= */
+.deep-chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
+  color:var(--txt-2);cursor:pointer;user-select:none;white-space:nowrap}
+.deep-chk input{accent-color:var(--pri)}
+.deep-badge{position:absolute;right:6px;bottom:6px;font-size:10.5px;font-weight:700;
+  line-height:16px;padding:0 7px;border-radius:8px;border:1px solid transparent;
+  background:rgba(255,255,255,.92)}
+
+/* 标题匹配徽章: 卡片图区左上角 (与右下角的图片相似徽章并排) */
+.title-badge{position:absolute;left:6px;bottom:6px;font-size:10.5px;font-weight:700;
+  line-height:16px;padding:0 7px;border-radius:8px;border:1px solid transparent;
+  background:rgba(255,255,255,.92)}

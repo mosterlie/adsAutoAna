@@ -117,3 +117,18 @@ OLLAMA_URL = "http://127.0.0.1:11434"
 OLLAMA_MODEL = "qwen2.5:1.5b-instruct-q4_K_M"
 OLLAMA_TIMEOUT = 60                   # 单次生成超时(秒)
 OLLAMA_LABEL_MAX_WORDS = 5            # 短语词数上限
+
+# WorkBuddy 大模型 API (腾讯 copilot): 搜索词×SKU 相关性语义判断(首选)
+WB_ENV_FILE = "/Users/gx/Desktop/mypro/testApi/.env"   # WORKBUDDY_API_KEY 所在 .env
+WB_MODEL = "deepseek-v4.1-flash"                       # 实测可用且快(~3s/次)
+WB_TEMPERATURE = 0.1
+WB_MAX_TOKENS = 200
+WB_TIMEOUT = 60                                        # 单次请求超时(秒)
+
+# WorkBuddy 视觉模型: 深度检测(图片相似度)用, 可在「配置管理」页切换
+WB_VISION_MODEL = "glm-5v-turbo"
+WB_VISION_MAX_TOKENS = 200
+WB_VISION_TIMEOUT = 90                                 # 视觉调用较慢(2~40s/次)
+WB_VISION_IMG_MAX = 512                                # 送入模型前图片最长边(px)
+WB_VISION_IMG_QUALITY = 78                             # JPEG 质量
+WB_VISION_WORKERS = 5                                  # 深度检测并发数

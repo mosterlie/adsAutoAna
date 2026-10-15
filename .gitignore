@@ -24,3 +24,8 @@ explore/**/*.png
 .idea/
 .vscode/
 *.log
+
+# ── 上游 Windows 盘符默认路径在本机被字面创建 (勿入库) ──
+# config.py: CHROME_DEBUG_USER_DATA / AMAZON_DATA_DIR 的 Windows 默认值
+C:\\ChromeDebugUser/
+E:\\amazonData\\adsData/
