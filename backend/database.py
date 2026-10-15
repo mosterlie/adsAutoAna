@@ -174,6 +174,13 @@ CREATE TABLE IF NOT EXISTS online_meta (
     updated_at   TEXT
 );
 
+-- 应用级设置 (键值对, 值为 JSON): 目前用于「品名解析走本地 Ollama 还是 workbuddy」
+CREATE TABLE IF NOT EXISTS app_settings (
+    k            TEXT PRIMARY KEY,
+    v            TEXT,
+    updated_at   TEXT
+);
+
 -- 在线产品「品名」AI 解析结果 (本地 Ollama): 按 ASIN 缓存, 标题变化后重算
 CREATE TABLE IF NOT EXISTS ol_ai_labels (
     asin         TEXT PRIMARY KEY,
@@ -266,6 +273,28 @@ CREATE TABLE IF NOT EXISTS image_phash (
     hist         TEXT,           -- RGB 各 8 bin 归一化直方图 (JSON)
     updated_at   TEXT
 );
+-- 模型翻译缓存(统一落库, 所有走模型的翻译都在这儿):
+--   kind=search_term   source=搜索词原文 → 搜索词中文翻译 (translate.py)
+--   kind=product_name  source=ASIN       → 父SKU「品名」中文短语 (ai_label.py 同步镜像)
+CREATE TABLE IF NOT EXISTS translations (
+    kind       TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    zh         TEXT NOT NULL,
+    model      TEXT,
+    updated_at TEXT,
+    PRIMARY KEY(kind, source)
+);
+CREATE INDEX IF NOT EXISTS idx_trans_kind ON translations(kind, updated_at);
+
+-- 搜索词打标: 「父 ASIN + 搜索词」对该品的相关程度 (紧密 / 宽泛 / 不太相关 / 不相关)
+CREATE TABLE IF NOT EXISTS term_labels (
+    parent_asin TEXT NOT NULL,
+    term        TEXT NOT NULL,
+    label       TEXT NOT NULL,
+    updated_at  TEXT,
+    PRIMARY KEY(parent_asin, term)
+);
+CREATE INDEX IF NOT EXISTS idx_term_labels_asin ON term_labels(parent_asin);
 
 -- 亚马逊商品页补全指标 (赛狐 pageList 里 rating/bsr 恒为 null, 改从商品页抓)
 CREATE TABLE IF NOT EXISTS amz_product_metrics (
@@ -358,6 +387,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
         """UPDATE online_products SET is_variation='2'
            WHERE is_variation IS NULL
              AND CAST(json_extract(raw_json,'$.isVariation') AS TEXT)='2'""")
+    # 历史已生成的「父SKU品名」回填进统一翻译表 (幂等, 已有则跳过)
+    conn.execute(
+        """INSERT OR IGNORE INTO translations(kind, source, zh, model, updated_at)
+           SELECT 'product_name', asin, label, model, updated_at
+           FROM ol_ai_labels WHERE label IS NOT NULL AND label <> ''""")
+    # 打标改名: 旧「紧密相关」并到新「紧密」(幂等, 跑第二次没有行可改)
+    # 注意: 只改名不删值 —— 万一库里还有别的历史标签, 宁可留着让用户自己处理
+    for old, new in TERM_LABEL_ALIASES.items():
+        conn.execute("UPDATE term_labels SET label=? WHERE label=?", (new, old))
 
 
 # ---------------------------------------------------------------------------
@@ -956,6 +994,27 @@ def get_online_count(page_type: str = "") -> int:
         return conn.execute("SELECT COUNT(*) c FROM online_products").fetchone()["c"]
 
 
+def get_setting(k: str, default: Any = None) -> Any:
+    """读应用设置 (JSON 值); 没有则返回 default"""
+    with get_conn() as conn:
+        r = conn.execute("SELECT v FROM app_settings WHERE k=?", (k,)).fetchone()
+    if not r or r["v"] is None:
+        return default
+    try:
+        return json.loads(r["v"])
+    except Exception:       # noqa: BLE001  老数据/手工改坏 → 用默认值
+        return default
+
+
+def set_setting(k: str, v: Any) -> None:
+    """写应用设置 (JSON 值)"""
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO app_settings(k, v, updated_at) VALUES(?,?,?)
+               ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at""",
+            (k, json.dumps(v, ensure_ascii=False), now()))
+
+
 def get_online_counts() -> Dict[str, int]:
     """子体 / 父体 / 合计 条数"""
     return {"child": get_online_count("child"),
@@ -1243,6 +1302,131 @@ def latest_amazon_results(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         if d.get("image"):
             out.append(d)
     return out
+
+
+# ---- 模型翻译缓存 (搜索词 / 父SKU品名) ----
+def get_translations(kind: str, sources: List[str]) -> Dict[str, str]:
+    """source -> 中文翻译 (只返回已有的)"""
+    vals = [str(s) for s in (sources or []) if s]
+    if not vals:
+        return {}
+    out: Dict[str, str] = {}
+    with get_conn() as conn:
+        for i in range(0, len(vals), 400):
+            chunk = vals[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            for r in conn.execute(
+                    f"SELECT source, zh FROM translations "
+                    f"WHERE kind=? AND source IN ({ph})", [kind] + chunk):
+                out[r["source"]] = r["zh"]
+    return out
+
+
+def save_translation(kind: str, source: str, zh: str, model: str = "") -> None:
+    """写一条翻译(落库); 空结果不写, 留给下次重试"""
+    if not source or not zh:
+        return
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO translations(kind, source, zh, model, updated_at)
+               VALUES(?,?,?,?,?)
+               ON CONFLICT(kind, source) DO UPDATE SET
+                 zh=excluded.zh, model=excluded.model, updated_at=excluded.updated_at""",
+            (kind, source, zh, model, now()))
+
+
+def get_all_translations(kind: str, limit: int = 5000) -> List[Dict[str, Any]]:
+    """某类翻译的全部清单(按时间倒序)"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT kind, source, zh, model, updated_at FROM translations WHERE kind=? "
+            "ORDER BY updated_at DESC LIMIT ?",
+            (kind, max(1, min(limit, 20000)))).fetchall()
+    return [dict(r) for r in rows]
+
+
+def translation_counts() -> Dict[str, int]:
+    """各类翻译的条数"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT kind, COUNT(*) c FROM translations GROUP BY kind").fetchall()
+    return {r["kind"]: r["c"] for r in rows}
+
+
+# ---- 搜索词打标 (父ASIN + 搜索词 → 相关程度) ----
+# 顺序即界面上的按钮顺序: 从最相关到最不相关
+TERM_LABELS = ("紧密", "宽泛", "不太相关", "不相关")
+# 老标签名 → 新标签名 (迁移用); 历史的「紧密相关」统一并到「紧密」
+TERM_LABEL_ALIASES = {"紧密相关": "紧密"}
+
+
+def get_term_label(parent_asin: str, term: str) -> str:
+    """单个词的打标; 没标过返回空串"""
+    p, t = str(parent_asin or "").strip(), str(term or "").strip()
+    if not p or not t:
+        return ""
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT label FROM term_labels WHERE parent_asin=? AND term=?",
+            (p, t)).fetchone()
+    return (r["label"] if r else "") or ""
+
+
+def get_term_labels(parent_asin: str) -> Dict[str, Dict[str, str]]:
+    """某父体的全部打标: term -> {label, updated_at}"""
+    p = str(parent_asin or "").strip()
+    if not p:
+        return {}
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT term, label, updated_at FROM term_labels WHERE parent_asin=?",
+            (p,)).fetchall()
+    return {r["term"]: {"label": r["label"], "updated_at": r["updated_at"]} for r in rows}
+
+
+def get_term_labels_multi(parents: List[str]) -> Dict[str, Dict[str, str]]:
+    """多个父体一次性取打标(列表页批量用): {父ASIN: {搜索词: 标签}}"""
+    vals = [str(p).strip() for p in (parents or []) if str(p or "").strip()]
+    if not vals:
+        return {}
+    out: Dict[str, Dict[str, str]] = {}
+    with get_conn() as conn:
+        for i in range(0, len(vals), 400):
+            chunk = vals[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            for r in conn.execute(
+                    f"SELECT parent_asin, term, label FROM term_labels "
+                    f"WHERE parent_asin IN ({ph})", chunk):
+                if r["label"]:
+                    out.setdefault(r["parent_asin"], {})[r["term"]] = r["label"]
+    return out
+
+
+def save_term_label(parent_asin: str, term: str, label: str) -> str:
+    """写/改打标; label 为空表示清除该词的打标"""
+    p, t = str(parent_asin or "").strip(), str(term or "").strip()
+    lb = str(label or "").strip()
+    if not p or not t:
+        raise ValueError("父 ASIN 与搜索词不能为空")
+    with _LOCK, get_conn() as conn:
+        if not lb:
+            conn.execute("DELETE FROM term_labels WHERE parent_asin=? AND term=?", (p, t))
+            return ""
+        conn.execute(
+            """INSERT INTO term_labels(parent_asin, term, label, updated_at)
+               VALUES(?,?,?,?)
+               ON CONFLICT(parent_asin, term) DO UPDATE SET
+                 label=excluded.label, updated_at=excluded.updated_at""",
+            (p, t, lb, now()))
+    return lb
+
+
+def term_label_counts() -> Dict[str, int]:
+    """各标签的条数"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT label, COUNT(*) c FROM term_labels GROUP BY label").fetchall()
+    return {r["label"]: r["c"] for r in rows}
 
 
 def _child_price_median_map(parent_asins: List[str]) -> Dict[str, Dict[str, Any]]:

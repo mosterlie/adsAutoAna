@@ -1,24 +1,17 @@
 # -*- coding: utf-8 -*-
-"""WorkBuddy 大模型调用的公共入口
+"""WorkBuddy 大模型调用的公共入口 (透传模式)
 
-模型名统一从「配置管理」读取:
+模型名与客户端统一由 backend/wb_config.py 解析/构造:
   - text   : 文本判断(相关性 / 标题同类 / 词级结论)
   - vision : 图片判断(主图相似度)
-未配置时回落 config 默认值。
+运行时可改: 「配置管理」页与「配置」弹窗写的是同一个值。
 """
 import json
 import re
-import sys
-import threading
 from typing import Any, Dict, Optional
 
 import config
-
-if "/Users/gx/Desktop/mypro/testApi" not in sys.path:
-    sys.path.insert(0, "/Users/gx/Desktop/mypro/testApi")
-
-_CLIENTS: Dict[str, Any] = {}
-_LOCK = threading.Lock()
+from backend import wb_config
 
 
 def model_name(kind: str = "text") -> str:
@@ -27,16 +20,9 @@ def model_name(kind: str = "text") -> str:
 
 
 def client(model: str, timeout: Optional[float] = None):
-    with _LOCK:
-        c = _CLIENTS.get(model)
-        if c is None:
-            from workbuddy import WorkBuddyClient
-            c = WorkBuddyClient(
-                mode="passthrough", model=model, env_file=config.WB_ENV_FILE,
-                timeout=timeout or (config.WB_VISION_TIMEOUT
-                                    if "v" in model else config.WB_TIMEOUT))
-            _CLIENTS[model] = c
-        return c
+    """取透传客户端(统一入口在 wb_config)"""
+    return wb_config.client(model, "vision" if "v" in model else "text",
+                            timeout_sec=timeout)
 
 
 def ask(prompt: str, model: Optional[str] = None, kind: str = "text",

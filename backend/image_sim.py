@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 import config
 from backend import database as db
+from backend import wb_config
 
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 _SIZE_SUFFIX = re.compile(r"\._[^/./]+\.(jpg|jpeg|png|webp|gif)$", re.I)
@@ -125,20 +126,9 @@ def _b64(url: str) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-_WB_CLIENTS: Dict[str, Any] = {}
-_WB_LOCK = threading.Lock()
-
-
 def _client(model: str):
-    with _WB_LOCK:
-        c = _WB_CLIENTS.get(model)
-        if c is None:
-            from workbuddy import WorkBuddyClient
-            c = WorkBuddyClient(mode="passthrough", model=model,
-                                env_file=config.WB_ENV_FILE,
-                                timeout=config.WB_VISION_TIMEOUT)
-            _WB_CLIENTS[model] = c
-        return c
+    """透传模式客户端(由 backend/wb_config.py 统一构造与缓存)"""
+    return wb_config.client(model, "vision")
 
 
 def _parse_verdict(raw: str) -> Dict[str, Any]:

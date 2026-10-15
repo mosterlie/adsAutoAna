@@ -52,7 +52,12 @@ def _log(msg: str) -> None:
         _STATE["log"].append(line)
         if len(_STATE["log"]) > 400:      # 只留最近 400 行
             del _STATE["log"][:-400]
-    print(line, flush=True)
+    try:
+        print(line, flush=True)
+    except Exception:       # noqa: BLE001
+        # 控制台/重定向流的编码问题(如 Windows GBK 遇到 ▶)不能拖垮整批抓取:
+        # 状态里的日志照旧保留, 页面照样能看到进度。run.py 里也会把 stdout 钉成 UTF-8。
+        pass
 
 
 def _set(**kw: Any) -> None:
@@ -230,6 +235,23 @@ def _worker(min_clicks: int, limit: int, refresh: bool, gap_min: float, gap_max:
     done = 0
     total = len(items)
     aborted = False
+    seen: set = set()        # 已计过进度的搜索词
+
+    def _tick(query: str = "") -> int:
+        """全局进度按**去重后的搜索词**累加
+
+        分母 total 是去重词数, 分子也必须去重: 一个词可能挂在多个父体下(实测 413 个
+        词里有 12 个挂在多个父体, 逐组出现次数合计 428), 若按出现次数计, 跑到底会
+        显示 428/413 —— 超过 100%, 看着像出错。组内的 p_ok/p_skip/p_fail 仍按该组的
+        词数统计(那是父体维度的口径, 不去重)。
+        """
+        nonlocal done
+        if query and query in seen:
+            return done
+        if query:
+            seen.add(query)
+        done += 1
+        return done
 
     for gi, g in enumerate(groups, 1):
         if stop.is_set() or aborted:
@@ -259,7 +281,7 @@ def _worker(min_clicks: int, limit: int, refresh: bool, gap_min: float, gap_max:
             if not refresh and amazon_store.exists(q):
                 skipped += 1
                 p_skip += 1
-                done += 1
+                _tick(q)
                 pending = amazon_store.images_pending(q, [parent]) if images else []
                 if pending:
                     local = amazon_store.find(q) or {}
@@ -286,7 +308,7 @@ def _worker(min_clicks: int, limit: int, refresh: bool, gap_min: float, gap_max:
                 failed += 1
                 p_fail += 1
                 real += 1
-                done += 1
+                _tick(q)
                 fail_streak += 1
                 _log(f"✗ [{gi}.{j}] 抓取异常: {q} | {str(e)[:120]}")
                 _set(done=done, failed=failed)
@@ -298,7 +320,7 @@ def _worker(min_clicks: int, limit: int, refresh: bool, gap_min: float, gap_max:
                 continue
 
             real += 1
-            done += 1
+            _tick(q)
             n = res.get("item_count") or len(res.get("items") or [])
             if res.get("blocked"):
                 blocked_streak += 1

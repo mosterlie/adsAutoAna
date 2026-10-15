@@ -13,6 +13,7 @@
     <span class="logo-sub">广告管理</span></div>
   <div class="topbar-right">
     <span id="clock" class="clock">--:--:--</span>
+    <button class="btn btn-ghost" id="btnAiConfig" title="配置品名解析使用本地 Ollama 还是 workbuddy">配置</button>
     <button class="btn btn-ghost" id="btnSyncCookie" title="从调试 Chrome 同步登录态">同步登录态</button>
   </div>
 </header>
@@ -192,20 +193,33 @@
 
 <!-- ============ 搜索词详情页 (独立页签: /?page=term&asin=父ASIN&term=词) ============ -->
 <div id="termView" style="display:none">
-  <div class="term-top panel" id="termTop"></div>
-  <div class="panel term-block">
-    <div class="term-sec-head">
-      <div class="term-sec-title">搜索词 × 父 SKU 关联度</div>
-      <div class="term-sec-tools" id="termRelTools"></div>
+  <!-- 打标区: 吸顶(向下滚动时一直可见); 单击选项选中, 点「确认」才生效 -->
+  <div class="term-label-bar" id="termLabelBar">
+    <span class="tlb-title">相关度打标</span>
+    <div class="tlb-right">
+      <div class="tlb-opts" id="termLabelOpts"></div>
+      <button class="btn btn-primary" id="termLabelSave">确认</button>
+      <button class="btn" id="termLabelClear" title="清除该词已打的标">清除</button>
+      <span class="pmeta" id="termLabelMsg"></span>
     </div>
-    <div id="termRelBody"><div class="empty">分析中…</div></div>
   </div>
-  <div class="panel term-block">
-    <div class="term-sec-head">
-      <div class="term-sec-title">结果集评估（搜索结果与我的品有多像）</div>
-      <div class="term-sec-tools" id="termDeepTools"></div>
+  <!-- 首屏一整行(不再拆三块竖排): 产品信息 | 搜索词×父SKU关联度 | 结果集评估 -->
+  <div class="panel term-head-row">
+    <div class="term-top" id="termTop"></div>
+    <div class="term-col term-col-rel">
+      <div class="term-sec-head">
+        <span class="term-sec-title">搜索词 × 父 SKU 关联度</span>
+        <span class="term-sec-tools" id="termRelTools"></span>
+      </div>
+      <div class="term-body" id="termRelBody"><div class="empty">分析中…</div></div>
     </div>
-    <div id="termDeepBody"><div class="empty">等待深度检测…</div></div>
+    <div class="term-col term-col-res">
+      <div class="term-sec-head">
+        <span class="term-sec-title">结果集评估（与我的品有多像）</span>
+        <span class="term-sec-tools" id="termDeepTools"></span>
+      </div>
+      <div class="term-body" id="termDeepBody"><div class="empty">等待深度检测…</div></div>
+    </div>
   </div>
   <div class="panel term-block">
     <div class="term-sec-head">
@@ -252,9 +266,62 @@
       <button class="btn btn-mini" id="amzPrefetch"
               title="把所有搜索词提前抓到本地(串行限速、断点续抓), 之后查看直接读本地不再访问亚马逊">预抓取全部搜索词</button>
       <button class="btn btn-mini" id="amzExpandAll">展开全部详情</button>
+      <span class="term-zh-lg" id="amzZh" title="搜索词中文翻译(AI 生成, 已落库)"></span>
       <span class="muted" id="amzMeta"></span>
     </div>
     <div class="modal-body" id="amzBody"></div>
+  </div>
+</div>
+
+<!-- 配置弹窗 (品名解析用哪家模型) -->
+<div class="modal" id="cfgModal">
+  <div class="modal-card cfg-card">
+    <div class="modal-head">
+      <b>配置 · 品名解析模型</b>
+      <span class="close" id="cfgClose">×</span>
+    </div>
+    <div class="modal-body cfg-body">
+      <div class="cfg-row">
+        <label class="cfg-lab">使用哪家模型</label>
+        <div class="cfg-radios">
+          <label><input type="radio" name="cfgProvider" value="ollama"> 本地 Ollama</label>
+          <label><input type="radio" name="cfgProvider" value="workbuddy"> WorkBuddy 在线</label>
+          <span class="muted" id="cfgProviderHint"></span>
+        </div>
+      </div>
+
+      <div class="cfg-group" id="cfgOllamaGroup">
+        <div class="cfg-row"><label class="cfg-lab">Ollama 地址</label>
+          <input type="text" id="cfgOllamaUrl" placeholder="http://127.0.0.1:11434"></div>
+        <div class="cfg-row"><label class="cfg-lab">Ollama 模型</label>
+          <input type="text" id="cfgOllamaModel" placeholder="qwen2.5:1.5b-instruct-q4_K_M"></div>
+      </div>
+
+      <div class="cfg-group" id="cfgWbGroup">
+        <div class="cfg-row"><label class="cfg-lab">网关地址</label>
+          <input type="text" id="cfgWbBase"
+                 placeholder="https://copilot.tencent.com/v2/chat/completions"></div>
+        <div class="cfg-row"><label class="cfg-lab">API Key</label>
+          <input type="password" id="cfgWbKey" placeholder="留空=不修改已保存的 Key">
+          <span class="muted" id="cfgWbKeyState"></span></div>
+        <div class="cfg-row"><label class="cfg-lab">基座模型</label>
+          <input type="text" id="cfgWbModel" placeholder="deepseek-v4.1-flash"></div>
+        <div class="cfg-row"><label class="cfg-lab">回退模型</label>
+          <input type="text" id="cfgWbFallback" placeholder="逗号分隔, 基座模型不可用时依次尝试">
+          <span class="muted">探明可用：deepseek-v4.1-flash / deepseek-v4-flash / glm-5.3-flash / glm-5.3 / kimi-k3 / minimax-m3 等 18 个</span></div>
+      </div>
+
+      <div class="cfg-note muted">
+        配置保存在服务端（`app_settings` 表）。切换后新的「品名」解析按新provider走；
+        已缓存的品名不会重算，需要时点「重新生成」。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="muted" id="cfgTestOut"></span>
+      <button class="btn" id="cfgReLabel" title="忽略缓存, 用当前模型重新解析「在线产品 · 父体」本页的品名">重算本页品名</button>
+      <button class="btn" id="cfgTest">测试连接</button>
+      <button class="btn btn-primary" id="cfgSave">保存</button>
+    </div>
   </div>
 </div>
 

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import config
 from backend import (ai_label, amazon, amazon_prefetch, amazon_product,
                      amazon_store, amazon_targets, crawler, database as db,
-                     image_jobs, relevance)
+                     image_jobs, relevance, term_status, translate, wb_config)
 from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
@@ -74,6 +74,55 @@ def _parse_filters(raw: str) -> Dict[str, List[str]]:
     return out
 
 
+def _term_of(row: Dict[str, Any]) -> str:
+    """搜索词页签行里的「搜索词」字段(ASIN 定位行的 query 是 ASIN, 由调用方排除)"""
+    return str(row.get("query") or row.get("keywordText") or "").strip()
+
+
+def _inject_term_zh(rows: List[Dict[str, Any]]) -> None:
+    """给一批搜索词行注入 query_zh (已落库的中文翻译, 没有则空串)
+
+    ASIN 形态的 query(商品投放行)不需要翻译, 置空。
+    """
+    rows = rows or []
+    terms = {t for t in (_term_of(r) for r in rows) if t and not translate.is_asin(t)}
+    zs = db.get_translations(translate.KIND_TERM, list(terms)) if terms else {}
+    for r in rows:
+        t = _term_of(r)
+        r["query_zh"] = zs.get(t, "") if t and not translate.is_asin(t) else ""
+
+
+_RANK_METRICS = (("cost", "adCost"), ("imp", "impressions"),
+                 ("clk", "clicks"), ("ord", "orderNum"))
+
+
+def _inject_ranks(rows: List[Dict[str, Any]]) -> None:
+    """给搜索词行加「本父体内排名」: 花费/曝光/点击/订单 各排第几(1 = 最高)
+
+    按 scope 分组各自排名 —— 页面上「只看搜索词 / 只看商品投放」是前端过滤,
+    而两类行的指标量级差很多, 混在一起排会把商品投放行全挤到两头, 名次没意义。
+    并列同名次(1,2,2,4); 该指标为 0 的行名次给 0, 前端显示为「-」。
+    """
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows or []:
+        groups.setdefault(str(r.get("scope") or ""), []).append(r)
+    for grp in groups.values():
+        for key, field in _RANK_METRICS:
+            vals = [float(r.get(field) or 0) for r in grp]
+            order = sorted((v for v in vals if v > 0), reverse=True)
+            first: Dict[float, int] = {}
+            for i, v in enumerate(order):
+                first.setdefault(v, i + 1)
+            for r, v in zip(grp, vals):
+                r["rank_" + key] = (first.get(v) or 0) if v > 0 else 0
+
+
+def _inject_translations(out: Dict[str, Any]) -> None:
+    """搜索词页签: 行内注入译文。注入在 _collect_columns 之后, 不新增表格列——
+    前端把译文渲染在搜索词单元格里。"""
+    _inject_term_zh(out.get("rows") or [])
+
+
 @router.get("/filters")
 def filters(tab: str = Query(...), shop_id: Optional[int] = None) -> Dict[str, Any]:
     """某页签可用的筛选字段与候选值 (供前端动态渲染查询框)"""
@@ -95,9 +144,12 @@ def records(tab: str = Query(...), page: int = 1, page_size: int = 50,
         raise HTTPException(400, f"非法排序字段: {order_field!r}")
     page = max(1, page)
     page_size = max(1, min(page_size, 500))
-    return db.get_records(tab, page, page_size, keyword, shop_id, scope,
-                          order_field, order_dir, range_start, range_end,
-                          _parse_filters(filters), search_field, search_mode)
+    out = db.get_records(tab, page, page_size, keyword, shop_id, scope,
+                         order_field, order_dir, range_start, range_end,
+                         _parse_filters(filters), search_field, search_mode)
+    if tab == "search":
+        _inject_translations(out)     # 搜索词页签: 行内带上已落库的中文翻译
+    return out
 
 
 @router.get("/stats")
@@ -149,10 +201,32 @@ def amazon_search(query: str = Query(...), domain: str = "co.jp",
     if domain not in amazon.MARKET:
         raise HTTPException(400, f"不支持的站点: {domain}")
     try:
-        return amazon.fetch(q, domain=domain, screenshot=screenshot,
-                            refresh=refresh, ttl=ttl)
+        d = amazon.fetch(q, domain=domain, screenshot=screenshot,
+                         refresh=refresh, ttl=ttl)
     except Exception as e:      # noqa: BLE001
         raise HTTPException(500, f"抓取失败: {str(e)[:200]}")
+    return attach_local_images(d, q)
+
+
+def attach_local_images(d: Dict[str, Any], query: str) -> Dict[str, Any]:
+    """给每个 item 补 image_local(本地主图地址)
+
+    本地已有主图时页面就直接读本地文件, 不必再去亚马逊图片 CDN 取图;
+    本地没下到图的卡片不补该字段, 前端自动回退用原来的远程地址。
+    """
+    if not d:
+        return d
+    parent = d.get("local_parent") or next(iter(d.get("parents") or []), "")
+    if not parent:
+        return d
+    n = 0
+    for it in d.get("items") or []:
+        u = amazon_store.local_image_url(parent, query, it)
+        if u:
+            it["image_local"] = u
+            n += 1
+    d["local_images"] = n
+    return d
 
 
 @router.get("/amazon/history")
@@ -217,14 +291,16 @@ def amazon_targets_list(min_clicks: Optional[int] = None, limit: int = 2000) -> 
     """
     mc = config.AMAZON_PREFETCH_MIN_CLICKS if min_clicks is None else min_clicks
     items = amazon_targets.build(mc)
+    idx = amazon_store.load_index()
+    have = amazon_store.local_queries([t["query"] for t in items], idx)   # 本地已有结果的词
     rows = []
     for t in items[:max(1, min(limit, 5000))]:
-        ent = amazon_store.info(t["query"]) or {}
+        ent = idx.get(t["query"]) or {}
         rows.append({
             "query": t["query"], "clicks": t["clicks"], "adCost": round(t["adCost"], 2),
             "impressions": t["impressions"], "parents": t["parents"],
             "asins": t["asins"], "match_types": t["match_types"],
-            "cached": amazon_store.exists(t["query"]),
+            "cached": t["query"] in have,
             "cached_at": ent.get("fetched_at"),
             "images": ent.get("images") or {},
         })
@@ -240,6 +316,8 @@ def amazon_targets_list(min_clicks: Optional[int] = None, limit: int = 2000) -> 
         })
     summ = amazon_targets.summary(items)
     summ["parents_done"] = len(pstate)
+    summ["local_terms"] = len(have)                  # 目标词里本地已有的
+    summ["todo_terms"] = len(items) - len(have)      # 真正还要抓的
     return {"min_clicks": mc, "summary": summ, "groups": parents, "rows": rows}
 
 
@@ -289,10 +367,28 @@ def amazon_prefetch_stop() -> Dict[str, Any]:
 def product_list(keyword: str = "", order_field: str = "ad_cost",
                  order_dir: str = "desc", page: int = 1,
                  page_size: int = 50) -> Dict[str, Any]:
-    """产品列表 —— 以父 ASIN 为一条记录, 多子 ASIN 合并统计"""
+    """产品列表 —— 以父 ASIN 为一条记录, 多子 ASIN 合并统计
+
+    每行附上该父体的两个进度状态(见 backend/term_status.py):
+      拉取完成 / 部分拉取 / 未拉取 (竞品素材是否已拉到本地)
+      标记完成 / 部分标记 / 未标记 (搜索词是否已人工打标)
+    """
     page = max(1, page)
     page_size = max(1, min(page_size, 500))
-    return db.get_products(keyword, order_field, order_dir, page, page_size)
+    out = db.get_products(keyword, order_field, order_dir, page, page_size)
+    rows = out.get("rows") or []
+    st = term_status.parent_states(
+        [r.get("parent_asin") or r.get("asin") or "" for r in rows])
+    for r in rows:
+        s = st.get(r.get("parent_asin") or r.get("asin") or "") or {}
+        r["terms_total"] = int(s.get("terms_total") or 0)
+        r["terms_fetched"] = int(s.get("terms_fetched") or 0)
+        r["terms_labeled"] = int(s.get("terms_labeled") or 0)
+        r["fetch_status"] = s.get("fetch_status") or term_status.K_NONE
+        r["fetch_text"] = s.get("fetch_text") or "未拉取"
+        r["label_status"] = s.get("label_status") or term_status.K_NONE
+        r["label_text"] = s.get("label_text") or "未标记"
+    return out
 
 
 @router.get("/product/campaigns")
@@ -315,11 +411,25 @@ def product_terms(campaign_id: str = "", scope: str = "", asin: str = "") -> Dic
     - 传 asin(父/子 ASIN): 该父体下**全部活动**的搜索词汇总(按词合并累加)
     """
     if campaign_id.strip():
-        return db.get_campaign_terms(campaign_id.strip(), scope)
-    a = (asin or "").strip()
-    if not a:
-        raise HTTPException(400, "campaign_id 与 asin 至少传一个")
-    return db.get_parent_terms(a, scope)
+        out = db.get_campaign_terms(campaign_id.strip(), scope)
+    else:
+        a = (asin or "").strip()
+        if not a:
+            raise HTTPException(400, "campaign_id 与 asin 至少传一个")
+        out = db.get_parent_terms(a, scope)
+    _inject_term_zh(out.get("rows") or [])      # 行内带上已落库的中文翻译
+    _inject_ranks(out.get("rows") or [])        # 行内带上本父体内的四项指标排名
+    # 行内带上「竞品素材是否已拉取到本地」+ 该父体的两个进度状态
+    p = str(out.get("parent_asin") or "").strip()
+    if p:
+        flags = term_status.term_flags(
+            p, [str(r.get("query") or "") for r in out.get("rows") or []])
+        for r in out.get("rows") or []:
+            f = flags.get(str(r.get("query") or "")) or {}
+            r["fetched"] = bool(f.get("fetched"))
+            r["images"] = int(f.get("images") or 0)
+        out["status"] = term_status.parent_state(p)
+    return out
 
 
 @router.get("/product/images")
@@ -398,7 +508,55 @@ def product_term_detail(asin: str = Query(...), term: str = Query(...),
     if not a or not t:
         raise HTTPException(400, "asin 与 term 不能为空")
     dm = domain or config.AMAZON_DOMAIN
-    return db.get_term_detail(a, t, match_type, dm)
+    out = db.get_term_detail(a, t, match_type, dm)
+    if not translate.is_asin(t):                 # 顶部展示用: 该词的中文翻译
+        hit = db.get_translations(translate.KIND_TERM, [t])
+        out["query_zh"] = hit.get(t, "")
+    else:
+        out["query_zh"] = ""
+    out["term_label"] = db.get_term_label(out.get("parent_asin") or a, t)   # 已打标
+    out["label_options"] = list(db.TERM_LABELS)
+    pa = out.get("parent_asin") or a
+    st = amazon_store.parent_term_state(pa, t)      # 该词的竞品素材在不在本地
+    out["fetched"] = st["fetched"]
+    out["images"] = st["images"]
+    out["status"] = term_status.parent_state(pa)    # 该父体的拉取/标记进度
+    return out
+
+
+# ---- 搜索词打标 (紧密 / 宽泛 / 不太相关 / 不相关, 顺序见 db.TERM_LABELS) ----
+class TermLabelReq(BaseModel):
+    asin: str                      # 父 ASIN
+    term: str
+    label: str = ""                # 空 = 清除打标
+
+
+@router.get("/product/term_label")
+def term_label_get(asin: str = Query(...), term: str = Query(...)) -> Dict[str, Any]:
+    """某个词当前的打标"""
+    return {"label": db.get_term_label(asin, term),
+            "label_options": list(db.TERM_LABELS)}
+
+
+@router.get("/product/term_labels")
+def term_labels_list(asin: str = Query(...)) -> Dict[str, Any]:
+    """某父体下已打标的搜索词清单 (term -> label)"""
+    return {"rows": db.get_term_labels(asin), "counts": db.term_label_counts(),
+            "label_options": list(db.TERM_LABELS)}
+
+
+@router.post("/product/term_label")
+def term_label_save(req: TermLabelReq = Body(...)) -> Dict[str, Any]:
+    """保存打标(代表该父 ASIN 下这个词与本品类的相关程度); label 传空即清除"""
+    lb = (req.label or "").strip()
+    lb = db.TERM_LABEL_ALIASES.get(lb, lb)      # 老页面可能还发「紧密相关」→ 归一到「紧密」
+    if lb and lb not in db.TERM_LABELS:
+        raise HTTPException(400, f"打标只能是: {' / '.join(db.TERM_LABELS)}")
+    try:
+        saved = db.save_term_label(req.asin, req.term, lb)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "label": saved, "asin": req.asin.strip(), "term": req.term.strip()}
 
 
 # ---- 在线产品 (销售 > 在线产品) ----
@@ -432,11 +590,15 @@ class AiLabelReq(BaseModel):
 
 @router.post("/online/ai_labels")
 def online_ai_labels(req: AiLabelReq = Body(default=AiLabelReq())) -> Dict[str, Any]:
-    """按 ASIN 取「品名」AI 标签(本地 Ollama 解析标题, ≤5 个词)
+    """按 ASIN 取「品名」AI 标签(解析标题 → ≤5 个词的中文短语)
 
+    走哪家模型由「配置」菜单决定(本地 Ollama / workbuddy), 见 /api/settings/ai。
     已缓存的立即返回; 缺失的在后台生成, 用 /online/ai_labels/status 轮询。
     """
-    return ai_label.ensure_labels(req.asins, refresh=req.refresh)
+    res = ai_label.ensure_labels(req.asins, refresh=req.refresh)
+    res["provider"] = ai_label.get_config().get("provider")
+    res["available"] = ai_label.available()
+    return res
 
 
 @router.get("/online/ai_labels/status")
@@ -445,7 +607,86 @@ def online_ai_labels_status(asins: str = "") -> Dict[str, Any]:
     cached = db.get_ai_labels(items)
     return {"labels": {k: v["label"] for k, v in cached.items() if v.get("label")},
             "job": ai_label.job_state(items),
-            "ollama": ai_label.available()}
+            "provider": ai_label.get_config().get("provider"),
+            "available": ai_label.available(),
+            "ollama": ai_label.available("ollama")}
+
+
+# ---- 配置: 品名解析用哪个模型 ----
+class AiConfigReq(BaseModel):
+    provider: Optional[str] = None          # ollama | workbuddy
+    ollama_url: Optional[str] = None
+    ollama_model: Optional[str] = None
+    workbuddy_base: Optional[str] = None
+    workbuddy_key: Optional[str] = None     # 传 __KEEP__ 表示不改
+    workbuddy_model: Optional[str] = None
+    workbuddy_fallback: Optional[List[str]] = None
+
+
+@router.get("/settings/ai")
+def ai_settings_get() -> Dict[str, Any]:
+    """当前 AI 配置(不含明文 Key) + 两家可用性"""
+    return {"config": ai_label.public_config(),
+            "status": {"ollama": ai_label.available("ollama"),
+                       "workbuddy": ai_label.available("workbuddy")}}
+
+
+@router.post("/settings/ai")
+def ai_settings_save(req: AiConfigReq = Body(...)) -> Dict[str, Any]:
+    patch = {k: v for k, v in req.model_dump().items() if v is not None}
+    if patch.get("provider") and patch["provider"] not in ai_label.PROVIDERS:
+        raise HTTPException(400, "provider 只能是 ollama 或 workbuddy")
+    ai_label.save_config(patch)
+    return {"saved": True, "config": ai_label.public_config(),
+            "status": {"ollama": ai_label.available("ollama"),
+                       "workbuddy": ai_label.available("workbuddy")}}
+
+
+@router.post("/settings/ai/test")
+def ai_settings_test(req: AiConfigReq = Body(default=AiConfigReq())) -> Dict[str, Any]:
+    """用当前(或表单里填的)配置真跑一次, 看能否出短语"""
+    patch = {k: v for k, v in req.model_dump().items() if v is not None}
+    return ai_label.test_provider(patch)
+
+
+# ---- 搜索词中文翻译(模型生成, 落 translations 表) ----
+class TranslateReq(BaseModel):
+    kind: str = translate.KIND_TERM     # search_term | product_name
+    sources: List[str] = []
+    refresh: bool = False               # True = 已翻译过的也重翻
+
+
+@router.post("/translate")
+def translate_ensure(req: TranslateReq = Body(default=TranslateReq())) -> Dict[str, Any]:
+    """取搜索词的中文翻译; 缺失的启动后台生成(串行), 用 /translate/status 轮询
+
+    已翻译过的直接返回(不再调模型); ASIN 形态的 query 自动跳过。
+    """
+    kind = req.kind if req.kind in (translate.KIND_TERM, translate.KIND_PRODUCT) \
+        else translate.KIND_TERM
+    try:
+        res = translate.ensure(kind, req.sources, refresh=req.refresh)
+    except Exception as e:      # noqa: BLE001
+        raise HTTPException(500, f"翻译任务启动失败: {str(e)[:200]}")
+    res["provider"] = ai_label.get_config().get("provider")
+    res["available"] = ai_label.available()
+    return res
+
+
+@router.get("/translate/status")
+def translate_status(kind: str = translate.KIND_TERM, sources: str = "") -> Dict[str, Any]:
+    """轮询翻译进度与结果 (sources 逗号分隔)"""
+    items = [s.strip() for s in (sources or "").split(",") if s.strip()]
+    return {"translations": db.get_translations(kind, items),
+            "job": translate.job_state(kind, items),
+            "provider": ai_label.get_config().get("provider"),
+            "available": ai_label.available()}
+
+
+@router.get("/translate/list")
+def translate_list(kind: str = translate.KIND_TERM, limit: int = 5000) -> Dict[str, Any]:
+    """已落库的翻译清单(按时间倒序) + 各类条数"""
+    return {"rows": db.get_all_translations(kind, limit), "counts": db.translation_counts()}
 
 
 def _parse_filters_obj(raw: str) -> Dict[str, List[str]]:
@@ -613,7 +854,8 @@ def title_similarity_start(asin: str = Query(...), term: str = Query(...),
                            top_n: int = Query(10)) -> Dict[str, Any]:
     """标题同类匹配: 我的标题 × 每条竞品标题 (后台任务, 逐条落库)
 
-    比较前剥离尺寸/颜色/数量等噪声, 只判断是否同一类物品。
+    原始标题直接送大模型判断(不做本地正则预处理); 尺寸/颜色/品牌/促销词
+    由提示词要求模型自行忽略。
     """
     from backend import deep_check
     t, a = (term or "").strip(), (asin or "").strip()
@@ -663,7 +905,7 @@ def _ollama_models() -> List[str]:
 
 @router.get("/settings")
 def get_settings() -> Dict[str, Any]:
-    from workbuddy.client import KNOWN_MODELS
+    from backend.vendor.workbuddy.client import KNOWN_MODELS
     return {
         "wb_model": relevance.current_model("workbuddy"),
         "wb_vision_model": relevance.current_model("vision"),
@@ -676,17 +918,18 @@ def get_settings() -> Dict[str, Any]:
 
 @router.post("/settings")
 def save_settings(req: SettingsReq = Body(default=SettingsReq())) -> Dict[str, Any]:
-    from workbuddy.client import KNOWN_MODELS
+    from backend.vendor.workbuddy.client import KNOWN_MODELS
     changed = {}
-    for val, key in ((req.wb_model, "wb_model"),
-                     (req.wb_vision_model, "wb_vision_model")):
+    # 统一写入口: 文本模型会同时写 online_meta 与「配置」弹窗那份配置, 两处保持一致
+    for val, kind, key in ((req.wb_model, "text", "wb_model"),
+                           (req.wb_vision_model, "vision", "wb_vision_model")):
         if val:
             if val not in KNOWN_MODELS:
                 raise HTTPException(400, f"未知模型: {val}")
-            db.save_online_meta(key, val)
+            wb_config.set_model(val, kind)
             changed[key] = val
     if req.ollama_model:
-        db.save_online_meta("ollama_model", req.ollama_model)
+        wb_config.set_model(req.ollama_model, "ollama")
         changed["ollama_model"] = req.ollama_model
     if changed:
         db.save_online_meta("wb_model_updated_at", db.now())

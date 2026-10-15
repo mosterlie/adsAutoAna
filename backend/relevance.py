@@ -16,19 +16,14 @@ Ollama/WorkBuddy 结果按 (term, title_hash) 缓存到 term_relevance 表;
 """
 import json
 import re
-import sys
 import threading
 import urllib.request
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 import config
-
-# workbuddy 客户端包位于 testApi 项目
-if "/Users/gx/Desktop/mypro/testApi" not in sys.path:
-    sys.path.insert(0, "/Users/gx/Desktop/mypro/testApi")
-
 from backend import database as db
+from backend import wb_config
 
 _LOCK = threading.Lock()
 JOBS: Dict[str, Dict[str, Any]] = {}
@@ -97,42 +92,23 @@ def text_relevance(term: str, title: str) -> Dict[str, Any]:
 # 大模型语义判断: WorkBuddy API 首选, 本地 Ollama 兜底
 # 底座模型可在「配置管理」页切换, 持久化在 online_meta 表(key=wb_model/ollama_model)
 # ---------------------------------------------------------------------------
-_WB_CLIENTS: Dict[str, Any] = {}
-_WB_LOCK = threading.Lock()
-
-
 def current_model(engine: str = "workbuddy") -> str:
-    """当前生效的底座模型 (配置管理页可改, 库里没有则用 config 默认值)
+    """当前生效的底座模型
 
-    - workbuddy : 相关性语义判断
+    统一委托给 backend/wb_config.py 解析(「配置管理」页与「配置」弹窗写的是同一个值):
+    - workbuddy : 相关性语义判断 / 品名解析 / 搜索词翻译
     - vision    : 深度检测(图片相似度)的视觉模型
     - ollama    : 本地兜底
     """
-    key, default = {
-        "workbuddy": ("wb_model", config.WB_MODEL),
-        "vision": ("wb_vision_model", config.WB_VISION_MODEL),
-        "ollama": ("ollama_model", config.OLLAMA_MODEL),
-    }.get(engine, ("wb_model", config.WB_MODEL))
-    try:
-        v = db.get_online_meta(key)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-    except Exception:           # noqa: BLE001
-        pass
-    return default
+    return wb_config.model("vision" if engine == "vision"
+                           else ("ollama" if engine == "ollama" else "text"))
 
 
 def _workbuddy(prompt: str) -> str:
+    """透传模式调用(客户端由 backend/wb_config.py 统一构造与缓存)"""
     model = current_model("workbuddy")
-    with _WB_LOCK:
-        c = _WB_CLIENTS.get(model)
-        if c is None:
-            from workbuddy import WorkBuddyClient
-            c = WorkBuddyClient(mode="passthrough", model=model,
-                                env_file=config.WB_ENV_FILE, timeout=config.WB_TIMEOUT)
-            _WB_CLIENTS[model] = c
-    r = c.chat_raw(prompt, temperature=config.WB_TEMPERATURE,
-                   max_tokens=config.WB_MAX_TOKENS)
+    r = wb_config.client(model, "text").chat_raw(
+        prompt, temperature=config.WB_TEMPERATURE, max_tokens=config.WB_MAX_TOKENS)
     return (r.content or "").strip()
 
 

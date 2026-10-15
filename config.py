@@ -118,12 +118,37 @@ OLLAMA_MODEL = "qwen2.5:1.5b-instruct-q4_K_M"
 OLLAMA_TIMEOUT = 60                   # 单次生成超时(秒)
 OLLAMA_LABEL_MAX_WORDS = 5            # 短语词数上限
 
-# WorkBuddy 大模型 API (腾讯 copilot): 搜索词×SKU 相关性语义判断(首选)
-WB_ENV_FILE = "/Users/gx/Desktop/mypro/testApi/.env"   # WORKBUDDY_API_KEY 所在 .env
-WB_MODEL = "deepseek-v4.1-flash"                       # 实测可用且快(~3s/次)
-WB_TEMPERATURE = 0.1
+# ---- WorkBuddy 大模型 API (腾讯 copilot): 全项目共用这一套配置 ----
+# 调用通道统一走 backend/vendor/workbuddy 的**透传模式**(mode="passthrough"),
+# 由 backend/wb_config.py 统一取参; 品名解析 / 搜索词翻译 / 相关性语义判断 共用:
+#   地址 + Key + 底座模型 + 超时温度  —— 都是同一份, 不再各功能各写一套默认值。
+# Key 优先级: 环境变量 WORKBUDDY_API_KEY > 项目「配置」里已存的 workbuddy key
+#             > 下面这个 .env(开发机旧路径; 文件不存在会被自动忽略, 不影响跨平台)
+WB_ENV_FILE = os.environ.get("WORKBUDDY_ENV_FILE") or \
+    "/Users/gx/Desktop/mypro/testApi/.env"
+# 网关地址(OpenAI 兼容, 仅接受流式; 客户端内部已按流式聚合成完整结果)
+WORKBUDDY_BASE = os.environ.get("WORKBUDDY_BASE") or \
+    "https://copilot.tencent.com/v2/chat/completions"
+WORKBUDDY_KEY = os.environ.get("WORKBUDDY_KEY") or ""     # 页面「配置」里填
+# 底座模型默认值: 运行时可改(「配置管理」页 / 「配置」弹窗 改的是同一个值)
+# 选 deepseek-v4.1-flash: 非推理型, 单次约 1~1.5 秒(相关性批量分析要跑几百条);
+# glm-5.3-flash 是推理型, 约 8 秒/次, 只在需要更强理解时临时切换。
+WORKBUDDY_MODEL = "deepseek-v4.1-flash"
+# 主模型不可用时依次回退(2026-10-08 实测网关可用: glm-5.3-flash / deepseek-v4.1-flash
+# / deepseek-v4-flash / glm-5.3 / kimi-k3 / minimax-m3 / hy3 ... 共 18 个)
+WORKBUDDY_FALLBACK_MODELS = ["glm-5.3-flash", "deepseek-v4-flash"]
+WORKBUDDY_TIMEOUT = 90                # 单次请求超时(秒)
+WORKBUDDY_TEMPERATURE = 0.2           # 采样温度(品名/翻译/判定共用)
+# 输出上限: 推理型模型(glm-5.3 / hy4 等)会先把 token 花在 reasoning_content 上,
+# 给小了正文就是空的(实测 64 时 glm-5.3 正文为空); 非推理模型用不满, 不影响耗时
+WORKBUDDY_MAX_TOKENS = 1024
+
+# ---- 以下为历史命名(WB_*), 一律**派生**自上面这套, 不要再单独改这里 ----
+WB_MODEL = WORKBUDDY_MODEL                 # 别名: 底座模型
+WB_TIMEOUT = WORKBUDDY_TIMEOUT             # 别名: 超时
+WB_TEMPERATURE = WORKBUDDY_TEMPERATURE     # 别名: 温度
+# 相关性判定是「结构化小输出」, 用更小的上限更快(不影响品名/翻译的长输出)
 WB_MAX_TOKENS = 200
-WB_TIMEOUT = 60                                        # 单次请求超时(秒)
 
 # WorkBuddy 视觉模型: 深度检测(图片相似度)用, 可在「配置管理」页切换
 WB_VISION_MODEL = "glm-5v-turbo"
@@ -132,3 +157,7 @@ WB_VISION_TIMEOUT = 90                                 # 视觉调用较慢(2~40
 WB_VISION_IMG_MAX = 512                                # 送入模型前图片最长边(px)
 WB_VISION_IMG_QUALITY = 78                             # JPEG 质量
 WB_VISION_WORKERS = 5                                  # 深度检测并发数
+
+# ---- 品名解析走哪家: 本地 Ollama 还是 workbuddy 在线网关 ----
+# 页面「配置」菜单里可切换(存 app_settings, 优先级高于这里的默认值)
+AI_PROVIDER = "workbuddy"             # ollama | workbuddy

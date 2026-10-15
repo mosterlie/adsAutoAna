@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse       # noqa: E402
 from fastapi.staticfiles import StaticFiles      # noqa: E402
 
 import config                                     # noqa: E402
+from backend import amazon_store                  # noqa: E402
 from backend import database as db                # noqa: E402
 from backend.api import router                    # noqa: E402
 
@@ -42,3 +43,18 @@ def index():
 def favicon():
     from fastapi import Response
     return Response(status_code=204)
+
+
+@app.get("/amz-media/{parent}/{term}/{stem}")
+def amz_media(parent: str, term: str, stem: str):
+    """本地主图: <父ASIN>/主图/<搜索词>/<顺位>_<ASIN>.<ext>
+
+    页面看竞品图时走这里(读本地文件), 不再去亚马逊的图片 CDN 取,
+    扩展名不固定, 由 backend.amazon_store.resolve_image 逐个试(并做目录穿越校验)。
+    """
+    from fastapi import Response
+    path = amazon_store.resolve_image(parent, term, stem)
+    if not path:
+        return Response(status_code=404)
+    return FileResponse(
+        path, headers={"Cache-Control": "public, max-age=604800"})

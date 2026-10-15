@@ -19,6 +19,7 @@ import re
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import quote
 
 import config
 
@@ -32,6 +33,9 @@ SHOT_DIRNAME = "_shots"
 UNMAPPED_DIR = "_unmapped"      # 解析不出父 ASIN 的搜索词放这里
 DONE_NAME = "_done.json"        # 放在 <父ASIN>/ 下: 该父体已抓完的标记
 PARENTS_FILE = "_parents.json"  # 各父 ASIN 状态的汇总
+
+# 主图可能的扩展名 (与 amazon_images._EXT_OK 保持一致, 这里另定义避免循环依赖)
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +65,14 @@ def safe_name(query: str) -> str:
 
 def _safe_parent(parent: str) -> str:
     return _ILLEGAL.sub("_", (parent or "").strip()) or "unknown"
+
+
+def _safe_segment(seg: str) -> str:
+    """校验一段路径(来自 URL/外部输入): 含路径分隔符或 .. 直接判非法"""
+    s = (seg or "").strip()
+    if not s or ".." in s or "/" in s or "\\" in s:
+        return ""
+    return _ILLEGAL.sub("_", s)
 
 
 def json_dir(parent: str) -> str:
@@ -127,6 +139,25 @@ def exists(query: str) -> bool:
         if p and os.path.exists(p):
             return True
     return False
+
+
+def local_queries(queries: List[str],
+                  index: Optional[Dict[str, Any]] = None) -> set:
+    """这一批搜索词里哪些本地已有结果(批量版 exists, 整份索引只读一次)
+
+    用于「还有多少没抓」这类统计: 逐个 exists() 会把索引文件读 N 遍。
+    """
+    idx = index if index is not None else load_index()
+    out: set = set()
+    for q in queries or []:
+        s = str(q or "").strip()
+        if not s or s in out:
+            continue
+        for p in ((idx.get(s) or {}).get("json") or {}).values():
+            if p and os.path.exists(p):
+                out.add(s)
+                break
+    return out
 
 
 def find(query: str) -> Optional[Dict[str, Any]]:
@@ -213,6 +244,24 @@ def images_pending(query: str, parents: List[str]) -> List[str]:
     ent = info(query) or {}
     imgs = ent.get("images") or {}
     return [p for p in parents if not imgs.get(p)]
+
+
+def parent_term_state(parent: str, query: str,
+                      index: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """(父 ASIN, 搜索词) 的本地素材情况 —— 给「已拉取」状态判断用
+
+        fetched: 结果数据(json)已落盘 → 详情页可直接读本地, 不用再访问亚马逊
+        images : 已下载的竞品主图张数(索引没记按 0 算, 与 images_pending 口径一致)
+
+    批量判断时把 index(load_index() 的结果)传进来, 否则每个词都会重新加载整份索引。
+    """
+    p, q = (parent or "").strip(), (query or "").strip()
+    if not p or not q:
+        return {"fetched": False, "images": 0}
+    ent = (index if index is not None else load_index()).get(q) or {}
+    path = (ent.get("json") or {}).get(p) or ""
+    return {"fetched": bool(path) and os.path.exists(path),
+            "images": int((ent.get("images") or {}).get(p) or 0)}
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +400,50 @@ def mark_parent_done(parent: str, info: Dict[str, Any]) -> Dict[str, Any]:
             json.dump(st, f, ensure_ascii=False, indent=2, sort_keys=True)
         os.replace(tmp, p)
     return ent
+
+
+def local_image_url(parent: str, query: str, item: Dict[str, Any]) -> str:
+    """该 item 在本地的主图地址(相对 URL); 本地没有这张图时返回 ""
+
+    本地文件名规则与 amazon_images.file_name 一致: <顺位:02d>_<ASIN>.<ext>,
+    扩展名不固定(jpg/png/webp), 所以 URL 只带文件主干, 由 /amz-media 路由去匹配。
+    """
+    try:
+        pos = int(item.get("position") or 0)
+    except (TypeError, ValueError):
+        return ""
+    asin = (item.get("asin") or "").strip()
+    if not parent or not pos or not asin:
+        return ""
+    stem = f"{pos:02d}_{asin}"
+    d = os.path.join(root(), _safe_parent(parent), "主图", safe_name(query))
+    if not os.path.isdir(d):
+        return ""
+    if not any(os.path.exists(os.path.join(d, stem + e)) for e in IMAGE_EXTS):
+        return ""
+    return (f"/amz-media/{quote(_safe_parent(parent))}"
+            f"/{quote(safe_name(query))}/{quote(stem)}")
+
+
+def resolve_image(parent: str, term: str, stem: str) -> Optional[str]:
+    """按 (父ASIN, 搜索词目录名, 文件主干) 找本地图片; 找不到或不合法返回 None
+
+    只允许落在 <root>/<父ASIN>/主图/<搜索词>/ 之内, 防目录穿越。
+    """
+    p_seg, t_seg = _safe_segment(parent), _safe_segment(term)
+    s_seg = _safe_segment(stem)
+    if not (p_seg and t_seg and s_seg) or "." in s_seg:
+        return None
+    base = os.path.join(root(), p_seg, "主图", t_seg)
+    for e in IMAGE_EXTS:
+        p = os.path.join(base, s_seg + e)
+        try:
+            if os.path.isfile(p) and os.path.realpath(p).startswith(
+                    os.path.realpath(base) + os.sep):
+                return p
+        except OSError:
+            continue
+    return None
 
 
 def image_count(parent: str) -> int:

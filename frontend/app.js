@@ -11,7 +11,12 @@ const state = {
   columns: [], rows: [], hidden: {}, keyword: "", orderField: "", orderDir: "desc",
   filters: {}, searchField: "", searchMode: "blur", filterMeta: null,
   amzQuery: "", amzItems: [], amzCached: new Set(),   // amzCached: 本地已抓过的搜索词
+  translations: {}, transPending: new Set(),          // 搜索词中文翻译(已落库) + 生成中
+  transFailed: new Set(),                             // 本次会话内生成失败的词(不再重复入队)
+  transTimer: null,
+  transHooks: new Map(),                              // 视图key -> 译文更新后的刷新回调(按 key 覆盖, 不会累积)
   prefetchRunning: false, prefetchTimer: null,
+  fetchRunning: false, fetchState: null, fetchTimer: null,   // 全量拉取素材(产品视角工具栏)
   polling: null,
 };
 
@@ -252,6 +257,106 @@ async function loadRecords() {
   const d = await api("/api/records?" + queryParams().toString());
   state.columns = d.columns; state.rows = d.rows; state.total = d.total;
   renderTable(); renderPager();
+  if (state.tab === "search") ensureTerms();     // 本页搜索词: 缺译文的排队自动翻译
+}
+
+/* ---------- 搜索词中文翻译 (AI 生成, 落库, 已译不重调) ---------- */
+
+/* ASIN 形态的 query(商品定位行)不需要翻译 */
+function isAsin(q) { return /^[A-Z0-9]{10}$/.test(String(q || "").trim()); }
+
+function termOfRow(r) { return String(r.query || r.keywordText || "").trim(); }
+
+/* 把一批搜索词的缺译文发给后端; 已缓存的立即返回; 译文有更新时回调 onChange
+   (主表格 / 搜索词列表页 / 抽屉搜索词表 / 搜索词详情页 共用这一套)
+
+   hookKey: 视图标识。回调按 key 覆盖而不是累积 —— 否则「渲染->入队->回调->渲染」
+   会不断新增回调, 一个词生成失败就会指数级放大直到页面卡死。
+   state.transFailed: 本次会话内生成失败的词(不落库的词, 如品牌名), 不再重复入队。 */
+async function ensureTermList(queries, onChange, hookKey) {
+  const qs = [...new Set((queries || []).map((s) => String(s || "").trim())
+    .filter((q) => q && !isAsin(q)))]
+    .filter((q) => !state.translations[q] && !state.transPending.has(q)
+      && !state.transFailed.has(q));
+  if (!qs.length) return;
+  if (onChange) state.transHooks.set(hookKey || "default", onChange);
+
+  let d;
+  try {
+    d = await api("/api/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "search_term", sources: qs }),
+    });
+  } catch (e) { return; }
+  if (d.detail) return;
+  Object.assign(state.translations, d.translations || {});
+  const pending = (d.pending || []).filter((q) => !state.translations[q]);
+  pending.forEach((q) => state.transPending.add(q));
+  if (Object.keys(d.translations || {}).length) notifyTransHooks();
+  if (pending.length) pollTrans(qs);
+}
+
+/* 搜索词页签(主表格): 本页缺译文的词排队翻译 */
+function ensureTerms(extra) {
+  return ensureTermList([
+    ...(extra || []),
+    ...state.rows.map(termOfRow),
+  ], () => { renderTable(); updateAmzZh(state.amzQuery); }, "table");
+}
+
+function notifyTransHooks() {
+  state.transHooks.forEach((fn) => {
+    try { fn(); } catch (e) { /* 单个视图刷新失败不影响其它 */ }
+  });
+}
+
+/* 有生成任务时轮询; 每拿到新译文就通知所有视图刷新 */
+function pollTrans(queries) {
+  if (state.transTimer) return;
+  const tick = async () => {
+    const qs = [...new Set([...queries, ...state.transPending])].filter((q) => q);
+    if (!qs.length) { clearInterval(state.transTimer); state.transTimer = null; return; }
+    let d;
+    try {
+      d = await api("/api/translate/status?kind=search_term&sources="
+        + encodeURIComponent(qs.join(",")));
+    } catch (e) { return; }
+    let got = 0;
+    Object.entries(d.translations || {}).forEach(([k, v]) => {
+      if (!state.translations[k]) got++;
+      state.translations[k] = v;
+    });
+    [...state.transPending].forEach((q) => {
+      if (state.translations[q]) state.transPending.delete(q);
+    });
+    if (got) notifyTransHooks();
+    const job = d.job || {};
+    if (!job.running) {
+      clearInterval(state.transTimer); state.transTimer = null;
+      if (state.transPending.size) {          // 结束了还有没拿到的 → 这批词翻译失败
+        const err = job.error ? `：${job.error}` : "";
+        toast(`部分搜索词翻译失败${err}`);
+        // 记入失败集合(而不是直接清空): 否则下一轮渲染会把它们当「缺译文」重新入队,
+        // 形成 渲染→入队→回调→渲染 的死循环
+        state.transPending.forEach((q) => state.transFailed.add(q));
+        state.transPending.clear();
+        notifyTransHooks();
+      }
+    }
+  };
+  state.transTimer = setInterval(tick, 2500);
+}
+
+/* 弹层里的译文展示位 */
+function updateAmzZh(q) {
+  const el = $("amzZh");
+  if (!el) return;
+  if (!q || isAsin(q)) { el.textContent = ""; return; }
+  const zh = state.translations[q];
+  if (zh) { el.textContent = `中文：${zh}`; el.classList.remove("pending"); }
+  else if (state.transPending.has(q)) {
+    el.textContent = "翻译生成中…"; el.classList.add("pending");
+  } else { el.textContent = ""; el.classList.remove("pending"); }
 }
 
 async function loadStats() {
@@ -309,17 +414,145 @@ function renderTable() {
   renderColMenu();
 }
 
-/* 搜索词页签: 单元格渲染为「可点击 -> 打开亚马逊搜索结果页」*/
+/* 搜索词的 AI 中文翻译小字 (有译文显示译文, 生成中显示占位) */
+function termZhHtml(q, r) {
+  const zh = (r && r.query_zh) || state.translations[q] || "";
+  if (zh) return `<div class="term-zh" title="AI 翻译(已落库)">${esc(zh)}</div>`;
+  if (state.transPending.has(q)) {
+    return `<div class="term-zh pending" title="AI 翻译生成中(模型较慢, 稍候自动刷新)">翻译中…</div>`;
+  }
+  return "";
+}
+
+/* 搜索词列表: 同一个词给同一种淡色背景(一眼看出哪些词重复出现),
+   只出现一次的词不着色(保持白底); 重复词按词排序后依次取色, 保证同词同色 */
+const TERM_BG = ["#eef6ff", "#e8f7ee", "#fff8e4", "#fdeef4", "#f1eefc",
+                 "#e7f8fa", "#fdf1e7", "#f1f7e6", "#eef1fb", "#fbeef0"];
+function termBgMap(queries) {
+  const cnt = new Map();
+  (queries || []).forEach((q) => { if (q) cnt.set(q, (cnt.get(q) || 0) + 1); });
+  const dup = [...cnt.keys()].filter((q) => cnt.get(q) > 1).sort();
+  const m = new Map();
+  dup.forEach((q, i) => m.set(q, TERM_BG[i % TERM_BG.length]));
+  return m;
+}
+/* 用在 <td>/<span> 上的内联背景样式; 没有重复时不加(白底) */
+function termBgAttr(bg) { return bg ? ` style="background:${bg}"` : ""; }
+
+/* 搜索词打标结果: 父ASIN -> {搜索词: 标签}
+   打标在详情页做, 列表页只读展示(带缓存, 取不到也记空避免反复请求) */
+const termLabels = {};
+const termLabelLoading = {};
+
+async function loadTermLabels(asin) {
+  const pa = String(asin || "").trim();
+  if (!pa) return {};
+  if (termLabels[pa]) return termLabels[pa];
+  if (termLabelLoading[pa]) return termLabelLoading[pa];
+  termLabelLoading[pa] = api("/api/product/term_labels?asin=" + encodeURIComponent(pa))
+    .then((d) => {
+      const m = {};
+      Object.entries(d.rows || {}).forEach(([t, v]) => { m[t] = (v && v.label) || ""; });
+      termLabels[pa] = m;
+      return m;
+    })
+    .catch(() => { termLabels[pa] = {}; return {}; })
+    .finally(() => { delete termLabelLoading[pa]; });
+  return termLabelLoading[pa];
+}
+
+/* 打标单元格: 打过标显示彩色标签, 没打过显示 - */
+function termLabelCell(label) {
+  return label
+    ? `<span class="lb-tag" data-l="${esc(label)}">${esc(label)}</span>`
+    : '<span class="pmeta">-</span>';
+}
+
+/* 进度状态标签: done=完成/已拉取 · partial=部分 · none=未开始 · empty=无数据
+   (文案由后端给, 前端只上色; 见 backend/term_status.py) */
+function stTag(key, text) {
+  const k = key || "none";
+  return `<span class="st-tag" data-st="${esc(k)}">${esc(text || "")}</span>`;
+}
+
+/* 父SKU 的「素材拉取」单元: 状态标签 + 已完成/总数 */
+function fetchCell(r) {
+  if (!r.terms_total) {
+    return `<span class="st-tag" data-st="empty" title="该父体在广告数据里没有搜索词">无搜索词</span>`;
+  }
+  const tip = `该父体共 ${r.terms_total} 个搜索词，已把竞品结果拉到本地 ${r.terms_fetched} 个`
+    + (r.terms_fetched >= r.terms_total ? "（全部完成）"
+      : "；点该行「搜索词」可看哪些还没拉取");
+  return `<span title="${esc(tip)}">${stTag(r.fetch_status, r.fetch_text)}`
+    + `<span class="st-num">${r.terms_fetched}/${r.terms_total}</span></span>`;
+}
+
+/* 排名列: 一列里塞 4 个名次(花费/曝光/点击/订单), 每个数一个颜色 + 单字标签
+   [k, 单字, 全称, 指标字段] —— 顺序即显示顺序(2×2 网格, 前两个在上排)
+   名次口径: 该词在本父体**同类行**里的名次(搜索词 / 商品投放 各排各的), 1 = 最高 */
+const RANK_KEYS = [
+  ["cost", "花", "花费", "adCost"],
+  ["imp", "曝", "曝光", "impressions"],
+  ["clk", "点", "点击", "clicks"],
+  ["ord", "单", "订单", "orderNum"],
+];
+
+/* 当前视图里各指标有数据的行数(做 tooltip 里的「共 N 个」) */
+function rankDenoms(rows) {
+  const out = {};
+  RANK_KEYS.forEach(([k, , , field]) => {
+    out[k] = (rows || []).filter((r) => Number(r[field] || 0) > 0).length;
+  });
+  return out;
+}
+
+function rankCell(r, den) {
+  const cells = RANK_KEYS.map(([k, short, label, field]) => {
+    const n = Number(r["rank_" + k] || 0);
+    if (!n) {
+      return `<span class="rk none" data-k="${k}" title="${label}排名：该词没有${label}数据">`
+        + `<i>${short}</i>-</span>`;
+    }
+    const d = (den || {})[k] || 0;
+    const v = k === "cost" ? money(r[field]) : nf(r[field]);
+    const tip = `${label}排名：第 ${n} 名${d ? `（当前视图 ${d} 个有${label}的词）` : ""}`
+      + `，${label} ${v}`;
+    return `<span class="rk" data-k="${k}" title="${esc(tip)}"><i>${short}</i>${n}</span>`;
+  }).join("");
+  return `<div class="rk-grid">${cells}</div>`;
+}
+
+/* 父SKU 的「人工打标」单元: 同上口径 */
+function labelCell(r) {
+  if (!r.terms_total) return '<span class="pmeta">-</span>';
+  const tip = `该父体共 ${r.terms_total} 个搜索词，已人工打标 ${r.terms_labeled} 个`
+    + (r.terms_labeled >= r.terms_total ? "（全部完成）"
+      : "；在搜索词详情页打标，未打满则为「部分标记」");
+  return `<span title="${esc(tip)}">${stTag(r.label_status, r.label_text)}`
+    + `<span class="st-num">${r.terms_labeled}/${r.terms_total}</span></span>`;
+}
+
+/* 详情页保存/清除打标后, 同步进列表页缓存 */
+function cacheTermLabel(asin, term, label) {
+  const pa = String(asin || "").trim();
+  if (!pa || !term) return;
+  const m = termLabels[pa] || (termLabels[pa] = {});
+  if (label) m[term] = label; else delete m[term];
+}
+
+/* 搜索词页签: 单元格渲染为「可点击 -> 打开亚马逊搜索结果页」
+   搜索词下方带 AI 中文翻译(已落库的显示译文, 生成中的显示占位) */
 function cellHtml(c, r) {
   const v = fmtCell(c.key, r[c.key]);
   const isTerm = state.tab === "search" && (c.key === "query" || c.key === "keywordText") && r[c.key];
   if (isTerm) {
-    const cached = state.amzCached.has(r[c.key]);
+    const q = r[c.key];
+    const cached = state.amzCached.has(q);
     const tip = cached
       ? "已有本地抓取结果：点击直接查看，不会跳转亚马逊"
       : "本地没有：点击打开亚马逊搜索结果页并取回数据（约 10~25 秒）";
-    return `<span class="amz-link${cached ? " cached" : ""}" data-q="${esc(r[c.key])}"`
-      + ` title="${esc(tip)}">${v}</span>`;
+    return `<span class="term-cell"><span class="amz-link${cached ? " cached" : ""}" data-q="${esc(q)}"`
+      + ` title="${esc(tip)}">${v}</span>${termZhHtml(q, r)}</span>`;
   }
   return v;
 }
@@ -409,6 +642,8 @@ async function showAmazon(q, refresh) {
     : "正在查询（本地已有数据则立即返回；否则才打开浏览器加载，约 10~25 秒）…"}</div>`;
   $("amzModal").classList.add("open");
   $("amzRefresh").disabled = true;
+  updateAmzZh(q);          // 译文(有缓存立即显示, 没有则下面排队生成)
+  ensureTerms([q]);        // 点击搜索词 → 自动调模型翻译(已译过的不重复调)
   try {
     const p = new URLSearchParams({ query: q });
     if (refresh) p.set("refresh", "true");
@@ -452,10 +687,13 @@ async function showAmazon(q, refresh) {
       const stock = it.stock ? `<span class="amz-tag st">${esc(it.stock)}</span>`
         : (it.bought_recently ? `<span class="amz-tag st">${esc(it.bought_recently)}</span>` : "");
       const nExtras = (it.extras || []).length;
+      // 本地已有主图就用本地文件(不联亚马逊图片 CDN), 没有才回退远程地址
+      const thumb = it.image_local || it.image || "";
+      const big = it.image_local || it.image_big || amzBigImage(it.image);
       return `<tr class="amz-row" data-i="${idx}">
       <td class="p">${it.position}</td>
-      <td class="amz-img-td">${it.image ? `<img class="amz-thumb" src="${esc(it.image)}" loading="lazy" alt=""
-          data-preview="${esc(it.image_big || amzBigImage(it.image))}" data-fallback="${esc(it.image)}"
+      <td class="amz-img-td">${thumb ? `<img class="amz-thumb" src="${esc(thumb)}" loading="lazy" alt=""
+          data-preview="${esc(big)}" data-fallback="${esc(thumb)}"
           data-cap="${esc(it.asin + (it.title ? " · " + it.title : ""))}">` : ""}</td>
       <td class="p">${it.sponsored ? `<span class="ad">${esc(it.ad_label || "广告")}</span>` : ""}</td>
       <td class="amz-td-title">
@@ -702,6 +940,102 @@ async function initPrefetchState() {
   } catch (e) { /* 忽略: 不影响主流程 */ }
 }
 
+/* ===================================================================
+   拉取全部搜索词素材 (产品视角工具栏)
+   复用后台预抓取任务, 但两个参数必须改:
+     min_clicks = 0            不限点击量 —— 「所有搜索词」
+     skip_done_parents = false 不整组跳过「已标记完成」的父体
+       (那是上一轮只抓「点击≥2」时打的完成标记, 组里仍有无点击量的词没抓,
+        跳过就永远补不上)
+   素材 = 该词的亚马逊搜索结果 JSON(标题/价格/评分/ASIN/顺位...) + 结果页各竞品主图,
+   落到本地仓库; 已抓过的词按 exists() 断点跳过, 只补缺的。
+   =================================================================== */
+async function startFetchAll() {
+  let tg;
+  try {
+    tg = await api("/api/amazon/targets?min_clicks=0&limit=1");
+  } catch (e) { toast("取不到抓取目标: " + e.message); return; }
+  const sm = (tg && tg.summary) || {};
+  const todo = sm.todo_terms != null ? sm.todo_terms : (sm.terms || 0);
+  const mins = Math.max(1, Math.round(todo * 30 / 60));
+  if (!confirm(
+    `把全部搜索词（不限点击量）的亚马逊竞品素材拉到本地。\n\n`
+    + `· 目标: ${sm.terms} 个搜索词 / ${sm.parents} 个父 ASIN\n`
+    + `· 本地已有 ${sm.local_terms} 个会自动跳过，本次实际要抓 ${todo} 个\n`
+    + `· 落盘: <父ASIN>\\json\\<搜索词>.json + <父ASIN>\\主图\\<搜索词>\\<顺位>_<ASIN>.jpg\n`
+    + `· 结果页各竞品主图全下（售价按日本站日元）\n`
+    + `· 串行抓取, 词间随机间隔 8~15 秒, 每 20 条长休 1 分钟（反爬, 期间别关调试 Chrome）\n`
+    + `· 粗估 ${mins} 分钟以上；可关闭本页面, 后台继续跑\n\n开始?`)) return;
+  let r;
+  try {
+    r = await api("/api/amazon/prefetch", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ min_clicks: 0, skip_done_parents: false }),
+    });
+  } catch (e) { toast("启动失败: " + e.message); return; }
+  if (r.detail) { toast(r.detail); return; }        // 例如「已有抓取在跑」
+  toast(`已开始拉取: 待抓 ${todo} 个搜索词, 进度看工具栏`);
+  state.fetchRunning = true;
+  pollFetchAll();
+}
+
+async function stopFetchAll() {
+  const r = await api("/api/amazon/prefetch/stop", { method: "POST" });
+  toast(r.stopping ? "已请求停止，当前这条抓完即退出" : "任务未在运行");
+}
+
+/* 进度显示: 与预抓取共用 /api/amazon/prefetch/state */
+function renderFetchState(s) {
+  const btn = $("pFetchAll");
+  if (btn) btn.textContent = (s && s.running) ? "停止拉取" : "拉取全部搜索词素材";
+  const el = $("pFetchState");
+  if (!el) return;
+  if (!s) { el.textContent = ""; el.title = ""; return; }
+  if (s.running) {
+    el.innerHTML = `拉取中 · 父体 <b>${s.parents_done || 0}/${s.parents_total || 0}</b>`
+      + ` · 词 <b>${s.done || 0}/${s.total || 0}</b>`
+      + ` · 新抓 ${s.ok || 0} 跳过 ${s.skipped || 0} 失败 ${s.failed || 0}`
+      + (s.current ? ` · 当前「${esc(s.current)}」` : "");
+    el.title = (s.parent ? `当前父 ASIN ${s.parent}` : "") + (s.root ? `\n落盘目录 ${s.root}` : "");
+  } else if (s.error) {
+    el.innerHTML = `<span class="fetch-err">拉取失败: ${esc(s.error)}</span>`;
+    el.title = s.error;
+  } else if (s.finished_at) {
+    el.innerHTML = `拉取结束 · 新抓 <b>${s.ok || 0}</b> 跳过 ${s.skipped || 0}`
+      + ` 失败 ${s.failed || 0} · 主图新增 ${s.img_new || 0} 张 · ${esc(s.finished_at)}`;
+    el.title = "";
+  }
+}
+
+async function pollFetchAll() {
+  const tick = async () => {
+    let s;
+    try { s = await api("/api/amazon/prefetch/state"); } catch (e) { return; }
+    state.fetchRunning = !!s.running;
+    state.fetchState = s;
+    renderFetchState(s);
+    if (!s.running) {
+      clearInterval(state.fetchTimer); state.fetchTimer = null;
+      if (s.error) toast("拉取失败: " + s.error);
+      else toast(`拉取结束: 新抓 ${s.ok} · 跳过 ${s.skipped} · 失败 ${s.failed}`);
+      loadProducts();       // 刷新「素材拉取」列(状态标签要跟着变)
+    }
+  };
+  if (state.fetchTimer) return;
+  state.fetchTimer = setInterval(tick, 3000);
+  tick();
+}
+
+/* 打开页面就同步一次(后台正在跑就自动接着显示进度) */
+async function initFetchState() {
+  try {
+    const s = await api("/api/amazon/prefetch/state");
+    state.fetchState = s; state.fetchRunning = !!s.running;
+    renderFetchState(s);
+    if (s.running) pollFetchAll();
+  } catch (e) { /* 忽略: 不影响主流程 */ }
+}
+
 /* 图片大图预览 (产品视角/在线产品 的缩略图)
    赛狐给的主图是 75px 缩略图(URL 里带 ._SL75_ 之类的尺寸后缀)。
    亚马逊的图片服务支持「去掉尺寸后缀取原图」, 但**不接受任意尺寸**(._SL1000_ 会 400),
@@ -757,6 +1091,7 @@ const pv = {
   cSort: { field: "ad_cost", dir: "desc" },      // 活动列表(前端排序)
   tSort: { field: "adCost", dir: "desc" },       // 搜索词列表(前端排序)
   page: 1, pageSize: 50, total: 0, loaded: false,
+  aiLabels: {},                                  // 父ASIN -> AI 品名(模型解析标题)
 };
 
 const nf = (v) => {
@@ -980,6 +1315,9 @@ function renderProducts() {
         <button class="btn" id="pQuery">查询</button>
         <button class="btn btn-primary" id="btnRelBatch" ${pvSel.size ? "" : "disabled"}>
           批量关联度分析${pvSel.size ? `（已选 ${pvSel.size}）` : ""}</button>
+        <button class="btn" id="pFetchAll"
+          title="把全部搜索词（不限点击量）的亚马逊竞品素材拉到本地：结果 JSON + 各竞品主图；抓过的自动跳过、断点续抓">拉取全部搜索词素材</button>
+        <span class="pmeta" id="pFetchState"></span>
         <span class="pmeta">以<b>父 ASIN</b> 为一条记录；同一父体下的多个子 ASIN 指标合并统计。勾选后可批量分析搜索词关联度</span>
       </div>
     </div>
@@ -1000,6 +1338,9 @@ function renderProducts() {
     </div>`;
   $("pQuery").onclick = () => { pv.keyword = $("pKw").value.trim(); pv.page = 1; loadProducts(); };
   $("pKw").onkeydown = (e) => { if (e.key === "Enter") $("pQuery").click(); };
+  const fa = $("pFetchAll");
+  if (fa) fa.onclick = () => (state.fetchRunning ? stopFetchAll() : startFetchAll());
+  renderFetchState(state.fetchState);      // 页面重画时把拉取进度补回来
 
   const rows = pv.rows.map((r) => {
     const pa = r.parent_asin || r.asin;
@@ -1033,6 +1374,9 @@ function renderProducts() {
         </span>
       </td>
       <td class="col-sku cell-ellip" title="父SKU：${esc(r.sku || "-")}">${esc(r.sku || "-")}</td>
+      <td class="col-name">${pvAiHtml(pa)}</td>
+      <td class="col-fetch">${fetchCell(r)}</td>
+      <td class="col-mark">${labelCell(r)}</td>
       <td class="col-kid kid-cell" data-kid="${esc(pa)}" title="${esc(tip)}">${kidHtml}</td>
       <td class="col-title p-title-cell" title="${esc(r.title)}">${esc(r.title || "")}</td>
       <td class="col-price num" title="父ASIN售价 = 该父体下 ${r.price_child_count || 0} 个子体售价的中位数">${r.price_median ? money(r.price_median) : "-"}</td>
@@ -1068,6 +1412,11 @@ function renderProducts() {
         title: "点击按父 ASIN 排序" })}
       ${sortableTh(sort1, { cls: "col-sku", label: "父SKU", field: "sku",
         title: "点击按父 SKU 排序" })}
+      <th class="col-name" title="该父体的「品名」= 模型解析商品标题得到的中文短语（≤5 词）；模型可在右上角「配置」里切换">品名</th>
+      <th class="col-fetch" title="竞品素材拉取进度：该父体的搜索词是否已把亚马逊竞品结果拉到本地。
+全部拉完 = 拉取完成；拉了一部分 = 部分拉取；一个没拉 = 未拉取。括号内为 已拉取/搜索词总数">素材拉取<span class="th-en">(Assets)</span></th>
+      <th class="col-mark" title="人工打标进度：该父体的搜索词是否已在搜索词详情页打过相关度标。
+全部打完 = 标记完成；打了一部分 = 部分标记；一个没打 = 未标记。括号内为 已打标/搜索词总数">打标<span class="th-en">(Labeled)</span></th>
       <th class="col-kid" title="蓝底 = 正在投放广告的子 ASIN（已排在最前）；灰字 = 未投放广告的变体。点击单元格查看全部并跳转">子ASIN</th>
       ${sortableTh(sort1, { cls: "col-title", label: "标题", field: "title",
         title: "点击按标题排序" })}
@@ -1160,6 +1509,8 @@ function renderProducts() {
   $("pWrap").querySelectorAll('button[data-act="pterms"]').forEach((btn) => btn.onclick = () => {
     openTermsPage(btn.dataset.pa);
   });
+  // 品名: 本页父 ASIN 逐个解析(已解析过的直接取缓存, 不重复调模型)
+  ensurePvLabels(pv.rows.map((r) => r.parent_asin || r.asin).filter(Boolean));
   bindPager();
 }
 
@@ -1374,15 +1725,20 @@ function renderTerms() {
     };
   });
 
+  const tbg = termBgMap(rows.map((r) => String(r.query || "")));   // 重复词同色
+  const paT = P.parent_asin || P.asin || "";
+  if (paT && !termLabels[paT]) loadTermLabels(paT).then(() => renderTerms());  // 首次取到打标后重画
+  const lmT = termLabels[paT] || {};
   const body = rows.map((r) => {
     const isKw = r.scope.endsWith("keyword");
     const val = esc(r.query || "");
     const cell = isKw
-      ? `<span class="amz-link" data-q="${val}" title="点击查看该搜索词在亚马逊的搜索结果">${val}</span>`
+      ? `<span class="term-cell"><span class="amz-link" data-q="${val}" title="点击查看该搜索词在亚马逊的搜索结果">${val}</span>${termZhHtml(r.query, r)}</span>`
       : `<a class="cell-link" href="https://www.amazon.co.jp/dp/${val}" target="_blank" rel="noopener">${val}</a>`;
     return `<tr>
       <td><span class="dim-tag ${isKw ? "kw" : "tg"}">${r.dimension}</span></td>
-      <td>${cell}</td>
+      <td${termBgAttr(tbg.get(String(r.query || "")))}>${cell}</td>
+      <td class="col-label">${isKw ? termLabelCell(lmT[r.query]) : "-"}</td>
       <td>${esc(r.matchType || "")}</td>
       ${PT ? `<td class="num">${r.campaign_count || 1}</td>` : ""}
       <td class="num">${nf(r.impressions)}</td>
@@ -1407,6 +1763,7 @@ function renderTerms() {
   $("pWrap").innerHTML = `<table><thead><tr>
       ${sortableTh(pv.tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
       ${sortableTh(pv.tSort, { label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
+      <th class="col-label" title="该搜索词对本父体的相关度打标（紧密 / 宽泛 / 不太相关 / 不相关），在搜索词详情页打标">打标<span class="th-en">(Relevance)</span></th>
       ${sortableTh(pv.tSort, { label: "匹配方式", en: "Match Type", field: "matchType" })}
       ${PT ? sortableTh(pv.tSort, { cls: "num", label: "涉及活动", en: "Campaigns",
         field: "campaign_count", total: T3.campaign_count,
@@ -1424,6 +1781,8 @@ function renderTerms() {
     (rows.length ? "" : `<div class="empty">该${PT ? "父体" : "活动"}在此维度下没有数据</div>`);
   bindSortHeaders($("pWrap"), pv.tSort, () => renderTerms());
   $("pWrap").querySelectorAll(".amz-link").forEach((el) => el.onclick = () => openAmazon(el.dataset.q));
+  // 缺译文的搜索词排队自动翻译; 译文到位后重画
+  ensureTermList(rows.map((r) => r.query), () => renderTerms(), "drawerTerms");
 }
 
 /* ---------- 产品视角分页 ---------- */
@@ -1572,7 +1931,7 @@ function olCell(col, r) {
       const a = esc(r.asin || "");
       const lab = (ol.aiLabels || {})[r.asin];
       return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${a}"
-        title="${lab ? esc(lab) : "正在用本地模型解析标题…"}">${lab ? esc(lab) : "解析中…"}</span>`;
+        title="${lab ? esc(lab) : "正在解析品名(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
     }
     case "title":
       return `<div class="ol-title-in" title="${esc(olVal(r.title))}">${olPlain(r.title)}</div>`;
@@ -1698,7 +2057,8 @@ async function loadOnlineProducts() {
 }
 
 function renderOnline() {
-  if (_aiPoll) { clearInterval(_aiPoll); _aiPoll = null; }
+  // 重新渲染前停掉上一页的品名轮询(通用轮询表里 key="ol")
+  if (AI_POLLS.ol) { clearInterval(AI_POLLS.ol); delete AI_POLLS.ol; }
   const opt = (arr, cur) => arr.map((o) =>
     `<option value="${esc(o.value)}"${String(cur) === String(o.value) ? " selected" : ""}>${esc(o.label)}${o.count != null ? ` (${o.count})` : ""}</option>`).join("");
   const sel = (id, label, key) => {
@@ -1817,10 +2177,13 @@ function renderOnline() {
   olBindPager();
 }
 
-/* ---------- 在线产品「品名」AI 标签 (本地 Ollama) ---------- */
-let _aiPoll = null;
+/* ---------- 「品名」AI 标签 (模型解析标题 → 中文短语)
+   两处共用同一套逻辑, 各自一份缓存与轮询:
+     · 在线产品(父体) → ol.aiLabels + #olWrap  (key="ol")
+     · 产品视角(父体) → pv.aiLabels + #pWrap   (key="pv") ---------- */
+const AI_POLLS = {};        // key -> interval id (两处互不干扰)
 
-async function ensureAiLabels(asins) {
+async function aiEnsure(asins, key, store, sel) {
   const list = (asins || []).filter(Boolean);
   if (!list.length) return;
   try {
@@ -1828,15 +2191,17 @@ async function ensureAiLabels(asins) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ asins: list }),
     });
-    Object.assign(ol.aiLabels || (ol.aiLabels = {}), r.labels || {});
-    paintAiLabels();
-    if ((r.pending || []).length) pollAiLabels(list);
-  } catch (e) { /* Ollama 不可用时保持「解析中…」 */ }
+    Object.assign(store, r.labels || {});
+    // 库里没有这些 ASIN 的标题 → 无从解析, 直接标掉, 免得一直「解析中…」
+    (r.no_title || []).forEach((a) => { if (!store[a]) store[a] = "—"; });
+    aiPaint(store, sel);
+    if ((r.pending || []).length) aiPoll(list, key, store, sel);
+  } catch (e) { /* 模型不可用时保持「解析中…」 */ }
 }
 
-function paintAiLabels() {
-  document.querySelectorAll("#olWrap span[data-ai-asin]").forEach((el) => {
-    const v = (ol.aiLabels || {})[el.dataset.aiAsin];
+function aiPaint(store, sel) {
+  document.querySelectorAll(`${sel} span[data-ai-asin]`).forEach((el) => {
+    const v = store[el.dataset.aiAsin];
     if (!v) return;
     el.textContent = v;
     el.title = v;
@@ -1844,32 +2209,54 @@ function paintAiLabels() {
   });
 }
 
-function pollAiLabels(asins) {
-  if (_aiPoll) clearInterval(_aiPoll);
+function aiPoll(asins, key, store, sel) {
+  if (AI_POLLS[key]) clearInterval(AI_POLLS[key]);
   let rounds = 0;
-  _aiPoll = setInterval(async () => {
+  AI_POLLS[key] = setInterval(async () => {
     rounds += 1;
     let d;
     try {
       d = await api("/api/online/ai_labels/status?asins=" + encodeURIComponent(asins.join(",")));
     } catch (e) { return; }
-    Object.assign(ol.aiLabels || (ol.aiLabels = {}), d.labels || {});
-    paintAiLabels();
+    Object.assign(store, d.labels || {});
+    aiPaint(store, sel);
     // 以「本页 ASIN 是否都拿到标签」为准, 不依赖后台任务状态
-    const left = asins.filter((a) => !(ol.aiLabels || {})[a]);
+    const left = asins.filter((a) => !store[a]);
     if (!left.length || rounds > 120) {
-      clearInterval(_aiPoll); _aiPoll = null;
-      if (left.length) markAiGaveUp();      // 超时仍未生成(如 Ollama 未启动)
+      clearInterval(AI_POLLS[key]); delete AI_POLLS[key];
+      if (left.length) aiGaveUp(sel);       // 超时仍未生成(如模型不可用)
     }
   }, 1500);
 }
 
 /* 轮询超时仍无结果: 把占位文案改掉, 避免一直显示「解析中…」 */
-function markAiGaveUp() {
-  document.querySelectorAll("#olWrap span[data-ai-asin].ol-ai-empty").forEach((el) => {
+function aiGaveUp(sel) {
+  document.querySelectorAll(`${sel} span[data-ai-asin].ol-ai-empty`).forEach((el) => {
     el.textContent = "—";
-    el.title = "未能解析（请确认本地 Ollama 已启动）";
+    el.title = "未能解析（可在右上角「配置」里检查模型是否可用）";
   });
+}
+
+/* 在线产品(父体) */
+function ensureAiLabels(asins) {
+  return aiEnsure(asins, "ol", ol.aiLabels || (ol.aiLabels = {}), "#olWrap");
+}
+function paintAiLabels() {
+  aiPaint(ol.aiLabels || (ol.aiLabels = {}), "#olWrap");
+}
+function pollAiLabels(asins) {
+  return aiPoll(asins, "ol", ol.aiLabels || (ol.aiLabels = {}), "#olWrap");
+}
+function markAiGaveUp() { aiGaveUp("#olWrap"); }
+
+/* 产品视角(父体) */
+function ensurePvLabels(asins) {
+  return aiEnsure(asins, "pv", pv.aiLabels || (pv.aiLabels = {}), "#pWrap");
+}
+function pvAiHtml(asin) {
+  const lab = (pv.aiLabels || {})[asin];
+  return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${esc(asin)}"
+    title="${lab ? esc(lab) : "正在解析品名(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
 }
 
 function olPager() {
@@ -2105,9 +2492,68 @@ function openTermsPage(asin) {
 }
 function openTermPage(asin, term, mt) {
   if (!asin || !term) return;
-  const q = new URLSearchParams({ page: "term", asin, term });
+  window.open(termDetailUrl(asin, term, mt), "_blank", "noopener");
+}
+
+/* 搜索词详情页地址(单开 / 批量开都用它, 保证 URL 一致) */
+function termDetailUrl(asin, term, mt) {
+  const q = new URLSearchParams({ page: "term", asin: asin || "", term: term || "" });
   if (mt) q.set("mt", mt);
-  window.open(`/?${q.toString()}`, "_blank", "noopener");
+  return `/?${q.toString()}`;
+}
+
+/* ---- 批量打开页签(搜索词列表页勾选多个词 → 各开一个详情页签做研判) ----
+   浏览器策略上是「一次点击只放行第一个 window.open」, 其余会被当弹窗拦掉。
+   所以这里: 先逐个试开, 被拦的退回下面一行可点链接(点一下就一次新用户手势, 不会再被拦)。
+   另外 window.open 不能带 "noopener"(Chrome 下会直接返回 null, 就没法判断有没有被拦),
+   改成拿到窗口后手工把 opener 置空, 效果等价。 */
+const TERM_TAB_MAX = 12;          // 一次最多开这么多页签, 再多浏览器会卡/被拦
+
+function openTermTabs(asin, sel) {
+  // 去重保护: 同一个搜索词只开一个页签。
+  // (勾选表本身以「搜索词」为键, 不会存重复; 这里是第二道保险 —— 将来有人改选择逻辑
+  //  也不会出现「一个词开两个页签」。词尾空格/大小写差异也算同一个词。)
+  const seen = new Set();
+  const list = [];
+  [...(sel || new Map()).entries()].forEach(([term, mt]) => {
+    const key = String(term || "").trim();
+    if (!key || seen.has(key.toLowerCase())) return;
+    seen.add(key.toLowerCase());
+    list.push([key, mt]);
+  });
+  if (!list.length) { toast("先勾选要研判的搜索词"); return; }
+  if (list.length > TERM_TAB_MAX) {
+    toast(`一次最多开 ${TERM_TAB_MAX} 个页签（当前勾选 ${list.length} 个），请分批`);
+    return;
+  }
+  const blocked = [];
+  let opened = 0;
+  list.forEach(([term, mt]) => {
+    const w = window.open(termDetailUrl(asin, term, mt), "_blank");
+    if (w) { w.opener = null; opened += 1; } else { blocked.push([term, mt]); }
+  });
+  paintBlockedTabs(asin, blocked, opened);
+  if (!blocked.length) { toast(`已打开 ${opened} 个页签，切过去逐个研判`); return; }
+  toast(opened
+    ? `已打开 ${opened} 个页签，另有 ${blocked.length} 个被拦截（见下方列表）`
+    : `页签被浏览器拦截了 ${blocked.length} 个：见下方列表，或允许本站弹窗后重试`);
+}
+
+/* 被拦截的搜索词: 在工具条下方给一行可点链接兜底 */
+function paintBlockedTabs(asin, blocked, opened) {
+  const box = $("tBlocked");
+  if (!box) return;
+  if (!blocked || !blocked.length) { box.innerHTML = ""; return; }
+  const tip = opened ? `已打开 ${opened} 个，其余 ${blocked.length} 个被拦截：`
+                     : `有 ${blocked.length} 个页签被浏览器拦截：`;
+  box.innerHTML = `<span class="pmeta">${tip}地址栏右侧把本站设为「允许弹出窗口」` +
+    `后可一次性打开，或逐个点开 →</span>` +
+    blocked.map(([t, mt]) => {
+      const s = String(t || "");
+      return `<a class="btn btn-mini" target="_blank" rel="noopener"
+        href="${esc(termDetailUrl(asin, t, mt))}" title="打开「${esc(s)}」的详情">` +
+        `${esc(s.length > 18 ? s.slice(0, 18) + "…" : s)} ↗</a>`;
+    }).join("");
 }
 
 /* 抓取父体附图(父体 + 全部子体商品页图廊)
@@ -2179,17 +2625,58 @@ async function renderTermsPage(asin) {
   $("tCrumbs").innerHTML =
     `<span class="cb cur">父 ASIN ${esc(asin)}</span>
      <span class="sep">›</span><span class="cb cur">搜索词</span>
-     <span class="pmeta">点击「搜索词」或「详情」按钮 → 新页签打开详情；点击表头可排序</span>`;
+     <span class="pmeta">勾选左侧复选框 →「批量打开页签研判」；点「搜索词」或「详情」按钮 → 单条打开；点击表头可排序</span>`;
   $("tBar").innerHTML = `<div class="pline"><div class="p-tools">
       <span class="ptitle">搜索词</span><span class="pmeta" id="tMeta">加载中…</span>
+      <span id="tStatus" class="st-legend"></span>
       <span class="p-tools" id="tScopes"></span>
-    </div></div>`;
+      <span class="p-tools" id="tBulk">
+        <span class="pmeta" id="tSelInfo">已勾选 <b>0</b> 个</span>
+        <button class="btn btn-mini" id="tSelUnlabeled"
+          title="勾选当前视图里所有还没打标的搜索词（同一个词出现多行只算一个；已勾选的不动，方便接着批量开页签去研判打标）">选中未打标</button>
+        <button class="btn btn-mini" id="tSelPage" title="勾选当前筛选+排序后的全部行">全选本页</button>
+        <button class="btn btn-mini" id="tSelNone" title="清空勾选">清空</button>
+        <button class="btn btn-mini btn-primary" id="tOpenTabs" disabled
+          title="给每个勾选的搜索词各开一个详情页签，逐个研判（关联度 / 结果集评估 / 打标）">批量打开页签研判</button>
+      </span>
+    </div></div>
+    <div class="pline" id="tBlocked"></div>`;
   $("tWrap").innerHTML = `<div class="empty">加载中…</div>`;
+
+  const sel = new Map();      // 勾选的搜索词: term -> 匹配方式 (排序/切维度/翻译回填重画都不丢)
+  let shownRows = [];         // 当前渲染出来的行(供「全选本页」与表头全选框状态用)
+
+  /* 勾选状态 → 顶部计数 / 按钮可用性 / 表头全选框(全选 / 半选) */
+  function paintSel() {
+    const info = $("tSelInfo");
+    if (info) info.innerHTML = `已勾选 <b>${sel.size}</b> 个`;
+    const btn = $("tOpenTabs");
+    if (btn) btn.disabled = !sel.size;
+    const all = $("tSelAll");
+    if (all) {
+      const hit = shownRows.filter((r) => sel.has(String(r.query || ""))).length;
+      all.checked = !!shownRows.length && hit === shownRows.length;
+      all.indeterminate = hit > 0 && hit < shownRows.length;
+    }
+  }
 
   const d = await api("/api/product/terms?asin=" + encodeURIComponent(asin));
   const all = d.rows || [];
   const cn = d.counts || {};
+  const pa = d.parent_asin || asin;
+  const lm = await loadTermLabels(pa);      // 打标结果(详情页打的, 这里只读展示)
   const dim = isStandalone() ? (new URLSearchParams(location.search).get("dim") || "sp:keyword") : "sp:keyword";
+
+  // 该父体的两个进度: 素材拉取 / 人工打标(后端依据本地仓库与 term_labels 现算)
+  const sts = d.status || {};
+  if ($("tStatus")) {
+    $("tStatus").innerHTML = sts.terms_total
+      ? `<span class="pmeta">素材</span> ${stTag(sts.fetch_status, sts.fetch_text)}`
+        + `<span class="st-num">${sts.terms_fetched}/${sts.terms_total}</span>`
+        + `<span class="pmeta st-gap">打标</span> ${stTag(sts.label_status, sts.label_text)}`
+        + `<span class="st-num">${sts.terms_labeled}/${sts.terms_total}</span>`
+      : "";
+  }
 
   let curScope = dim;
   // 排序状态(默认按花费倒序); 点表头切换升降序
@@ -2199,6 +2686,8 @@ async function renderTermsPage(asin) {
     curScope = scope;
     const filtered = scope ? all.filter((r) => r.scope === scope) : all.slice();
     const rows = sortRows(filtered, tSort.field, tSort.dir);
+    const tbg = termBgMap(rows.map((r) => String(r.query || "")));   // 重复词同色
+    const rankDen = rankDenoms(rows);                                // 排名 tooltip 里的「共 N 个」
     const sum = rows.reduce((a, r) => {
       a.imp += Number(r.impressions || 0); a.clk += Number(r.clicks || 0);
       a.cost += Number(r.adCost || 0); a.ord += Number(r.orderNum || 0); return a;
@@ -2207,24 +2696,43 @@ async function renderTermsPage(asin) {
       `共 <b>${rows.length}</b> 条 · 覆盖 ${d.campaign_count || 0} 个活动 · ` +
       `花费 <b>${money(sum.cost)}</b> · 曝光 <b>${nf(sum.imp)}</b> · 点击 <b>${nf(sum.clk)}</b> · 订单 <b>${nf(sum.ord)}</b>` +
       `<span class="pmeta sort-hint">　点击表头可排序（再点一次切换升降序）</span>`;
-    const body = rows.map((r) => `<tr class="t-row">
-      <td><span class="dim-tag ${r.scope.endsWith("keyword") ? "kw" : "tg"}">${esc(r.dimension)}</span></td>
-      <td class="kw-cell"><span class="amz-link kw-link" data-q="${esc(r.query || "")}"
-          data-mt="${esc(r.matchType || "")}" title="点击在新页签打开该搜索词详情">${esc(r.query || "")}</span></td>
+    const body = rows.map((r) => {
+      const q = String(r.query || "");
+      const isKw = String(r.scope || "").endsWith("keyword");
+      const mt = String(r.matchType || "");
+      return `<tr class="t-row${sel.has(q) ? " sel" : ""}">
+     <td class="col-chk"><input type="checkbox" class="t-chk" data-q="${esc(q)}"
+         data-mt="${esc(mt)}"${sel.has(q) ? " checked" : ""}></td>
+      <td class="kw-cell"${termBgAttr(tbg.get(q))}><span class="term-cell"><span class="amz-link kw-link" data-q="${esc(q)}"
+          data-mt="${esc(r.matchType || "")}" title="${esc(q)}（列窄会省略，鼠标悬停看全称）· 点击在新页签打开该搜索词详情">${esc(q)}</span>${termZhHtml(q, r)}</span></td>
+      <td class="col-rank">${rankCell(r, rankDen)}</td>
+      <td class="col-label" title="${lm[q] ? "该词对本父体的相关度打标" : "未打标（在搜索词详情页打标）"}">${termLabelCell(lm[q])}</td>
       <td>${esc(r.matchType || "")}</td>
+      <td><span class="dim-tag ${r.scope.endsWith("keyword") ? "kw" : "tg"}">${esc(r.dimension)}</span></td>
       <td class="num">${r.searchFrequencyRank ? nf(r.searchFrequencyRank) : "-"}</td>
       <td class="num">${r.campaign_count || 1}</td>
       <td class="num">${nf(r.impressions)}</td>
       <td class="num">${nf(r.clicks)}</td>
       <td class="num">${money(r.adCost)}</td>
       <td class="num">${r.orderNum ? nf(r.orderNum) : "-"}</td>
+      <td class="col-fetch" title="${!isKw ? "商品投放行(ASIN)：没有竞品搜索素材的概念"
+        : (r.fetched ? `竞品结果已拉到本地（主图 ${r.images} 张），详情页直接读本地`
+          : "竞品结果还没拉到本地，打开详情页会实时访问亚马逊")}">${
+        isKw ? stTag(r.fetched ? "done" : "none", r.fetched ? "已拉取" : "未拉取")
+          : '<span class="pmeta">-</span>'}</td>
       <td class="num"><button class="btn btn-mini btn-primary kw-link"
           data-q="${esc(r.query || "")}" data-mt="${esc(r.matchType || "")}">详情 ↗</button></td>
-    </tr>`).join("");
+    </tr>`;
+    }).join("");
     $("tWrap").innerHTML = `<table class="tbl-terms"><thead><tr>
-        ${sortableTh(tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
+        <th class="col-chk"><input type="checkbox" id="tSelAll"
+          title="全选 / 取消本页（当前筛选+排序后的行）"></th>
         ${sortableTh(tSort, { cls: "col-term", label: "搜索词 / 投放 ASIN", en: "Search Term / Target ASIN", field: "query" })}
+        <th class="col-rank" title="各项指标在该父体内的排名（1 = 最高）。花=花费 曝=曝光 点=点击 单=订单；
+搜索词与商品投放各自排名、不混排；鼠标悬停某个数看完整口径">排名<span class="th-en">(Rank)</span></th>
+        <th class="col-label" title="该搜索词对本父体的相关度打标（紧密 / 宽泛 / 不太相关 / 不相关），在搜索词详情页打标">打标<span class="th-en">(Relevance)</span></th>
         ${sortableTh(tSort, { cls: "col-match", label: "匹配方式", en: "Match Type", field: "matchType" })}
+        ${sortableTh(tSort, { cls: "col-dim", label: "维度", en: "Dimension", field: "dimension" })}
         ${sortableTh(tSort, { cls: "num col-freq", label: "ABA搜索词排名", en: "ABA Search Rank",
           field: "searchFrequencyRank", dir: "asc",
           title: "亚马逊 ABA 搜索词排名，数值越小越热门；点击排序" })}
@@ -2238,6 +2746,7 @@ async function renderTermsPage(asin) {
           total: money(sumBy(rows, "adCost")), totalTip: "当前列表花费合计" })}
         ${sortableTh(tSort, { cls: "num col-ord", label: "订单", en: "Orders", field: "orderNum",
           total: nf(sumBy(rows, "orderNum")), totalTip: "当前列表订单合计" })}
+        <th class="col-fetch" title="竞品素材是否已拉到本地：已拉取 = 本地已有该搜索词的亚马逊竞品结果（详情页直接读本地）；未拉取 = 还没抓。该父体全部词拉完即为「拉取完成」">素材<span class="th-en">(Assets)</span></th>
         <th class="col-ops"></th>
       </tr></thead><tbody>${body}</tbody></table>` +
       (rows.length ? "" : `<div class="empty">该父体在此维度下没有数据</div>`);
@@ -2250,6 +2759,30 @@ async function renderTermsPage(asin) {
         openTermPage(asin, el.dataset.q, el.dataset.mt);
       };
     });
+    // 批量勾选: 单行勾选框 / 表头全选
+    shownRows = rows;
+    $("tWrap").querySelectorAll(".t-chk").forEach((el) => {
+      el.onclick = (ev) => {
+        ev.stopPropagation();
+        if (el.checked) sel.set(el.dataset.q, el.dataset.mt || "");
+        else sel.delete(el.dataset.q);
+        const tr = el.closest("tr");
+        if (tr) tr.classList.toggle("sel", el.checked);   // 就地切样式, 不整表重画
+        paintSel();
+      };
+    });
+    const allCk = $("tSelAll");
+    if (allCk) {
+      allCk.onclick = () => {
+        rows.forEach((r) => {
+          const q = String(r.query || "");
+          if (allCk.checked) sel.set(q, String(r.matchType || ""));
+          else sel.delete(q);
+        });
+        paint(curScope);
+      };
+    }
+    paintSel();
   }
 
   const scopes = [["sp:keyword", `只看搜索词 (${cn.keyword || 0})`],
@@ -2265,7 +2798,47 @@ async function renderTermsPage(asin) {
       paint(b.dataset.s);
     };
   });
+  // 批量勾选工具条
+  /* 勾选「未打标」的搜索词: 以当前视图为准
+     · 只认搜索词行(商品投放 ASIN 行没有打标概念, 永远算"未打标", 不能选进来)
+     · 同一个词出现多行(不同匹配方式)时**多行都会被勾上**(看起来是一个词全选中),
+       而选择表是以「搜索词」为键的, 所以重复行天然只留一条 → 开页签不会重复
+     · 已打过标的不选; 已勾过的重复点不会累加 */
+  $("tSelUnlabeled").onclick = () => {
+    let rowsHit = 0;
+    let added = 0;
+    shownRows.forEach((r) => {
+      const q = String(r.query || "");
+      if (!q) return;
+      if (!String(r.scope || "").endsWith("keyword")) return;   // 商品投放行跳过
+      if (lm[q]) return;                                        // 已打标的跳过
+      rowsHit += 1;
+      // 同一词多行: 只在实际新增时写入(保留首个匹配方式, 再点一次不变)
+      if (!sel.has(q)) { added += 1; sel.set(q, String(r.matchType || "")); }
+    });
+    if (!rowsHit) {
+      toast(sel.size ? "没有新的未打标词可勾选（已勾选的保留）" : "当前视图里没有未打标词");
+      return;
+    }
+    paint(curScope);
+    toast(rowsHit > added
+      ? `已勾选 ${sel.size} 个未打标搜索词（命中 ${rowsHit} 行，重复词只会开一个页签）`
+      : `已勾选 ${sel.size} 个未打标搜索词`);
+  };
+  $("tSelPage").onclick = () => {
+    if (!shownRows.length) { toast("当前没有可勾选的行"); return; }
+    shownRows.forEach((r) => sel.set(String(r.query || ""), String(r.matchType || "")));
+    paint(curScope);
+  };
+  $("tSelNone").onclick = () => {
+    sel.clear();
+    paintBlockedTabs(asin, [], 0);      // 顺手清掉上次被拦的兜底链接
+    paint(curScope);
+  };
+  $("tOpenTabs").onclick = () => openTermTabs(asin, sel);
   paint(dim);
+  // 本页缺译文的搜索词排队自动翻译; 译文到位后重画当前视图
+  ensureTermList(all.map((r) => r.query), () => paint(curScope), "termsPage");
 }
 
 /* ---------------- 搜索词详情页签 ---------------- */
@@ -2274,6 +2847,8 @@ async function renderTermPage(asin, term, mt) {
   $("termTop").innerHTML = `<div class="empty">加载中…</div>`;
   $("termMetrics").innerHTML = "";
   $("amzCards").innerHTML = `<div class="amz-loading">查询中…</div>`;
+  termLabel.asin = ""; termLabel.term = term; termLabel.cur = ""; termLabel.sel = "";
+  $("termLabelOpts").innerHTML = ""; termLabelMsg("读取中…");
 
   const q = new URLSearchParams({ asin, term });
   if (mt) q.set("match_type", mt);
@@ -2286,7 +2861,8 @@ async function renderTermPage(asin, term, mt) {
   }
   renderTermTop(d);
   renderTermMetrics(d);
-  loadTermRelevance(asin, term);
+  loadTermRelevance(asin, term);  // 自动相关性打分(规则+模型)
+  renderTermLabelBar(d);          // 人工打标区(吸顶): 回显已打的标
   loadAmzCards(term, false);
 }
 
@@ -2545,6 +3121,13 @@ function renderTermTop(d) {
   const bsr = amz.bsr_small
     ? `${esc(amz.bsr_small_cat || "小类目")} ${nf(amz.bsr_small)}位` : "";
   const childN = p.child_count != null ? p.child_count : (p.child_asins || []).length;
+  // 该词的竞品素材是否已拉到本地 + 该父体的整体进度(后端现算)
+  const st = d.status || {};
+  const stTip = d.fetched
+    ? `竞品结果已在本地（主图 ${d.images || 0} 张），本页直接读本地，不再访问亚马逊`
+      + (st.terms_total ? `；该父体进度 ${st.terms_fetched}/${st.terms_total}（${st.fetch_text || ""}）` : "")
+    : "竞品结果还没拉到本地，本页会实时访问亚马逊抓取"
+      + (st.terms_total ? `；该父体进度 ${st.terms_fetched}/${st.terms_total}（${st.fetch_text || ""}）` : "");
 
   const thumbHtml = thumbs.map((im, i) => {
     const t = im.thumb || im.large;
@@ -2561,7 +3144,14 @@ function renderTermTop(d) {
         : `<div class="empty" style="padding:70px 0">暂无图片</div>`}
     </div>
     <div class="tg-info">
-      <div class="tg-title">${esc(p.title || "-")}</div>
+      <div class="tg-term-line">
+        <span class="tg-term">${esc(d.query || "")}</span>
+        <span class="term-zh-lg ${state.translations[d.query] ? "" : "pending"}" id="tgTermZh"></span>
+        <span class="tg-term-label" id="tgTermLabel" data-l="${esc(d.term_label || "")}"${d.term_label ? "" : ' style="display:none"'}>${esc(d.term_label || "")}</span>
+        <span title="${esc(stTip)}">${stTag(d.fetched ? "done" : "none",
+          d.fetched ? "素材已拉取" : "素材未拉取")}</span>
+      </div>
+      <div class="tg-title" title="${esc(p.title || "")}">${esc(p.title || "-")}</div>
       <div class="tg-meta">
         <span class="tg-price">${p.price ? esc(p.price) : "-"}</span>
         <span class="tg-kv">
@@ -2595,6 +3185,8 @@ function renderTermTop(d) {
   });
   const cp = $("termTop").querySelector(".tg-asin[data-copy]");
   if (cp) cp.onclick = () => copyText(cp.dataset.copy, "父 ASIN ");
+  updateTgTermZh(d.query);                 // 译文(缓存立即显示)
+  ensureTermList([d.query], () => updateTgTermZh(d.query), "termDetail");   // 没有则排队生成
   const fb = $("tgFetchImgs");
   if (fb) fb.onclick = () => doFetchParentImages(pa, d.query, true);
   if (_imgDoneMsg && $("tgImgMsg")) $("tgImgMsg").textContent = _imgDoneMsg;
@@ -2604,6 +3196,95 @@ function renderTermTop(d) {
     _imgTried.add(pa);
     doFetchParentImages(pa, d.query, false);
   }
+}
+
+/* ---------- 搜索词详情页: 相关度打标 (紧密 / 宽泛 / 不太相关 / 不相关)
+   交互: 单击选项 = 选中(点第二次取消), 点「确认」才写库
+   选项顺序由后端 db.TERM_LABELS 决定, 前端不写死 ---------- */
+const termLabel = { asin: "", term: "", cur: "", sel: "" };
+
+function termLabelMsg(t) {
+  const el = $("termLabelMsg");
+  if (el) el.textContent = t || "";
+}
+
+function paintTermLabelOpts() {
+  const box = $("termLabelOpts");
+  if (!box) return;
+  box.querySelectorAll(".tlb-opt").forEach((el) => {
+    el.classList.toggle("sel", el.dataset.v === termLabel.sel);
+  });
+}
+
+function renderTermLabelBar(d) {
+  const opts = d.label_options || ["紧密", "宽泛", "不太相关", "不相关"];
+  termLabel.asin = d.parent_asin || (d.product || {}).parent_asin || "";
+  termLabel.term = d.query || "";
+  termLabel.cur = d.term_label || "";
+  termLabel.sel = termLabel.cur;          // 默认选中已打的标, 未打标则不选
+  const box = $("termLabelOpts");
+  box.innerHTML = opts.map((o) =>
+    `<span class="tlb-opt" data-v="${esc(o)}">${esc(o)}</span>`).join("");
+  box.querySelectorAll(".tlb-opt").forEach((el) => {
+    el.onclick = () => {
+      termLabel.sel = termLabel.sel === el.dataset.v ? "" : el.dataset.v;
+      paintTermLabelOpts();
+      termLabelMsg(termLabel.sel
+        ? `已选「${termLabel.sel}」，点「确认」生效`
+        : `已取消选择${termLabel.cur ? `（已保存的是「${termLabel.cur}」）` : ""}`);
+    };
+  });
+  paintTermLabelOpts();
+  termLabelMsg(termLabel.cur ? `当前：${termLabel.cur}` : "尚未打标");
+}
+
+function updateTgTermLabel(label) {
+  const el = $("tgTermLabel");
+  if (!el) return;
+  el.textContent = label || "";
+  el.dataset.l = label || "";        // 角标底色跟着四档配色走(见 style.css)
+  el.style.display = label ? "" : "none";
+}
+
+async function saveTermLabel(label) {
+  if (!termLabel.asin || !termLabel.term) { termLabelMsg("缺少父 ASIN / 搜索词"); return; }
+  try {
+    const r = await api("/api/product/term_label", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asin: termLabel.asin, term: termLabel.term, label }),
+    });
+    if (r.detail) { termLabelMsg("保存失败：" + r.detail); return; }
+    termLabel.cur = r.label || "";
+    termLabel.sel = termLabel.cur;
+    cacheTermLabel(termLabel.asin, termLabel.term, termLabel.cur);   // 同步列表页缓存
+    paintTermLabelOpts();
+    updateTgTermLabel(termLabel.cur);
+    termLabelMsg(r.label ? `已保存：${r.label}` : "已清除打标");
+    toast(r.label ? `已打标「${r.label}」` : "已清除打标");
+  } catch (e) {
+    termLabelMsg("保存失败：" + e.message);
+  }
+}
+
+function bindTermLabelBar() {
+  const save = $("termLabelSave"), clear = $("termLabelClear");
+  if (save) save.onclick = () => {
+    if (!termLabel.sel) { termLabelMsg("请先单击选择一个标签"); return; }
+    saveTermLabel(termLabel.sel);
+  };
+  if (clear) clear.onclick = () => saveTermLabel("");
+}
+bindTermLabelBar();
+
+/* 搜索词详情页顶部的译文展示 */
+function updateTgTermZh(q) {
+  const el = $("tgTermZh");
+  if (!el) return;
+  const zh = state.translations[q] || "";
+  if (zh) { el.textContent = `中文：${zh}`; el.classList.remove("pending"); }
+  else if (state.transPending.has(q)) {
+    el.textContent = "翻译生成中…"; el.classList.add("pending");
+  } else { el.textContent = ""; el.classList.remove("pending"); }
 }
 
 function renderTermMetrics(d) {
@@ -2681,8 +3362,10 @@ async function loadAmzCards(term, refresh) {
 }
 
 function amzCardHtml(it) {
-  const img = it.image || it.image_big || "";
-  const big = it.image_big || it.image || "";
+  // 本地有主图时缩略图/大图都用本地文件(不再联亚马逊 CDN)
+  const local = it.image_local || "";
+  const img = local || it.image || it.image_big || "";
+  const big = local || it.image_big || it.image || "";
   const price = it.price
     ? `<div class="card-price">${esc(it.price)}${it.list_price ? `<span class="list">${esc(it.list_price)}</span>` : ""}</div>`
     : `<div class="card-price">-</div>`;
@@ -2698,7 +3381,7 @@ function amzCardHtml(it) {
     <div class="card-img">
       <span class="card-pos">${esc(String(it.position ?? ""))}</span>
       ${it.sponsored ? `<span class="card-ad">${esc(it.ad_label || "广告")}</span>` : ""}
-      ${img ? `<img src="${esc(amzMidImage(img, 320))}" loading="lazy" alt=""
+      ${img ? `<img src="${esc(local || amzMidImage(img, 320))}" loading="lazy" alt=""
           data-preview="${esc(big)}" data-fallback="${esc(img)}" data-cap="${esc(cap)}">` : ""}
     </div>
     <div class="card-body">
@@ -2980,3 +3663,130 @@ $("termAmzRefresh").onclick = () => {
 
 boot();
 initPrefetchState();      // 页面打开就同步预抓取进度(有任务在跑时自动显示)
+initFetchState();         // 全量拉取素材的进度同理
+
+/* ============ 配置: 品名解析用本地 Ollama 还是 workbuddy ============ */
+function cfgProvider() {
+  const el = [...document.querySelectorAll('input[name=cfgProvider]')].find((x) => x.checked);
+  return el ? el.value : "ollama";
+}
+
+function syncCfgGroups() {
+  const v = cfgProvider();
+  $("cfgOllamaGroup").classList.toggle("off", v !== "ollama");
+  $("cfgWbGroup").classList.toggle("off", v !== "workbuddy");
+}
+
+/* 表单里的值(Key 留空表示不修改) */
+function cfgForm() {
+  const out = {
+    provider: cfgProvider(),
+    ollama_url: $("cfgOllamaUrl").value.trim(),
+    ollama_model: $("cfgOllamaModel").value.trim(),
+    workbuddy_base: $("cfgWbBase").value.trim(),
+    workbuddy_model: $("cfgWbModel").value.trim(),
+    workbuddy_fallback: $("cfgWbFallback").value
+      .split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+  };
+  const k = $("cfgWbKey").value.trim();
+  if (k) out.workbuddy_key = k;
+  return out;
+}
+
+function paintCfgStatus(d) {
+  const c = d.config || {};
+  const st = d.status || {};
+  $("cfgWbKeyState").textContent = c.workbuddy_key_set
+    ? `已保存(尾号 ${c.workbuddy_key_tail})` : "未配置";
+  $("cfgProviderHint").textContent =
+    `可用性：Ollama ${st.ollama ? "✔" : "✘"} · WorkBuddy ${st.workbuddy ? "✔" : "✘"}`;
+}
+
+async function openAiConfig() {
+  $("cfgModal").classList.add("open");
+  $("cfgTestOut").textContent = "";
+  try {
+    const d = await api("/api/settings/ai");
+    const c = d.config || {};
+    document.querySelectorAll('input[name=cfgProvider]')
+      .forEach((el) => { el.checked = el.value === (c.provider || "ollama"); });
+    $("cfgOllamaUrl").value = c.ollama_url || "";
+    $("cfgOllamaModel").value = c.ollama_model || "";
+    $("cfgWbBase").value = c.workbuddy_base || "";
+    $("cfgWbModel").value = c.workbuddy_model || "";
+    $("cfgWbFallback").value = (c.workbuddy_fallback || []).join(", ");
+    $("cfgWbKey").value = "";
+    paintCfgStatus(d);
+    syncCfgGroups();
+  } catch (e) { $("cfgTestOut").textContent = "读取配置失败: " + e.message; }
+}
+
+async function saveAiConfig() {
+  $("cfgTestOut").textContent = "保存中…";
+  $("cfgSave").disabled = true;
+  try {
+    const d = await api("/api/settings/ai", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cfgForm()),
+    });
+    if (d.detail) { $("cfgTestOut").textContent = "保存失败: " + d.detail; return; }
+    $("cfgWbKey").value = "";
+    paintCfgStatus(d);
+    $("cfgTestOut").textContent = "已保存";
+    toast("配置已保存");
+    // 已解析过的缓存不重算; 本页还没解析的立刻按新 provider 走
+    ol.aiLabels = {};
+    if (ol.loaded && ol.pageType === "parent") {
+      ensureAiLabels(ol.rows.map((r) => r.asin).filter(Boolean));
+    }
+  } catch (e) { $("cfgTestOut").textContent = "保存失败: " + e.message; }
+  finally { $("cfgSave").disabled = false; }
+}
+
+async function testAiConfig() {
+  $("cfgTestOut").textContent = "测试中…(在线模型约 10~30 秒)";
+  $("cfgTest").disabled = true;
+  try {
+    const d = await api("/api/settings/ai/test", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cfgForm()),
+    });
+    $("cfgTestOut").textContent = d.ok
+      ? `✔ ${d.provider} / ${d.model} → 「${d.sample}」`
+      : `✘ ${d.provider} 失败: ${d.error || "未知错误"}`;
+  } catch (e) { $("cfgTestOut").textContent = "测试失败: " + e.message; }
+  finally { $("cfgTest").disabled = false; }
+}
+
+/* 忽略缓存, 用当前配置重算「在线产品 · 父体」本页品名 */
+async function relabelCurrentPage() {
+  const asins = ((ol.rows || []).map((r) => r.asin)).filter(Boolean);
+  if (!asins.length) {
+    $("cfgTestOut").textContent = "当前页没有父体数据(先切到「在线产品 · 父体」)";
+    return;
+  }
+  $("cfgTestOut").textContent = `已提交重算 ${asins.length} 个父 ASIN…`;
+  try {
+    const r = await api("/api/online/ai_labels", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asins, refresh: true }),
+    });
+    ol.aiLabels = Object.assign({}, r.labels || {});
+    document.querySelectorAll("#olWrap span[data-ai-asin]").forEach((el) => {
+      if (!(ol.aiLabels || {})[el.dataset.aiAsin]) {
+        el.textContent = "解析中…";
+        el.classList.add("ol-ai-empty");
+      }
+    });
+    paintAiLabels();
+    pollAiLabels(asins);
+  } catch (e) { $("cfgTestOut").textContent = "重算失败: " + e.message; }
+}
+
+$("btnAiConfig").onclick = openAiConfig;
+$("cfgClose").onclick = () => $("cfgModal").classList.remove("open");
+$("cfgModal").onclick = (e) => { if (e.target.id === "cfgModal") $("cfgModal").classList.remove("open"); };
+document.querySelectorAll('input[name=cfgProvider]').forEach((el) => el.onchange = syncCfgGroups);
+$("cfgSave").onclick = saveAiConfig;
+$("cfgTest").onclick = testAiConfig;
+$("cfgReLabel").onclick = relabelCurrentPage;

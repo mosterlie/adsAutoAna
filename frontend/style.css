@@ -149,6 +149,12 @@ td.name{font-weight:500;color:#1f2d3d}
 /* 本地已有抓取结果的搜索词: 点击直接读本地, 不跳亚马逊 (绿色 + 实线提示) */
 .amz-link.cached{color:var(--green);text-decoration-color:var(--green);text-decoration-style:solid}
 .amz-link.cached:hover{color:#018a4e}
+/* 搜索词的 AI 中文翻译 (列表单元格里跟在原文下方; 弹层里大一号) */
+.term-cell{display:inline-block}
+.term-zh{font-size:11.5px;color:var(--green);margin-top:1px;line-height:1.35;white-space:normal}
+.term-zh.pending{color:var(--muted)}
+.term-zh-lg{font-size:12.5px;color:var(--green);font-weight:600;white-space:nowrap}
+.term-zh-lg.pending{color:var(--muted);font-weight:400}
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;z-index:70;
   align-items:center;justify-content:center;padding:24px}
 .modal.open{display:flex}
@@ -280,11 +286,14 @@ td.name{font-weight:500;color:#1f2d3d}
    注意: 所有列都必须显式给宽度。table-layout:fixed 下未指定宽度的列会被压到极窄,
    数字会**溢出到相邻单元格**造成重叠(花费/曝光 曾经就是这样)。
    表宽 = 各列之和 → 容器不够宽时由 .p-wrap 横向滚动。 */
-#pWrap table.tbl-products{table-layout:fixed;width:100%;min-width:1840px}
+#pWrap table.tbl-products{table-layout:fixed;width:100%;min-width:2174px}
 #pWrap table.tbl-products th{white-space:normal;line-height:1.25;vertical-align:middle}
 #pWrap .col-img{width:52px}
 #pWrap .col-asin{width:128px}
 #pWrap .col-sku{width:92px}
+#pWrap .col-name{width:118px}       /* 品名(AI 解析标题), 位于子ASIN之前 */
+#pWrap .col-fetch{width:112px}      /* 素材拉取进度(父SKU) */
+#pWrap .col-mark{width:104px}       /* 打标进度(父SKU) */
 #pWrap .col-kid{width:200px}
 #pWrap .col-title{width:140px}
 #pWrap .col-price{width:112px}
@@ -317,10 +326,14 @@ td.name{font-weight:500;color:#1f2d3d}
    注意: table-layout:fixed 下每列都显式给宽度, 容器比表宽时多出的空间
    会**按比例分摊到所有列**(不会全部堆到某一列), 因此宽屏下各列同步变宽。
    表宽下限 = 各列之和 → 容器更窄时由 .p-wrap 横向滚动。 */
-#tWrap table.tbl-terms{table-layout:fixed;width:100%;min-width:1180px}
+#tWrap table.tbl-terms{table-layout:fixed;width:100%;min-width:1412px}
 #tWrap table.tbl-terms th{white-space:normal;line-height:1.25;vertical-align:middle}
 #tWrap .col-dim{width:80px}
-#tWrap .col-term{width:300px}      /* 搜索词 / 投放 ASIN */
+#tWrap .col-chk{width:36px;text-align:center}   /* 批量勾选(批量打开页签研判) */
+#tWrap .col-term{width:220px}      /* 搜索词 / 投放 ASIN (调窄, 超出省略, 悬停看全称) */
+#tWrap .col-rank{width:80px;overflow:hidden}   /* 一列放 4 个名次, 宽度按内容收窄(名次最多 2 位) */
+#tWrap .col-label{width:104px}     /* 打标结果 */
+#tWrap .col-fetch{width:92px}      /* 竞品素材是否已拉到本地 */
 #tWrap .col-match{width:96px}
 #tWrap .col-camp{width:96px}
 #tWrap .col-imp{width:104px}
@@ -332,6 +345,30 @@ td.name{font-weight:500;color:#1f2d3d}
 #tWrap table.tbl-terms td.num{overflow:hidden;text-overflow:ellipsis}
 #tWrap .kw-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 #tWrap tbody tr:hover td{background:#f8faff}
+/* 排名列: 一列塞 4 个名次(花费/曝光/点击/订单), 2×2 网格, 宽度贴合内容
+   每个数一个颜色 + 单字标签(花/曝/点/单), 悬停给完整口径; 表头不再重复列图例 */
+/* max-content 两列 + 左对齐: 4 个数紧挨着排成 2 行, 不会被均匀撑开 */
+.rk-grid{display:grid;grid-template-columns:max-content max-content;
+  justify-content:start;gap:0 8px}
+.rk{white-space:nowrap;font-size:11.5px;font-weight:600}
+.rk i{font-style:normal;font-size:10.5px;font-weight:400;margin-right:1px;opacity:.75}
+.rk.none{color:var(--muted);font-weight:400}
+/* 花费=橙 曝光=蓝 点击=青 订单=绿 */
+.rk[data-k="cost"]{color:#d97a10}
+.rk[data-k="imp"]{color:#2f6fed}
+.rk[data-k="clk"]{color:#0e8f96}
+.rk[data-k="ord"]{color:#0a8a4f}
+
+/* 勾选中的行: 整行淡蓝底
+   (权重高于上面的 :hover 规则, 所以鼠标划过时不会掉色) */
+#tWrap tbody tr.t-row.sel td{background:#eef3ff}
+#tWrap table.tbl-terms input[type=checkbox]{width:14px;height:14px;vertical-align:middle;
+  accent-color:var(--blue);cursor:pointer}
+/* 批量勾选工具条 + 页签被拦截时的兜底链接行 */
+#tBulk{justify-content:flex-end}
+#tBlocked{flex-wrap:wrap;gap:6px}
+#tBlocked .btn{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 /* 指标列表头: 中文 + (英文简称) */
 .th-en{display:block;font-weight:400;font-size:10.5px;color:var(--muted);
   letter-spacing:.2px;text-transform:none}
@@ -489,12 +526,123 @@ body.standalone #onlineView{display:none !important}
 body.standalone{background:var(--bg)}
 #termsView,#termView{padding:10px 12px 40px}
 
+/* 搜索词详情页: 打标区吸顶(页面滚动时一直可见) */
+.term-label-bar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;
+  flex-wrap:wrap;background:#fff;border:1px solid var(--bd);border-radius:6px;
+  padding:8px 12px;margin-bottom:10px;box-shadow:0 2px 10px rgba(15,23,42,.07)}
+.term-label-bar .tlb-title{font-size:13px;font-weight:600;color:var(--txt-2)}
+/* 标题在左, 选项/按钮/状态整体贴到右侧 */
+.tlb-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  flex:1 1 auto;flex-wrap:wrap;margin-left:auto}
+.tlb-opts{display:flex;gap:6px}
+/* 选项做成 30px 高的胶囊, 与「确认 / 清除」两个按钮同高同行对齐 */
+.tlb-opt{display:inline-flex;align-items:center;height:30px;padding:0 14px;
+  border:1px solid var(--bd-d);border-radius:15px;background:#fff;
+  font-size:12.5px;color:var(--txt-2);cursor:pointer;user-select:none;white-space:nowrap}
+/* 未选中时悬停: 只用本档颜色把描边加深(不再变蓝, 免得跟档位色打架) */
+.tlb-opt:not(.sel):hover{border-color:currentColor}
+
+/* 打标四档配色: 默认(未选中)就是这个颜色, 一律浅色(浅底 + 同色字 + 同色描边)
+   紧密=绿 / 宽泛=橙 / 不太相关=蓝 / 不相关=红
+   三处共用: 详情页选项(data-v) · 详情页标题角标 · 列表「打标」列标签(data-l)
+   --lb-halo: 选中时外圈光晕用的同色淡色 */
+.tlb-opt[data-v="紧密"],.tg-term-label[data-l="紧密"],.lb-tag[data-l="紧密"]{
+  background:#e9f8ef;color:#0a8a4f;border-color:#cdebda;--lb-halo:rgba(10,138,79,.25)}
+.tlb-opt[data-v="宽泛"],.tg-term-label[data-l="宽泛"],.lb-tag[data-l="宽泛"]{
+  background:#fff5e6;color:#b26a00;border-color:#ffe0b2;--lb-halo:rgba(178,106,0,.25)}
+.tlb-opt[data-v="不太相关"],.tg-term-label[data-l="不太相关"],.lb-tag[data-l="不太相关"]{
+  background:#eef3ff;color:#2f6fed;border-color:#dbe6ff;--lb-halo:rgba(47,111,237,.25)}
+.tlb-opt[data-v="不相关"],.tg-term-label[data-l="不相关"],.lb-tag[data-l="不相关"]{
+  background:#fdeeec;color:#d63a25;border-color:#f8d9d3;--lb-halo:rgba(214,58,37,.25)}
+
+/* 选中态: 另一套明显更重的样式 —— 加粗 + 2px 本档实色描边 + 同色外圈光晕 + ✓
+   描边从浅色换成实色是「一眼能看出选了哪个」的关键;
+   注意: 这段必须排在四档配色之后 —— 两者选择器权重相同, 靠先后顺序覆盖 border-color */
+.tlb-opt.sel{font-weight:700;border:2px solid currentColor;padding:0 13px;
+  box-shadow:0 0 0 3px var(--lb-halo,rgba(15,23,42,.10))}
+.tlb-opt.sel::before{content:"✓";margin-right:4px;font-weight:700}
+/* 已打标的小角标(详情页标题行): 底色按上面的四档 */
+.tg-term-label{font-size:11.5px;padding:1px 8px;border-radius:9px;margin-left:2px;
+  background:#f1f3f7;color:var(--txt-2);border:1px solid var(--bd-d)}
+
+/* 打标结果标签(搜索词列表「打标」列): 四档四色同上, 未打标显示 - */
+.lb-tag{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11.5px;
+  line-height:17px;white-space:nowrap;border:1px solid transparent}
+
+/* 进度状态标签(父SKU 的「素材拉取 / 打标」+ 搜索词级「已拉取」)
+   data-st: done=完成/已拉取 partial=部分 none=未开始 empty=无搜索词 */
+.st-tag{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11.5px;
+  line-height:17px;white-space:nowrap;border:1px solid transparent}
+.st-tag[data-st="done"]{background:#e9f8ef;color:#0a8a4f;border-color:#cdebda}
+.st-tag[data-st="partial"]{background:#fff5e6;color:#b26a00;border-color:#ffe0b2}
+.st-tag[data-st="none"]{background:#f1f3f7;color:#6b7280;border-color:#e3e6eb}
+.st-tag[data-st="empty"]{background:#fafbfc;color:var(--muted);border-color:#eceef2}
+.st-num{font-size:11px;color:var(--muted);margin-left:5px}
+.st-legend{color:var(--muted);font-size:11.5px}
+.st-legend .st-gap{margin-left:10px}
+.fetch-err{color:var(--red)}
+
 /* 详情页顶部: 产品(图片 + 附图 + 标题 + 价格) */
 .term-top{display:flex;gap:18px;align-items:flex-start;margin-bottom:10px}
+
+/* 详情页首屏一整行: 产品信息 | 搜索词×父SKU关联度 | 结果集评估
+   (原来三块竖排, 占满整屏; 现在并排一屏看完, 里面整体压缩;
+    窄屏放不下时自动换行, 不会挤成一团) */
+.term-head-row{display:flex;flex-wrap:wrap;align-items:stretch;gap:12px;padding:8px 10px}
+/* 产品信息列 600px: 实测 380px 时关键词行/字段行/附图条都会被挤到第二行,
+   多出 3 行 ~80px; 放宽后这几行各归一行, 整块反而更矮。
+   多出来的宽度是从「结果集评估」那边挪过来的(它的内容用不满, 见 term-col-res) */
+.term-head-row .term-top{flex:0 0 600px;min-width:0;gap:10px;align-items:flex-start;margin-bottom:0}
+.term-head-row .tg-main{flex:0 0 132px}
+.term-head-row .tg-main img{width:132px;height:132px}
+.term-head-row .tg-price{font-size:16px}
+.term-head-row .tg-term{font-size:14.5px}
+/* 关键词/译文/标签/素材徽章一律不换行 —— flex 子项默认能缩到 min-content,
+   中文的 min-content 就是「一个字」, 不 nowrap 就会被挤成竖排(每行一个字) */
+.term-head-row .tg-term-line{flex-wrap:wrap;row-gap:3px;margin-bottom:3px}
+.term-head-row .tg-term,.term-head-row .term-zh-lg,.term-head-row .tg-term-label{
+  white-space:nowrap}
+/* 长标题最多 2 行(超出省略, 悬停看全文), 不再吃掉四五行的版面 */
+.term-head-row .tg-title{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:2;overflow:hidden;font-size:13px;line-height:1.45;margin-bottom:3px}
+/* .tg-kv 本身是 flex 容器, 作为子项时基准宽度=它所有字段的最大宽度(约 500px),
+   于是被挤到价格下面单独成行; 允许它收缩就能和价格并排, 省一行 */
+.term-head-row .tg-meta{gap:2px 12px;margin-bottom:3px}
+.term-head-row .tg-kv{flex:1 1 0%;min-width:0;gap:3px 12px;font-size:12px}
+/* 附图条与「抓取附图/来源子体」挤成一行, 附图过多时横向滚动而不是换行成几排 */
+.term-head-row .tg-thumb-bar{flex-wrap:nowrap;gap:8px;margin-bottom:3px;overflow:hidden}
+.term-head-row .tg-thumb-bar .pmeta{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.term-head-row .tg-thumbs{flex-wrap:nowrap;overflow-x:auto;gap:5px;padding-bottom:3px}
+.term-head-row .tg-thumbs img{width:36px;height:36px;flex:0 0 auto}
+.term-head-row .term-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;
+  border-left:1px dashed var(--bd);padding-left:14px}
+/* 宽度按内容需要分配: 关联度明细字多给多一点, 结果集评估给少一点(它的内容用不满) */
+.term-head-row .term-col-rel{flex:1.1 1 0}
+.term-head-row .term-col-res{flex:0.9 1 0}
+.term-head-row .term-sec-head{padding-bottom:6px;margin-bottom:8px;gap:8px}
+.term-head-row .term-sec-title{font-size:12.5px}
+.term-head-row .term-sec-tools{gap:6px;font-size:12px}
+/* 两个分析块**不做内部滚动**(块里不出滚动条): 内容整体压紧一档, 用列宽换高度 */
+.term-head-row .term-body{flex:1 1 auto;min-width:0}
+/* 评分块(综合分/建议/模型)放到明细左侧 —— 竖着放会白占 50 多 px 高度 */
+.term-head-row .rel-grid{flex-direction:row;gap:12px;padding:0;align-items:flex-start}
+.term-head-row .rel-score-cell{flex:0 0 148px;flex-direction:column;align-items:flex-start;gap:6px}
+.term-head-row .rel-score-line{margin:0}
+.term-head-row .rel-badge{font-size:12.5px;padding:5px 9px}
+.term-head-row .rel-model{font-size:11px}
+.term-head-row .rel-row,.term-head-row .meter{font-size:11.5px;line-height:1.35;gap:8px}
+.term-head-row .rel-k,.term-head-row .meter-k{flex:0 0 58px;font-size:11px}
+.term-head-row .rel-detail{gap:4px}
+/* 三个量表并排一行(原来竖着占三行) */
+.term-head-row .rel-meters{flex-direction:row;flex-wrap:wrap;gap:4px 14px;margin-top:0}
+.term-head-row .meter{flex:1 1 150px}
 .tg-main{flex:0 0 268px}
 .tg-main img{width:268px;height:268px;object-fit:contain;background:#fff;
   border:1px solid var(--bd);border-radius:6px;cursor:zoom-in}
 .tg-info{flex:1;min-width:0}
+/* 搜索词详情页顶部: 搜索词原文 + AI 中文翻译 */
+.tg-term-line{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.tg-term{font-size:16px;font-weight:700;color:var(--blue)}
 .tg-title{font-size:15px;font-weight:600;line-height:1.5;margin-bottom:6px}
 /* 价格 + 字段(父ASIN/父SKU/子体数/附图数) 同一行 */
 .tg-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 20px;margin-bottom:10px}
@@ -530,9 +678,14 @@ body.standalone{background:var(--bg)}
 .amz-card2{border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:#fff;
   display:flex;flex-direction:column;transition:.15s}
 .amz-card2:hover{box-shadow:0 4px 16px rgba(0,0,0,.10);transform:translateY(-1px)}
-.amz-card2 .card-img{position:relative;width:100%;aspect-ratio:1/1;background:#fff;
+/* 卡片图区固定成 1:1, 图片绝对定位撑满这个方框。
+   注意不能给 img 用 height:100% —— 那样图片的**内在比例**会反过来把图区顶高:
+   细长型商品图(如排挡头)能把图区撑到 4 倍高, 网格行等高, 整行卡片跟着一起变高。
+   现在超长图会被自动缩到方框里居中显示(整图可见, 点开仍有大图预览) */
+.amz-card2 .card-img{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#fff;
   display:flex;align-items:center;justify-content:center;border-bottom:1px solid #f0f2f5}
-.amz-card2 .card-img img{width:100%;height:100%;object-fit:contain;padding:10px;cursor:zoom-in}
+.amz-card2 .card-img img{position:absolute;inset:0;width:100%;height:100%;padding:10px;
+  object-fit:contain;object-position:center;cursor:zoom-in}
 .amz-card2 .card-pos{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.55);color:#fff;
   font-size:10.5px;line-height:16px;padding:0 6px;border-radius:8px}
 .amz-card2 .card-ad{position:absolute;right:6px;top:6px;background:#fdeeea;color:#e5503a;
@@ -628,3 +781,22 @@ body.standalone{background:var(--bg)}
 .title-badge{position:absolute;left:6px;bottom:6px;font-size:10.5px;font-weight:700;
   line-height:16px;padding:0 7px;border-radius:8px;border:1px solid transparent;
   background:rgba(255,255,255,.92)}
+
+/* ---------- 配置弹窗 (品名解析用哪家模型) ---------- */
+.cfg-card{width:min(680px,96vw)}
+.cfg-body{display:flex;flex-direction:column;gap:12px}
+.cfg-row{display:flex;align-items:center;gap:10px}
+.cfg-lab{width:88px;flex:0 0 88px;color:var(--txt-2);font-size:12.5px}
+.cfg-row input[type=text],.cfg-row input[type=password]{flex:1;min-width:0;height:30px;padding:0 8px;
+  border:1px solid var(--bd-d);border-radius:4px;background:#fff;color:var(--txt);outline:none;font-size:13px}
+.cfg-row input:focus{border-color:var(--blue)}
+.cfg-radios{display:flex;align-items:center;gap:16px;font-size:13px;flex-wrap:wrap}
+.cfg-radios label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.cfg-group{display:flex;flex-direction:column;gap:10px;padding:10px 12px;
+  border:1px solid var(--bd);border-radius:4px;background:#fafbfd}
+.cfg-group.off{opacity:.45;pointer-events:none}
+.cfg-note{font-size:12px;line-height:1.7}
+.cfg-note code{background:#f2f4f8;padding:0 3px;border-radius:3px}
+.modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;
+  padding:10px 14px;border-top:1px solid var(--bd)}
+.modal-foot .muted{margin-right:auto;font-size:12px}

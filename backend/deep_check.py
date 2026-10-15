@@ -21,7 +21,9 @@ import config
 from backend import database as db
 from backend import llm, prompts
 
-# 标题噪声: 数量/尺寸/颜色/促销/包装等, 比较前先剥离(模型也被要求忽略)
+# 标题噪声正则: **已不再用于标题比对**(2026-10-15 起改为原始标题直接送模型)。
+# 保留仅供 normalize_title() 的历史用途/展示, 注意它有已知缺陷: 因用了 \b,
+# 「数字+单位+日文汉字」边界不成立时会漏剥(如 12mm対応 / H70mm)。
 _NOISE_RE = [
     re.compile(r"\d+(\.\d+)?\s*(mm|cm|m|kg|g|ml|l|inch|in|ft|個|枚|本|台|セット|枚入り|pcs|PCS)\b", re.I),
     re.compile(r"(大容量|高品質|新品|人気|送料無料|セール|ポイント|正規品|並行輸入|日本製|多機能)"),
@@ -31,7 +33,10 @@ _NOISE_RE = [
 
 
 def normalize_title(t: str) -> str:
-    """去掉尺寸/颜色/数量/促销等噪声, 保留品类词 (仅用于展示依据)"""
+    """去掉尺寸/颜色/数量/促销等噪声, 保留品类词
+
+    注意: 标题比对已改为**不做本地预处理**(见 title_pair_judge), 此函数不再是比对入口。
+    """
     s = str(t or "")
     for r in _NOISE_RE:
         s = r.sub(" ", s)
@@ -42,8 +47,15 @@ def normalize_title(t: str) -> str:
 # 标题对判断 (逐条)
 # ---------------------------------------------------------------------------
 def title_pair_judge(a: str, b: str, model: Optional[str] = None) -> Dict[str, Any]:
+    """我的标题 × 竞品标题 → 是否同类(0~100)
+
+    直接送**原始标题**: 不做本地正则预处理。
+    尺寸/颜色/数量/品牌/促销词等本来就由提示词(TITLE_PAIR_PROMPT 的 IGNORE_RULE)
+    要求模型自行忽略, 交给模型判断比正则更稳(正则误伤品类词、漏剥单位都出现过)。
+    这里只保留一个防超长的硬截断(400 字符), 正常标题不会触达。
+    """
     p = prompts.render(prompts.TITLE_PAIR_PROMPT,
-                       a=normalize_title(a)[:200], b=normalize_title(b)[:200])
+                       a=str(a or "")[:400], b=str(b or "")[:400])
     j = llm.ask_json(p, model=model)
     return {"score": max(0, min(100, int(float(j.get("score"))))),
             "same": bool(j.get("same_category")),
