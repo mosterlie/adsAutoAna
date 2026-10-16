@@ -3326,8 +3326,7 @@ async function loadAmzCards(term, refresh) {
   const url = `https://www.amazon.co.jp/s?k=${encodeURIComponent(term)}`;
   $("termAmzOpen").href = url;
   amzSum.base = "查询中…";
-  amzSum.title = "";
-  amzSum.img = "";
+  amzSum.sim = "";
   paintAmzMeta();
   $("amzCards").innerHTML = `<div class="amz-loading">正在抓取亚马逊搜索结果…（命中缓存立即返回；否则用浏览器加载页面，约 10~25 秒）</div>`;
   $("termAmzRefresh").disabled = true;
@@ -3345,15 +3344,13 @@ async function loadAmzCards(term, refresh) {
     const items = d.items || [];
     amzSum.base = (d.blocked ? "⚠ 疑似被验证码拦截 · " : "") +
       `解析 ${d.item_count} 条 · ${d.from_cache ? "缓存" : "实时抓取"} · ${d.fetched_at || ""}`;
-    amzSum.title = "";
-    amzSum.img = "";
+    amzSum.sim = "";
     paintAmzMeta();
     $("amzCards").innerHTML = items.map(amzCardHtml).join("") ||
       `<div class="empty">没有抓到搜索结果（可能被验证码拦截，可点「重新抓取」）</div>`;
     $("amzCards").querySelectorAll("img[data-preview]").forEach((img) => img.onclick = () =>
       openImagePreview(img.dataset.preview, img.dataset.cap, img.dataset.fallback));
-    if ($("deepMatch") && $("deepMatch").checked) loadDeepMatch(term, false);
-    if ($("titleMatch") && $("titleMatch").checked) loadTitleMatch(term);
+    if ($("simMatch") && $("simMatch").checked) loadSimMatch(term);
     loadDeepVerdict(term);
   } finally {
     const b = $("termAmzRefresh");
@@ -3396,60 +3393,60 @@ function amzCardHtml(it) {
   </div>`;
 }
 
-/* ---------------- 深度检测: 结果区汇总文案 (基础/标题/图片 分开拼) ---------------- */
-const amzSum = { base: "", title: "", img: "" };
+/* ---------------- 深度检测: 结果区汇总文案 (基础信息 / 整体相似度 分开拼) ---------------- */
+const amzSum = { base: "", sim: "" };
 
 function paintAmzMeta() {
   const el = $("amzCardsMeta");
   if (!el) return;
-  el.textContent = [amzSum.base, amzSum.title, amzSum.img]
-    .filter(Boolean).join(" · ");
+  el.textContent = [amzSum.base, amzSum.sim].filter(Boolean).join(" · ");
 }
 
-/* ---------------- 深度匹配: SKU 主图 × 搜索结果主图 相似度 ---------------- */
-function deepLevel(score) {
+/* ---------------- 整体相似度: 我的品(标题+主图) × 竞品(标题+主图) ----------------
+   一次把「我的标题+我的主图+竞品标题+竞品主图」交给同一个多模态大模型整体判断,
+   不再拆成「标题比标题 / 图比图」两个分数。 */
+function simLevel(score) {
   if (score == null) return "rel-none";
   return score >= 75 ? "rel-high" : score >= 55 ? "rel-mid" : "rel-low";
 }
 
-let deepPoll = null;
+let simPoll = null;
 
-function stopDeepPoll() {
-  if (deepPoll) { clearInterval(deepPoll); deepPoll = null; }
+function stopSimPoll() {
+  if (simPoll) { clearInterval(simPoll); simPoll = null; }
 }
 
-async function loadDeepMatch(term, refresh) {
+async function loadSimMatch(term) {
   const asin = new URLSearchParams(location.search).get("asin") || "";
   if (!asin || !term) return;
-  amzSum.img = "图片匹配中…";
+  amzSum.sim = "整体比对中…";
   paintAmzMeta();
-  stopDeepPoll();
+  stopSimPoll();
   let d;
   try {
-    d = await api("/api/image_similarity?" +
-      new URLSearchParams({ asin, term, top_n: 10, engine: "llm" }).toString(),
-      { method: "POST" });
+    d = await api("/api/sku_similarity?" +
+      new URLSearchParams({ asin, term, top_n: 10 }).toString(), { method: "POST" });
   } catch (e) {
-    amzSum.img = "图片匹配启动失败";
+    amzSum.sim = "整体比对启动失败";
     paintAmzMeta();
     return;
   }
-  renderDeep(d);
+  renderSim(d);
   if (d.running) {
-    deepPoll = setInterval(async () => {
+    simPoll = setInterval(async () => {
       try {
-        const s = await api("/api/image_similarity/status?" +
+        const s = await api("/api/sku_similarity/status?" +
           new URLSearchParams({ asin, term }).toString());
-        renderDeep(s);
-        if (!s.running) { stopDeepPoll(); loadDeepVerdict(term); }
+        renderSim(s);
+        if (!s.running) { stopSimPoll(); loadDeepVerdict(term, true); }
       } catch (e) { /* 忽略单次轮询失败 */ }
     }, 2500);
   }
 }
 
-function renderDeep(d) {
+function renderSim(d) {
   if (!d.items || !d.items.length) {
-    amzSum.img = `图片匹配: ${d.note || "无结果"}`;
+    amzSum.sim = `整体相似度: ${d.note || "无结果"}`;
     paintAmzMeta();
     return;
   }
@@ -3459,119 +3456,57 @@ function renderDeep(d) {
     if (!card) return;
     const holder = card.querySelector(".card-img");
     if (!holder) return;
-    let badge = holder.querySelector(".deep-badge");
+    let badge = holder.querySelector(".sim-badge");
     if (!badge) {
-      holder.insertAdjacentHTML("beforeend", `<span class="deep-badge rel-none">…</span>`);
-      badge = holder.querySelector(".deep-badge");
+      holder.insertAdjacentHTML("beforeend", `<span class="sim-badge rel-none">…</span>`);
+      badge = holder.querySelector(".sim-badge");
     }
     if (it.score == null) {
-      badge.className = "deep-badge rel-none";
+      badge.className = "sim-badge rel-none";
       badge.textContent = d.running ? "分析中" : "失败";
       badge.title = it.reason || "";
       return;
     }
-    const via = it.via === "llm" ? `模型(${d.model})` : "本地算法";
-    badge.className = `deep-badge ${deepLevel(it.score)}`;
+    badge.className = `sim-badge ${simLevel(it.score)}`;
     badge.textContent = `相似 ${it.score}%`;
-    badge.title = `[${via}] ${it.reason || ""}`;
+    badge.title = `[${d.model || ""}] ${it.reason || ""}`;
   });
   const pct = d.total ? Math.round((d.done || 0) / d.total * 100) : 0;
-  amzSum.img = d.running
-    ? `图片匹配中 ${d.done || 0}/${d.total}（${pct}%）· ${d.model || ""}`
-    : `图片匹配(${d.model || ""}): 前${d.items.length}平均 ${d.avg ?? "-"}% / 最高 ${d.max ?? "-"}%`;
+  amzSum.sim = d.running
+    ? `整体比对中 ${d.done || 0}/${d.total}（${pct}%）· ${d.model || ""}`
+    : `整体相似度（${d.model || ""}）: 平均 ${d.avg ?? "-"}% / 最高 ${d.max ?? "-"}%`;
   paintAmzMeta();
 }
 
-$("deepMatch").onchange = () => {
-  if ($("deepMatch").checked) {
+/* 等整体相似度任务结束(重新评估时用): 返回最终状态, 超时返回 null */
+async function waitSimJob(asin, term) {
+  for (let i = 0; i < 90; i++) {
+    const s = await api("/api/sku_similarity/status?" +
+      new URLSearchParams({ asin, term }).toString());
+    renderSim(s);
+    if (!s.running) return s;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return null;
+}
+
+$("simMatch").onchange = () => {
+  if ($("simMatch").checked) {
     const t = new URLSearchParams(location.search).get("term") || "";
-    if (t) loadDeepMatch(t, false);
+    if (t) loadSimMatch(t);
   } else {
-    stopDeepPoll();
-    $("amzCards").querySelectorAll(".deep-badge").forEach((b) => b.remove());
-    amzSum.img = "";
-    paintAmzMeta();
-  }
-};
-
-/* ---------------- 标题匹配: 我的标题 × 竞品标题 (是否同类物品) ---------------- */
-let titlePoll = null;
-
-function stopTitlePoll() {
-  if (titlePoll) { clearInterval(titlePoll); titlePoll = null; }
-}
-
-async function loadTitleMatch(term) {
-  const asin = new URLSearchParams(location.search).get("asin") || "";
-  if (!asin || !term) return;
-  stopTitlePoll();
-  let d;
-  try {
-    d = await api("/api/title_similarity?" +
-      new URLSearchParams({ asin, term, top_n: 10 }).toString(), { method: "POST" });
-  } catch (e) { return; }
-  renderTitleMatch(d);
-  if (d.running) {
-    titlePoll = setInterval(async () => {
-      try {
-        const s = await api("/api/title_similarity/status?" +
-          new URLSearchParams({ asin, term }).toString());
-        renderTitleMatch(s);
-        if (!s.running) { stopTitlePoll(); loadDeepVerdict(term); }
-      } catch (e) { /* 忽略 */ }
-    }, 2500);
-  }
-}
-
-function renderTitleMatch(d) {
-  if (!d.items || !d.items.length) {
-    if (d.note) { amzSum.title = `标题匹配: ${d.note}`; paintAmzMeta(); }
-    return;
-  }
-  const cards = $("amzCards").querySelectorAll(".amz-card2");
-  d.items.forEach((it, i) => {
-    const holder = cards[i] && cards[i].querySelector(".card-img");
-    if (!holder) return;
-    let b = holder.querySelector(".title-badge");
-    if (!b) {
-      holder.insertAdjacentHTML("beforeend", `<span class="title-badge rel-none">…</span>`);
-      b = holder.querySelector(".title-badge");
-    }
-    if (it.score == null) {
-      b.className = "title-badge rel-none";
-      b.textContent = d.running ? "分析中" : "失败";
-      b.title = it.reason || "";
-      return;
-    }
-    const cls = it.score >= 70 ? "rel-high" : it.score >= 40 ? "rel-mid" : "rel-low";
-    b.className = `title-badge ${cls}`;
-    b.textContent = `同类 ${it.score}%`;
-    b.title = `我的品类: ${it.core_a || "-"} / 竞品品类: ${it.core_b || "-"}\n${it.reason || ""}`;
-  });
-  const tpct = d.total ? Math.round((d.done || 0) / d.total * 100) : 0;
-  amzSum.title = d.running
-    ? `标题匹配中 ${d.done || 0}/${d.total}（${tpct}%）`
-    : `标题匹配: 平均 ${d.avg ?? "-"}% / 最高 ${d.max ?? "-"}%`;
-  paintAmzMeta();
-}
-
-$("titleMatch").onchange = () => {
-  if ($("titleMatch").checked) {
-    const t = new URLSearchParams(location.search).get("term") || "";
-    if (t) loadTitleMatch(t);
-  } else {
-    stopTitlePoll();
-    $("amzCards").querySelectorAll(".title-badge").forEach((b) => b.remove());
-    amzSum.title = "";
+    stopSimPoll();
+    $("amzCards").querySelectorAll(".sim-badge").forEach((b) => b.remove());
+    amzSum.sim = "";
     paintAmzMeta();
   }
 };
 
 /* ---------------- 词级结论: 结果集评估 + 是否否定建议 ---------------- */
-async function loadDeepVerdict(term) {
+async function loadDeepVerdict(term, force) {
   const asin = new URLSearchParams(location.search).get("asin") || "";
   if (!asin || !term) return;
-  if (loadDeepVerdict._done === `${asin}|${term}`) return;
+  if (!force && loadDeepVerdict._done === `${asin}|${term}`) return;
   const body = $("termDeepBody");
   if (!body) return;
   body.innerHTML = `<div class="empty">评估中（首次需调模型，约 3~5 秒）…</div>`;
@@ -3590,7 +3525,7 @@ async function loadDeepVerdict(term) {
 function renderDeepVerdict(d) {
   const body = $("termDeepBody");
   if (!d) return;
-  if (d.note && d.verdict == null && d.title_count === 0) {
+  if (d.note && d.verdict == null && d.sim_count === 0) {
     body.innerHTML = `<div class="empty">${esc(d.note)}</div>`;
     return;
   }
@@ -3615,26 +3550,29 @@ function renderDeepVerdict(d) {
             <span class="muted">（该词花费 ${money(d.spend || 0)} · 订单 ${nf(d.orders || 0)}）</span></span></div>
         <div class="rel-row"><span class="rel-k">搜索意图</span>
           <span class="rel-v">${esc(v.intent || "-")} — <b>${v.score ?? "-"}</b>/100 ${esc(v.reason || "")}</span></div>
-        <div class="rel-row"><span class="rel-k">结果集标题同类</span>
-          <span class="rel-v">${d.match_rate != null ? `<b>${d.match_rate}%</b> 同类（${d.title_same}/${d.title_count} 条达 70 分以上）· 平均 ${d.title_avg ?? "-"} 分` : "<span class='muted'>未做标题匹配</span>"}</span></div>
-        <div class="rel-row"><span class="rel-k">结果集图片相似</span>
-          <span class="rel-v">${d.image_count ? `平均 <b>${d.image_avg ?? "-"}%</b> / 最高 ${d.image_max ?? "-"}%（${d.image_count} 条）` : "<span class='muted'>未做图片匹配</span>"}</span></div>
+        <div class="rel-row"><span class="rel-k">结果集整体相似</span>
+          <span class="rel-v">${d.sim_count ? `平均 <b>${d.sim_avg ?? "-"}</b> 分 / 最高 ${d.sim_max ?? "-"} 分（${d.sim_count} 条）· 其中 ${d.sim_same ?? 0} 条 ≥70 分` : "<span class='muted'>未做整体相似度比对</span>"}</span></div>
         <div class="rel-meters">
           <div class="meter"><span class="meter-k">词级意图</span>
             <div class="meter-bar"><i style="width:${v.score ?? 0}%"></i></div><b>${v.score ?? "-"}</b></div>
-          <div class="meter"><span class="meter-k">标题同类率</span>
-            <div class="meter-bar"><i style="width:${d.match_rate ?? 0}%"></i></div><b>${d.match_rate ?? "-"}</b></div>
-          <div class="meter"><span class="meter-k">图片相似</span>
-            <div class="meter-bar"><i style="width:${d.image_avg ?? 0}%"></i></div><b>${d.image_avg ?? "-"}</b></div>
+          <div class="meter"><span class="meter-k">整体相似</span>
+            <div class="meter-bar"><i style="width:${d.sim_avg ?? 0}%"></i></div><b>${d.sim_avg ?? "-"}</b></div>
         </div>
       </div>
     </div>`;
   $("termDeepTools").innerHTML = `<button class="btn btn-mini" id="deepReEval">重新评估</button>`;
   $("deepReEval").onclick = async () => {
-    body.innerHTML = `<div class="empty">重新评估中…</div>`;
+    body.innerHTML = `<div class="empty">重新评估中（重算整体相似度 + 词级结论）…</div>`;
+    stopSimPoll();
     try {
-      const nd = await api("/api/deep_check?" +
-        new URLSearchParams({ asin: d.asin, term: d.term, refresh: "true" }).toString());
+      const q = new URLSearchParams({ asin: d.asin, term: d.term }).toString();
+      if ($("simMatch") && $("simMatch").checked) {
+        await api("/api/sku_similarity?" + q + "&top_n=10&refresh=true",
+          { method: "POST" });
+        await waitSimJob(d.asin, d.term);
+      }
+      loadDeepVerdict._done = "";
+      const nd = await api("/api/deep_check?" + q + "&refresh=true");
       renderDeepVerdict(nd);
     } catch (e) {
       body.innerHTML = `<div class="empty">失败: ${esc(e.message)}</div>`;

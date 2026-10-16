@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """深度检测(统一口径): 「这个搜索词的搜索结果集」与「我的商品」有多像
 
-三层判断(提示词见 backend/prompts.py, 共用同一评分标尺):
-  ① 标题级: 我的标题 vs 每条竞品标题 → 是否同类
-  ② 图片级: 我的主图 vs 每条竞品主图 → 是否同类(image_sim 负责)
-  ③ 词级  : 该词的用户搜索意图 vs 我的品 → 词要不要留
+两层判断(提示词见 backend/prompts.py, 共用同一评分标尺):
+  ① 整体级: 我的品(标题+主图) vs 每条竞品(标题+主图), 一次多模态判断 → 是否同类
+     (backend/sku_sim.py 负责; 不再把标题与主图拆成两个独立分数)
+  ② 词级  : 该词的用户搜索意图 vs 我的品 → 词要不要留
 
 ★ 结论用途: 综合相关度过低 + 有花费无成交 → 建议**否定该词**。
 
 持久化:
-  - title_similarity : 每条 (父ASIN, 词, 对方ASIN) 的标题同类判断(重算覆盖)
-  - term_verdict     : 词级综合结论与建议(重算覆盖)
+  - sku_similarity : 每条 (父ASIN, 词, 对方ASIN) 的整体相似度判断(重算覆盖)
+  - term_verdict   : 词级综合结论与建议(重算覆盖)
 """
 import re
 import threading
@@ -83,6 +83,9 @@ def term_verdict_judge(term: str, my_title: str,
 
 # ---------------------------------------------------------------------------
 # 标题匹配任务 (逐条竞品标题, 后台 + 落库缓存)
+#
+# ★ 历史链路: 搜索词详情页已改为「整体相似度」(sku_sim, 标题+主图一次判断),
+#   这里的「标题比标题」不再被页面调用, 仅保留给旧接口 /api/title_similarity。
 # ---------------------------------------------------------------------------
 _TJOBS: Dict[str, Dict[str, Any]] = {}
 _TLOCK = threading.Lock()
@@ -236,31 +239,23 @@ def evaluate(asin: str, term: str, top_n: int = 10,
         except Exception as e:              # noqa: BLE001
             out["note"] = f"词级判断失败: {str(e)[:60]}"
 
-    # ② 标题匹配率(取已落库结果)
-    ts = db.get_title_sims(asin, term)
-    t_scores = [v["score"] for v in ts.values() if v.get("score") is not None]
-    t_same = sum(1 for v in ts.values() if v.get("score") is not None
-                 and v["score"] >= 70)
+    # ② 结果集整体相似度(我的品[标题+主图] × 每条竞品[标题+主图], 取已落库结果)
+    sims = db.get_sku_sims(asin, term)
+    s_scores = [v["score"] for v in sims.values() if v.get("score") is not None]
+    s_same = sum(1 for s in s_scores if s >= 70)
 
-    # ③ 图片相似(取已落库结果)
-    ims = db.get_image_sims(asin, term)
-    i_scores = [v["score"] for v in ims.values() if v.get("score") is not None]
-
-    # ④ 广告表现(花费/订单)
+    # ③ 广告表现(花费/订单)
     metrics = db.get_term_metrics(asin, term)
 
-    title_score = round(sum(t_scores) / len(t_scores), 1) if t_scores else None
-    img_score = round(sum(i_scores) / len(i_scores), 1) if i_scores else None
-    match_rate = round(100 * t_same / len(t_scores), 1) if t_scores else None
+    sim_avg = round(sum(s_scores) / len(s_scores), 1) if s_scores else None
+    match_rate = round(100 * s_same / len(s_scores), 1) if s_scores else None
 
-    # 综合相关度: 词级 0.4 + 标题匹配率 0.3 + 图片 0.3 (缺项按可用项归一)
+    # 综合相关度: 词级 0.4 + 结果集整体相似 0.6 (缺项按可用项归一)
     parts = []
     if verdict:
         parts.append((verdict["score"], 0.4))
-    if match_rate is not None:
-        parts.append((match_rate, 0.3))
-    if img_score is not None:
-        parts.append((img_score, 0.3))
+    if sim_avg is not None:
+        parts.append((sim_avg, 0.6))
     if parts:
         wsum = sum(w for _, w in parts)
         total = round(sum(s * w for s, w in parts) / wsum, 1)
@@ -273,7 +268,7 @@ def evaluate(asin: str, term: str, top_n: int = 10,
     #   —— 同类但零成交 => 问题在 Listing/价格/竞争力, 不该否定词
     #   —— 不同类且零成交 => 词本身跑偏, 该否定
     if total is None:
-        advice, advice_reason = "数据不足", "尚未完成标题/图片/词级判断"
+        advice, advice_reason = "数据不足", "尚未完成整体相似度/词级判断"
     elif total >= 70:
         if spend >= 100 and orders == 0:
             advice = "保留·优化转化"
@@ -294,11 +289,10 @@ def evaluate(asin: str, term: str, top_n: int = 10,
             advice_reason += " (花费较低, 可先观察)"
 
     out.update({
-        "verdict": verdict, "title_avg": title_score, "title_max":
-            max(t_scores) if t_scores else None, "match_rate": match_rate,
-        "title_same": t_same, "title_count": len(t_scores),
-        "image_avg": img_score, "image_max": max(i_scores) if i_scores else None,
-        "image_count": len(i_scores),
+        "verdict": verdict,
+        "sim_avg": sim_avg, "sim_max": max(s_scores) if s_scores else None,
+        "sim_same": s_same, "sim_count": len(s_scores),
+        "match_rate": match_rate,
         "spend": spend, "orders": orders,
         "total": total, "advice": advice, "advice_reason": advice_reason,
         "model": llm.model_name("text"),

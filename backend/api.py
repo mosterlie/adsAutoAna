@@ -848,7 +848,38 @@ def image_similarity_status(asin: str = Query(...), term: str = Query("")
     return image_sim.job_status((asin or "").strip(), (term or "").strip())
 
 
-# ---- 深度检测: 标题同类 + 词级结论 ----
+# ---- 深度检测: 竞品整体相似度 (搜索词详情页主口径) ----
+@router.post("/sku_similarity")
+def sku_similarity_start(asin: str = Query(...), term: str = Query(...),
+                         top_n: int = Query(10),
+                         refresh: bool = Query(False)) -> Dict[str, Any]:
+    """整体相似度: 我的品(标题+主图) × 每条竞品(标题+主图), 一次多模态判断 (后台任务)
+
+    - 用「配置管理」页选定的**视觉大模型**整体判断是否同一类物品,
+      不再把标题与主图拆成两个独立分数;
+    - 竞品主图优先用本地已下载原图, 缺失时回落亚马逊 CDN;
+    - 只读已缓存的搜索结果(不触发抓取)。
+    refresh=True 时忽略已落库结果, 全部重算。
+    用 /sku_similarity/status 轮询进度与结果。
+    """
+    from backend import sku_sim
+    t, a = (term or "").strip(), (asin or "").strip()
+    if not t or not a:
+        raise HTTPException(400, "term 与 asin 不能为空")
+    return sku_sim.start_job(a, t, max(1, min(top_n, 20)), refresh)
+
+
+@router.get("/sku_similarity/status")
+def sku_similarity_status(asin: str = Query(...), term: str = Query("")
+                          ) -> Dict[str, Any]:
+    """整体相似度进度与结果"""
+    from backend import sku_sim
+    return sku_sim.job_status((asin or "").strip(), (term or "").strip())
+
+
+# ---- 深度检测(历史接口): 标题同类 / 图片相似 拆开比 ----
+# ★ 搜索词详情页已改用 /sku_similarity; 下面两个接口保留兼容, 页面不再调用。
+
 @router.post("/title_similarity")
 def title_similarity_start(asin: str = Query(...), term: str = Query(...),
                            top_n: int = Query(10)) -> Dict[str, Any]:

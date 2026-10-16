@@ -265,6 +265,26 @@ CREATE TABLE IF NOT EXISTS image_similarity (
     PRIMARY KEY(asin, term, other_asin)
 );
 
+-- 竞品整体相似度 (我的品[标题+主图] × 竞品[标题+主图], 一次多模态判断):
+-- 按 (父ASIN, 词, 对方ASIN) 覆盖更新; 取代 title_similarity + image_similarity 的拆分口径
+CREATE TABLE IF NOT EXISTS sku_similarity (
+    asin          TEXT NOT NULL,      -- 我的父 ASIN
+    term          TEXT NOT NULL,
+    other_asin    TEXT NOT NULL,      -- 竞品 ASIN
+    position      INTEGER,
+    score         INTEGER,            -- 整体相似度 0~100
+    same_category INTEGER,
+    reason        TEXT,
+    model         TEXT,
+    other_title   TEXT,               -- 送模型时的竞品标题
+    other_image   TEXT,               -- 竞品主图 URL
+    my_title      TEXT,               -- 送模型时的我的标题
+    my_image      TEXT,               -- 我的主图 URL
+    updated_at    TEXT,
+    PRIMARY KEY(asin, term, other_asin)
+);
+CREATE INDEX IF NOT EXISTS idx_sku_sim_term ON sku_similarity(asin, term);
+
 -- 图片感知特征缓存 (dHash + 直方图): 按 URL 缓存, 深度匹配不重复下载
 CREATE TABLE IF NOT EXISTS image_phash (
     url_hash     TEXT PRIMARY KEY,
@@ -1177,6 +1197,39 @@ def get_image_sims(asin: str, term: str) -> Dict[str, Dict[str, Any]]:
         rows = conn.execute(
             "SELECT other_asin, position, score, via, reason, model, updated_at "
             "FROM image_similarity WHERE asin=? AND term=?", (asin, term)).fetchall()
+    return {r["other_asin"]: dict(r) for r in rows}
+
+
+# ---- 深度检测: 竞品整体相似度 (我的品[标题+主图] × 竞品[标题+主图]) ----
+def save_sku_sim(asin: str, term: str, other_asin: str, position: Any,
+                 score: Optional[int], same: Any, reason: str, model: str,
+                 other_title: str, other_image: str, my_title: str,
+                 my_image: str) -> None:
+    """整体相似度落库 (同一 (父ASIN, 词, 对方ASIN) 重算覆盖)"""
+    with _LOCK, get_conn() as conn:
+        conn.execute(
+            """INSERT INTO sku_similarity(asin, term, other_asin, position, score,
+                                          same_category, reason, model, other_title,
+                                          other_image, my_title, my_image, updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(asin, term, other_asin) DO UPDATE SET
+                 position=excluded.position, score=excluded.score,
+                 same_category=excluded.same_category, reason=excluded.reason,
+                 model=excluded.model, other_title=excluded.other_title,
+                 other_image=excluded.other_image, my_title=excluded.my_title,
+                 my_image=excluded.my_image, updated_at=excluded.updated_at""",
+            (asin, term, str(other_asin or ""), position, score,
+             1 if same else 0, reason, model, other_title, other_image,
+             my_title, my_image, now()))
+
+
+def get_sku_sims(asin: str, term: str) -> Dict[str, Dict[str, Any]]:
+    """某 (父ASIN, 词) 已缓存的整体相似度结果, 以对方 ASIN 为键"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT other_asin, position, score, same_category, reason, model, "
+            "updated_at FROM sku_similarity WHERE asin=? AND term=?",
+            (asin, term)).fetchall()
     return {r["other_asin"]: dict(r) for r in rows}
 
 

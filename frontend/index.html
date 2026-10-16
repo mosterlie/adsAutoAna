@@ -232,10 +232,8 @@
     <div class="term-sec-head">
       <div class="term-sec-title">亚马逊搜索结果 <span class="muted" id="amzCardsMeta"></span></div>
       <div class="term-sec-tools">
-        <label class="deep-chk" title="用视觉模型比对 SKU 主图与搜索结果主图，判断是否同类并打分">
-          <input type="checkbox" id="deepMatch" checked> 图片匹配</label>
-        <label class="deep-chk" title="用大模型比对产品标题与每条竞品标题（剥离尺寸/颜色等），判断是否同一类物品">
-          <input type="checkbox" id="titleMatch" checked> 标题匹配</label>
+        <label class="deep-chk" title="把我的品（标题+主图）与每条竞品（标题+主图）整体交给视觉大模型，一次判断是否同一类物品并打分">
+          <input type="checkbox" id="simMatch" checked> 整体相似度</label>
         <a class="link" id="termAmzOpen" target="_blank" rel="noopener">在亚马逊打开 ↗</a>
         <button class="btn btn-mini" id="termAmzRefresh">重新抓取</button>
       </div>

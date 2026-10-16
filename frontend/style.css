@@ -773,12 +773,9 @@ body.standalone{background:var(--bg)}
 .deep-chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
   color:var(--txt-2);cursor:pointer;user-select:none;white-space:nowrap}
 .deep-chk input{accent-color:var(--pri)}
-.deep-badge{position:absolute;right:6px;bottom:6px;font-size:10.5px;font-weight:700;
-  line-height:16px;padding:0 7px;border-radius:8px;border:1px solid transparent;
-  background:rgba(255,255,255,.92)}
-
-/* 标题匹配徽章: 卡片图区左上角 (与右下角的图片相似徽章并排) */
-.title-badge{position:absolute;left:6px;bottom:6px;font-size:10.5px;font-weight:700;
+/* 整体相似度徽章: 卡片图区右下角
+   (我的品[标题+主图] × 竞品[标题+主图] 一次判断的结果, 取代旧的图片/标题两个徽章) */
+.sim-badge{position:absolute;right:6px;bottom:6px;font-size:10.5px;font-weight:700;
   line-height:16px;padding:0 7px;border-radius:8px;border:1px solid transparent;
   background:rgba(255,255,255,.92)}
 
