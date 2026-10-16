@@ -29,6 +29,20 @@ PY
 
   启完用 `lsof -nP -iTCP:8320 -sTCP:LISTEN` + `curl -s --noproxy '*' .../api/status` 确认。
 
+## 提交与推送（Windows）
+- ⚠ **`git push origin main` 会挂死**：`origin` = `https://ghfast.top/https://github.com/mosterlie/adsAutoAna.git`，
+  而 `~/.git-credentials`（`credential.helper=store`）里**只有 github.com / gitcode.com，没有 ghfast.top**；
+  且 PortableGit 的系统级配置 `D:/workbuddy/resources/vendor/PortableGit/etc/gitconfig`
+  写了 `credential.helper=manager` —— helper 是**叠加**的，store 答不上就落到 GCM，
+  GCM 弹窗等人输入 → 推送无限挂起（进程列表能同时看到 `git.exe` 和 `git-credential-manager.exe`）。
+- ✅ 绕过办法：**直连 GitHub 推**（直连实测 200，1.2s），github.com 的凭证是好的：
+  ```bash
+  GIT_TERMINAL_PROMPT=0 git push https://github.com/mosterlie/adsAutoAna.git main:main
+  ```
+  推 URL（非 remote 名）不会更新 `refs/remotes/origin/main`，需手动
+  `git update-ref refs/remotes/origin/main <sha>` 对齐。
+- 排查手法：`GIT_TERMINAL_PROMPT=0` + `git ls-remote <url>` 先验凭证，避免直接 push 挂死。
+
 ## 赛狐接口要点（踩过的坑）
 - 广告管理：分页接口按页签不同，`tab` + `scope` 维度用 `:` 连接（如 `sp:keyword`）。
   `campaignId` 是**字符串**，比较别转数字。
