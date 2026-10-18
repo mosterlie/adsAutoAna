@@ -4,14 +4,17 @@ import json
 import urllib.request
 from datetime import date
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import config
 from backend import (ai_label, amazon, amazon_prefetch, amazon_product,
-                     amazon_store, amazon_targets, crawler, database as db,
-                     image_jobs, relevance, term_status, translate, wb_config)
+                     amazon_store, amazon_targets, bulk_data, bulk_generator,
+                     crawler, database as db, image_jobs, relevance, term_status,
+                     translate, wb_config)
 from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
@@ -734,6 +737,50 @@ def crawl_online_products(progress=None) -> int:
     return n
 
 
+# ---- 批量建广告 (库内数据 → 亚马逊 Bulk Excel, 可直接在广告后台上传) ----
+class BulkItem(BaseModel):
+    key: str
+    budget: Optional[float] = None
+    product_name: Optional[str] = None
+    parent_sku: Optional[str] = None
+
+
+class BulkGenerateReq(BaseModel):
+    items: List[BulkItem] = []
+    settings: Dict[str, Any] = {}
+
+
+@router.get("/bulk/candidates")
+def bulk_candidates(shop_id: Optional[int] = None, keyword: str = "",
+                    only_new: bool = False,
+                    base_budget: float = bulk_data.DEFAULT_BASE_BUDGET) -> Dict[str, Any]:
+    """可作为「一个自动投放活动」的父体清单(子体数 / 售价中位数 / 是否已有自动活动)。"""
+    try:
+        return bulk_data.list_candidates(shop_id, keyword, only_new, base_budget)
+    except Exception as e:      # noqa: BLE001
+        raise HTTPException(500, f"读取候选父体失败: {str(e)[:200]}")
+
+
+@router.post("/bulk/generate")
+def bulk_generate(req: BulkGenerateReq = Body(...)):
+    """勾选父体 + 竞价配置 → 下载亚马逊 SP 批量操作表格(xlsx)。"""
+    try:
+        items = [(i.model_dump() if hasattr(i, "model_dump") else i.dict())
+                 for i in req.items]
+        products = bulk_data.build_products(items)
+        buf = bulk_generator.generate_bulk_excel(products, req.settings or {})
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:      # noqa: BLE001
+        raise HTTPException(500, f"生成失败: {str(e)[:200]}")
+    fname = f"amazon_sp_bulk_{date.today().strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition":
+                 f"attachment; filename={fname}; filename*=UTF-8''{quote(fname)}"})
+
+
 # ---- Cookie ----
 @router.get("/cookies/status")
 def cookie_status() -> Dict[str, Any]:
@@ -934,28 +981,57 @@ def _ollama_models() -> List[str]:
         return []
 
 
+# workbuddy 客户端包位于项目**外部** (/Users/gx/Desktop/mypro/testApi)。
+# 托管环境下这个目录不存在，直接 import 会让「配置管理」页整个 500。
+# 这里退化为内置模型清单：页面照常打开，并用 ai_available/ai_reason 如实标注 AI 不可用。
+_FALLBACK_MODELS = (
+    "auto", "hy4-preview", "hy3", "hy3-preview", "hy3-preview-agent",
+    "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4.1-flash",
+    "glm-5.3", "glm-5.2", "glm-5.1", "glm-5v-turbo",
+    "kimi-k3", "kimi-k2.7", "kimi-k2.6", "minimax-m3", "minimax-m3-pay",
+)
+
+
+def _known_models():
+    """返回 (模型清单, AI 是否可用, 不可用原因)。
+
+    先试项目内置的 ``backend.vendor.workbuddy``（随仓库分发），再试外部
+    ``workbuddy`` 包；两者都不在时退化为内置清单并如实标记 AI 不可用。
+    """
+    for mod in ("backend.vendor.workbuddy.client", "workbuddy.client"):
+        try:
+            m = __import__(mod, fromlist=["KNOWN_MODELS"])
+            return list(m.KNOWN_MODELS), True, ""
+        except Exception:                       # noqa: BLE001
+            continue
+    return (list(_FALLBACK_MODELS), False,
+            "未找到 workbuddy 客户端，AI 语义判断不可用，文本相关性仍按规则计算")
+
+
 @router.get("/settings")
 def get_settings() -> Dict[str, Any]:
-    from backend.vendor.workbuddy.client import KNOWN_MODELS
+    models, ai_ok, reason = _known_models()
     return {
         "wb_model": relevance.current_model("workbuddy"),
         "wb_vision_model": relevance.current_model("vision"),
-        "wb_models": list(KNOWN_MODELS),
+        "wb_models": models,
         "ollama_model": relevance.current_model("ollama"),
         "ollama_models": _ollama_models(),
         "updated_at": db.get_online_meta("wb_model_updated_at"),
+        "ai_available": ai_ok,
+        "ai_reason": reason,
     }
 
 
 @router.post("/settings")
 def save_settings(req: SettingsReq = Body(default=SettingsReq())) -> Dict[str, Any]:
-    from backend.vendor.workbuddy.client import KNOWN_MODELS
+    models, ai_ok, reason = _known_models()
     changed = {}
     # 统一写入口: 文本模型会同时写 online_meta 与「配置」弹窗那份配置, 两处保持一致
     for val, kind, key in ((req.wb_model, "text", "wb_model"),
                            (req.wb_vision_model, "vision", "wb_vision_model")):
         if val:
-            if val not in KNOWN_MODELS:
+            if val not in models:
                 raise HTTPException(400, f"未知模型: {val}")
             wb_config.set_model(val, kind)
             changed[key] = val

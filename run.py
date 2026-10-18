@@ -4,8 +4,12 @@
 
     python run.py            # http://127.0.0.1:8320
     python run.py --port 9000
+
+托管环境下（存在 PORT 环境变量）自动绑 0.0.0.0 并监听该端口，
+本地不加任何环境变量时行为与以前完全一致。
 """
 import argparse
+import os
 import sys
 
 import uvicorn
@@ -28,9 +32,10 @@ def _force_utf8_stdio() -> None:
 
 def main():
     _force_utf8_stdio()
+    in_cloud = bool(os.environ.get("PORT"))
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8320)
+    ap.add_argument("--host", default=os.environ.get("HOST") or ("0.0.0.0" if in_cloud else "127.0.0.1"))
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8320))
     ap.add_argument("--reload", action="store_true")
     args = ap.parse_args()
     print(f"赛狐广告数据平台: http://{args.host}:{args.port}")

@@ -797,3 +797,118 @@ body.standalone{background:var(--bg)}
 .modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;
   padding:10px 14px;border-top:1px solid var(--bd)}
 .modal-foot .muted{margin-right:auto;font-size:12px}
+/* ================= 批量建广告 ================= */
+#bulkView{display:flex;flex-direction:column;gap:10px;height:calc(100vh - 90px);
+  padding:10px 12px;box-sizing:border-box}
+#bulkView .panel{margin:0}
+
+/* 顶部: 标题 / 筛选 / 统计 */
+.bk-head{padding:9px 14px}
+.bk-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bk-title{font-size:14px;font-weight:600;white-space:nowrap}
+.bk-line select,.bk-line input[type=text]{height:30px;border:1px solid var(--bd-d);
+  border-radius:4px;background:#fff;color:var(--txt);font-size:12.5px;padding:0 8px}
+.bk-line select{max-width:170px}
+.bk-line input[type=text]{flex:0 1 268px;min-width:180px}
+.bk-line .btn{height:30px}
+.bk-spacer{flex:1}
+.bk-stat{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:9px;
+  padding-top:9px;border-top:1px dashed var(--bd);font-size:12px;color:var(--txt-2)}
+.bk-stat b{color:var(--txt);font-weight:600}
+.bk-stat .bk-hint{color:var(--muted);font-size:11.5px;margin-left:auto;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:52%}
+
+/* 投放配置: 折叠面板 */
+.bk-cfg{padding:0;overflow:hidden}
+.bk-cfg-head{display:flex;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;
+  user-select:none}
+.bk-cfg-head:hover{background:#f8fafd}
+.bk-cfg-title{font-size:13px;font-weight:600;white-space:nowrap}
+.bk-cfg-sum{flex:1;min-width:0;font-size:12px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bk-cfg-arrow{font-size:12px;color:var(--blue);white-space:nowrap}
+.bk-cfg-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));
+  border-top:1px solid var(--bd);background:#fcfdff}
+.bk-cfg-body[hidden]{display:none}
+.bk-group{padding:11px 14px 12px;border-right:1px solid #eef0f3;min-width:0}
+.bk-group:last-child{border-right:0}
+.bk-group-title{font-size:11.5px;font-weight:600;color:var(--txt-2);margin-bottom:9px}
+.bk-row{display:flex;flex-direction:column;gap:4px;margin-bottom:9px;min-width:0}
+.bk-row:last-child{margin-bottom:0}
+.bk-row>label{font-size:11.5px;color:var(--muted)}
+.bk-row input,.bk-row select{height:29px;border:1px solid var(--bd);border-radius:4px;
+  padding:0 7px;font-size:12.5px;background:#fff;color:var(--txt);width:100%;min-width:0}
+.bk-grid4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bk-grid4 .bk-row{margin-bottom:0}
+.bk-inline{display:flex;gap:6px;align-items:center}
+.bk-inline input{flex:1;min-width:0}
+.bk-inline .btn{flex:0 0 auto;height:29px;white-space:nowrap}
+.bk-chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-2);
+  cursor:pointer;user-select:none;line-height:22px;white-space:nowrap}
+.bk-chk input{accent-color:var(--blue);flex:0 0 auto}
+
+/* 表格区: 占满剩余高度 */
+.bk-main{flex:1;min-height:0;display:flex;background:#fff;border:1px solid var(--bd);
+  border-radius:4px;overflow:hidden}
+.bk-wrap{flex:1;max-height:none;overflow:auto}
+/* 列宽口径对齐「产品视角」: 图 52 / 父ASIN 128 / 父SKU 92 / 子体 76 / 售价 112,
+   table-layout:fixed 下每列都必须显式给宽度, 否则会被压扁、数字溢出到相邻格。
+   唯一弹性列是「活动名预览」—— 名额宽度随窗口吸收, 保证其余列不被拉伸。 */
+#bkWrap table{width:100%;min-width:1080px;table-layout:fixed;border-collapse:separate}
+#bkWrap th,#bkWrap td{padding:7px 10px;vertical-align:middle}
+#bkWrap th{font-size:12px;color:var(--txt-2);white-space:normal;line-height:1.25}
+#bkWrap .c-chk{width:34px;padding-right:4px}
+#bkWrap .c-img{width:52px;padding-left:8px;padding-right:4px}
+/* 140 = 产品视角的 128 + 12: 那一列还要放 ↗ 跳转按钮, 128 会把 10 位 ASIN 挤出省略号 */
+#bkWrap .c-asin{width:140px}
+#bkWrap .c-sku{width:92px}
+#bkWrap .c-name{width:196px}
+#bkWrap .c-prev{width:auto;color:var(--muted);font-size:12px}
+#bkWrap .c-kids{width:76px}
+#bkWrap .c-price{width:112px}
+#bkWrap .c-auto{width:96px}
+#bkWrap .c-budget{width:112px}
+#bkWrap .bk-asin{font-size:12.5px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:block}
+#bkWrap .bk-num{text-align:right;font-variant-numeric:tabular-nums;
+  overflow:hidden;text-overflow:ellipsis}
+#bkWrap .bk-name{width:100%;height:28px;border:1px solid var(--bd);border-radius:4px;
+  padding:0 7px;font-size:12.5px;color:var(--txt)}
+#bkWrap .bk-name:focus,#bkWrap .bk-budget:focus{border-color:var(--blue);outline:none}
+#bkWrap .bk-budget{width:100%;height:28px;border:1px solid var(--bd);border-radius:4px;
+  padding:0 7px;font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+#bkWrap .bk-kids-btn{height:24px;padding:0 9px;border:1px solid var(--bd-d);
+  border-radius:12px;background:#fff;color:var(--txt-2);font-size:11.5px;cursor:pointer;
+  font-variant-numeric:tabular-nums}
+#bkWrap .bk-kids-btn:hover{border-color:var(--blue);color:var(--blue)}
+#bkWrap .bk-kids-btn.on{background:var(--blue-l,#eef4ff);border-color:#cfdcff;color:var(--blue)}
+.bk-tag{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;
+  background:#fdf4e3;color:#a5701f;white-space:nowrap}
+.bk-tag.none{background:#e7f7ee;color:var(--green)}
+#bkWrap tbody tr.bk-sel-row td{background:#f3f8ff}
+#bkWrap tbody tr.bk-sel-row td:first-child{box-shadow:inset 2px 0 0 var(--blue)}
+#bkWrap tbody tr.bk-sel-row:hover td{background:#eaf3ff}
+#bkWrap tbody tr.bk-detail td{background:#fafbfe;padding:9px 14px;border-bottom:1px solid #eef0f3}
+.bk-kid-wrap{display:flex;flex-wrap:wrap;gap:6px}
+.bk-kid-chip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;
+  border:1px solid #e6e9ef;border-radius:13px;padding:2px 10px;background:#fff;
+  color:var(--txt-2);white-space:nowrap}
+.bk-kid-chip b{font-weight:600;color:var(--txt)}
+.bk-kid-chip .bk-kid-p{color:var(--muted)}
+.bk-empty{padding:26px 18px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.9}
+
+/* 底部常驻操作条 */
+.bk-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  background:#fff;border:1px solid var(--bd);border-radius:4px;padding:8px 14px;
+  box-shadow:0 -1px 8px rgba(20,40,80,.05)}
+.bk-foot-l{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--txt-2);
+  min-width:0;flex-wrap:wrap}
+.bk-foot-l b{color:var(--txt);font-weight:600}
+.bk-foot-l .bk-dot{color:#d5dae2}
+.bk-foot-r{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.bk-msg{font-size:12px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:420px}
+.bk-msg.err{color:var(--red)}
+#bulkView .btn:disabled{opacity:.45;cursor:not-allowed}
+#bulkView .btn:disabled:hover{border-color:var(--bd-d);color:inherit}
+#bulkView .btn-primary:disabled:hover{color:#fff}

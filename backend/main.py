@@ -6,6 +6,7 @@
 或:
     python run.py
 """
+import hashlib
 import os
 import sys
 
@@ -13,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI                       # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse       # noqa: E402
+from fastapi.responses import FileResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles      # noqa: E402
 
 import config                                     # noqa: E402
@@ -34,9 +35,35 @@ if os.path.isdir(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
+def _asset_version() -> str:
+    """静态资源指纹（文件名 + mtime + 大小）。
+
+    index.html 里的 css/js 引用会带上 ?v=指纹：文件一改指纹就变，
+    浏览器不会再拿旧缓存渲染（此前出现过「代码已更新、页面还是老布局」）。
+    """
+    h = hashlib.md5()
+    for name in ("style.css", "app.js"):
+        try:
+            st = os.stat(os.path.join(FRONTEND_DIR, name))
+            h.update(f"{name}:{st.st_mtime_ns}:{st.st_size}".encode())
+        except OSError:
+            continue
+    return h.hexdigest()[:10]
+
+
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+    path = os.path.join(FRONTEND_DIR, "index.html")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            html = fh.read()
+    except OSError:
+        return FileResponse(path)
+    v = _asset_version()
+    html = html.replace("/static/style.css", f"/static/style.css?v={v}")
+    html = html.replace("/static/app.js", f"/static/app.js?v={v}")
+    return Response(html, media_type="text/html",
+                    headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 @app.get("/favicon.ico")

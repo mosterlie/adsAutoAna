@@ -140,6 +140,16 @@ PY
   Chrome 在 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，
   可用 `--headless=new --screenshot=... --window-size=W,H` 自查 HTML 报告排版。
 
+## 上云托管（10-16）
+- **分享链接 https://sellfox-ads-console.app.workbuddy.host/**，由 `directory=<项目根>` 发布，
+  `startCmd="python3 run.py"`（沙箱注 `PORT`，`run.py` 已改成有 `PORT` 就绑 `0.0.0.0`）。
+- 仓库根的 `.wbapp_*.genie` 是应用标记，**别删**；重新发布必须从同一 `directory` 发，链接才不变。
+- ⚠ `backends/api.py` 的 `/settings` 曾因 `from workbuddy.client import KNOWN_MODELS`（客户端在
+  项目外部 `/Users/gx/Desktop/mypro/testApi`）在托管环境 500，已改为 `_known_models()` 降级。
+  **本项目的 AI 能力（语义相关性/视觉比对）依赖项目外部的 `testApi` 与 `.env`，托管环境一律不可用**，
+  线上只剩纯规则文本分——加新的 AI 功能时务必保持「拿不到就降级」而不是抛异常。
+- 链接**无鉴权**，任何拿到的人都能看全部经营数据（已告知用户并获确认）。
+
 ## 已知遗留
 - 性能债：`get_stats` 全表 JSON 扫描、keyword LIKE 全表、JSON 排序无索引 → 建议抽实体列+索引。
 - CORS `allow_origins=["*"]`、Cookie 明文、接口无鉴权。

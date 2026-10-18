@@ -1184,9 +1184,11 @@ function showView(v) {
   $("tableView").style.display = v === "table" ? "" : "none";
   $("productView").style.display = v === "product" ? "" : "none";
   $("onlineView").style.display = v === "online" ? "" : "none";
+  $("bulkView").style.display = v === "bulk" ? "" : "none";
   $("settingsView").style.display = v === "settings" ? "" : "none";
   if (v === "product" && !pv.loaded) { pv.loaded = true; goProducts(); }
   if (v === "online" && !ol.loaded) { ol.loaded = true; showOnline(); }
+  if (v === "bulk" && !bk.loaded) { bk.loaded = true; bkLoad(); }
   if (v === "settings") { loadSettings(); }
 }
 
@@ -1806,6 +1808,366 @@ function bindPager() {
 
 document.querySelectorAll("#viewSwitch .seg-btn")
   .forEach((b) => b.onclick = () => showView(b.dataset.view));
+
+/* ===================================================================
+   批量建广告: 库内父体 → 亚马逊 SP Bulk Excel(可直接在广告后台上传)
+   - 数据源: 在线产品(父子关系 + 卖家 SKU) + 广告产品(已有自动活动) + AI 品名
+   - 一个父体 = 一个自动投放活动, 勾选后按行调整预算/品名再生成
+   =================================================================== */
+const bk = {
+  loaded: false, rows: [], summary: {}, shops: [], updatedAt: "",
+  shopId: "", keyword: "", onlyNew: false,
+  sel: new Set(), budgets: {}, names: {}, open: new Set(),
+  sort: { field: "parent_sku", dir: "asc" },
+};
+
+const BK_SORT = {
+  parent_sku: "text", parent_asin: "text", product_name: "text",
+  child_count: "num", price_median: "num",
+  existing_auto_count: "num", existing_campaign_count: "num",
+};
+
+async function bkLoad() {
+  const q = new URLSearchParams();
+  if (bk.shopId) q.set("shop_id", bk.shopId);
+  if (bk.keyword) q.set("keyword", bk.keyword);
+  if (bk.onlyNew) q.set("only_new", "true");
+  $("bkWrap").innerHTML = `<div class="bk-empty">读取中…</div>`;
+  let d;
+  try {
+    d = await api("/api/bulk/candidates?" + q.toString());
+  } catch (e) {
+    $("bkWrap").innerHTML = `<div class="bk-empty">读取失败：${esc(e.message)}</div>`;
+    return;
+  }
+  bk.rows = d.rows || [];
+  bk.summary = d.summary || {};
+  bk.shops = d.shops || [];
+  bk.updatedAt = d.online_updated_at || "";
+  // 勾选里已不在当前结果集中的键清掉
+  const keys = new Set(bk.rows.map((r) => r.key));
+  [...bk.sel].forEach((k) => { if (!keys.has(k)) bk.sel.delete(k); });
+  bkRender();
+}
+
+function bkSorted() {
+  const { field, dir } = bk.sort;
+  const type = BK_SORT[field] || "num";
+  return sortRows(bk.rows, field, dir, type);
+}
+
+/* 日元不带小数，列宽更省、扫读更快 */
+const bkYen = (v) => "¥" + Number(v || 0).toLocaleString("en-US",
+  { maximumFractionDigits: 0 });
+
+/* 活动名预览 = 与后端一致: 父SKU_品名_自动_YYYYMMDD */
+const bkToday = (() => {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`
+    + `${String(d.getDate()).padStart(2, "0")}`;
+})();
+const bkCampaignName = (r, name) =>
+  `${r.parent_sku}_${(name || r.product_name || "商品")}_自动_${bkToday}`;
+
+function bkTh(field, label, cls) {
+  const st = bk.sort.field === field ? (bk.sort.dir === "asc" ? " sort-asc" : " sort-desc") : "";
+  return `<th class="${cls || ""} th-sortable${st}" data-bksort="${field}"
+    title="点击排序">${label}</th>`;
+}
+
+function bkRender() {
+  const s = bk.summary || {};
+  $("bkBar").innerHTML = `
+    <div class="bk-line">
+      <span class="bk-title">批量建广告</span>
+      <select id="bkShop"><option value="">全部店铺</option>${bk.shops.map((x) =>
+        `<option value="${esc(x.shop_id)}"${String(bk.shopId) === String(x.shop_id)
+          ? " selected" : ""}>${esc(x.shop_name || x.shop_id)}</option>`).join("")}</select>
+      <input type="text" id="bkKw" placeholder="搜索 父/子 ASIN / SKU / 标题 / 品名"
+             value="${esc(bk.keyword)}">
+      <label class="bk-chk"><input type="checkbox" id="bkOnlyNew"${bk.onlyNew ? " checked" : ""}>
+        只看未建自动活动</label>
+      <button class="btn" id="bkQuery">查询</button>
+    </div>
+    <div class="bk-stat">
+      <span>可建父体 <b>${s.parents || 0}</b></span>
+      <span>子体 <b>${s.children || 0}</b></span>
+      <span>已有自动活动 <b>${s.with_auto || 0}</b></span>
+      ${s.no_price ? `<span>缺售价 <b>${s.no_price}</b></span>` : ""}
+      <span class="bk-hint">数据源：在线产品（父子关系 + 卖家 SKU）· 广告产品（已有活动）· AI 品名${bk.updatedAt ? " · 更新于 " + esc(bk.updatedAt) : ""}</span>
+    </div>`;
+
+  $("bkShop").onchange = (e) => { bk.shopId = e.target.value; bkLoad(); };
+  $("bkKw").onkeydown = (e) => { if (e.key === "Enter") $("bkQuery").click(); };
+  $("bkQuery").onclick = () => { bk.keyword = $("bkKw").value.trim(); bkLoad(); };
+  $("bkOnlyNew").onchange = (e) => { bk.onlyNew = e.target.checked; bkLoad(); };
+
+  bkRenderTable();
+}
+
+function bkRenderTable() {
+  const rows = bkSorted();
+  if (!rows.length) {
+    const why = bk.onlyNew
+      ? `当前筛选下所有父体都已经有自动投放活动 —— 取消「只看未建自动活动」可看到全部。`
+      : `需要先在「在线产品」里采集到父子变体（父体 + 子体 SKU），否则无法确定活动要挂哪些商品。`;
+    $("bkWrap").innerHTML = `<div class="bk-empty">没有匹配的父体。<br>${why}</div>`;
+    bkSyncSel();
+    return;
+  }
+
+  const body = rows.map((r) => {
+    const checked = bk.sel.has(r.key);
+    const budget = bk.budgets[r.key] != null ? bk.budgets[r.key] : r.suggested_budget;
+    const name = bk.names[r.key] != null ? bk.names[r.key] : r.product_name;
+    const isOpen = bk.open.has(r.key);
+    const tag = r.existing_auto
+      ? `<span class="bk-tag" title="自动投放活动 ${r.existing_auto_count} 个 / 全部活动 ${r.existing_campaign_count} 个&#10;${esc((r.existing_auto_names || []).join(" / "))}">自动 ${r.existing_auto_count}</span>`
+      : `<span class="bk-tag none" title="该父体下暂无自动投放活动">未建</span>`;
+    const main = `<tr data-key="${esc(r.key)}"${checked ? ' class="bk-sel-row"' : ""}>
+      <td class="c-chk"><input type="checkbox" class="bk-cb" data-key="${esc(r.key)}"
+        ${checked ? "checked" : ""}></td>
+      <td class="c-img">${r.image_url ? `<img class="prod-thumb" src="${esc(r.image_url)}"
+        loading="lazy" alt="" data-preview="${esc(amzBigImage(r.image_url))}"
+        data-fallback="${esc(r.image_url)}"
+        data-cap="${esc(r.parent_asin + (r.title ? " · " + r.title : ""))}">` : ""}</td>
+      <td class="c-asin" title="点击 ASIN 复制，点 ↗ 跳到亚马逊">
+        <span class="asin-parent-box">
+          <span class="asin-copy bk-asin" data-copy="${esc(r.parent_asin)}">${esc(r.parent_asin)}</span>
+          <a class="btn-jump" href="https://www.amazon.co.jp/dp/${esc(r.parent_asin)}"
+             target="_blank" rel="noopener" title="在亚马逊打开">↗</a>
+        </span>
+      </td>
+      <td class="c-sku cell-ellip" title="父 SKU（用于活动名与编号）">${esc(r.parent_sku)}</td>
+      <td class="c-name"><input class="bk-name" data-key="${esc(r.key)}" value="${esc(name)}"
+        title="活动名里的品名片段（可直接改）&#10;原标题：${esc(r.title)}"></td>
+      <td class="c-prev cell-ellip" title="${esc(bkCampaignName(r, name))}">${esc(bkCampaignName(r, name))}</td>
+      <td class="c-kids"><button class="bk-kids-btn${isOpen ? " on" : ""}"
+        data-kids="${esc(r.key)}" title="展开 / 收起该父体的全部子体 SKU">${r.child_count} 个</button></td>
+      <td class="c-price bk-num" title="该父体下 ${r.child_count} 个子体售价的中位数">${r.price_median ? bkYen(r.price_median) : "-"}</td>
+      <td class="c-auto bk-num">${tag}</td>
+      <td class="c-budget"><input class="bk-budget" data-key="${esc(r.key)}"
+        type="number" min="1" step="10" value="${Number(budget) || 100}"
+        title="每日预算（JPY），可直接改"></td>
+    </tr>`;
+    if (!isOpen) return main;
+    const chips = r.children.map((c) =>
+      `<span class="bk-kid-chip"><b>${esc(c.sku)}</b>
+        <span class="bk-kid-p">${esc(c.asin)}</span>
+        ${c.price ? `<span class="bk-kid-p">${bkYen(c.price)}</span>` : ""}</span>`).join("");
+    return main + `<tr class="bk-detail"><td colspan="10">
+      <div class="bk-kid-wrap">${chips}</div></td></tr>`;
+  }).join("");
+
+  $("bkWrap").innerHTML = `<table class="tbl-products"><thead><tr>
+      <th class="c-chk"><input type="checkbox" id="bkCheckAll"
+        title="勾选/取消当前结果集全部"></th>
+      <th class="c-img" title="父体主图">图</th>
+      ${bkTh("parent_asin", "父ASIN", "c-asin")}
+      ${bkTh("parent_sku", "父SKU", "c-sku")}
+      ${bkTh("product_name", "活动品名", "c-name")}
+      <th class="c-prev" title="实际写入亚马逊的广告活动名称 = 父SKU_品名_自动_日期">活动名预览</th>
+      ${bkTh("child_count", "子体", "c-kids")}
+      ${bkTh("price_median", "售价中位数", "c-price bk-num")}
+      ${bkTh("existing_auto_count", "已有自动", "c-auto bk-num")}
+      <th class="c-budget bk-num" title="每日预算（JPY），可在行内改">日均预算</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+
+  // 排序
+  $("bkWrap").querySelectorAll("th[data-bksort]").forEach((th) => th.onclick = () => {
+    const f = th.dataset.bksort;
+    if (bk.sort.field === f) bk.sort.dir = bk.sort.dir === "asc" ? "desc" : "asc";
+    else bk.sort = { field: f, dir: (BK_SORT[f] || "num") === "text" ? "asc" : "desc" };
+    bkRenderTable();
+  });
+  // 勾选
+  $("bkWrap").querySelectorAll(".bk-cb").forEach((c) => c.onchange = () => {
+    if (c.checked) bk.sel.add(c.dataset.key); else bk.sel.delete(c.dataset.key);
+    const tr = c.closest("tr");
+    if (tr) tr.classList.toggle("bk-sel-row", c.checked);
+    bkSyncSel();
+  });
+  const ca = $("bkCheckAll");
+  if (ca) {
+    ca.checked = rows.length > 0 && rows.every((r) => bk.sel.has(r.key));
+    ca.onchange = () => {
+      rows.forEach((r) => ca.checked ? bk.sel.add(r.key) : bk.sel.delete(r.key));
+      bkRenderTable();
+    };
+  }
+  // 展开 / 收起子体明细
+  $("bkWrap").querySelectorAll(".bk-kids-btn").forEach((b) => b.onclick = () => {
+    const k = b.dataset.kids;
+    if (bk.open.has(k)) bk.open.delete(k); else bk.open.add(k);
+    bkRenderTable();
+  });
+  // 行内编辑（值存内存，重渲染不丢）
+  $("bkWrap").querySelectorAll(".bk-budget").forEach((i) => i.oninput = () => {
+    bk.budgets[i.dataset.key] = Number(i.value) || 0;
+    bkSyncSel();
+  });
+  $("bkWrap").querySelectorAll(".bk-name").forEach((i) => i.oninput = () => {
+    const key = i.dataset.key;
+    bk.names[key] = i.value;
+    // 就地刷新「活动名预览」, 不整表重渲染(否则输入框会失焦)
+    const tr = i.closest("tr");
+    const cell = tr && tr.querySelector(".c-prev");
+    const r = bk.rows.find((x) => x.key === key);
+    if (cell && r) {
+      const n = bkCampaignName(r, i.value);
+      cell.textContent = n;
+      cell.title = n;
+    }
+  });
+  $("bkWrap").querySelectorAll(".asin-copy[data-copy]").forEach((el) => el.onclick = () =>
+    copyText(el.dataset.copy, "父 ASIN "));
+  $("bkWrap").querySelectorAll("img[data-preview]").forEach((img) => img.onclick = () =>
+    openImagePreview(img.dataset.preview, img.dataset.cap, img.dataset.fallback));
+
+  bkSyncSel();
+}
+
+/* 底部操作条: 已选数量 + 日均预算合计 + 按钮可用态 */
+function bkSyncSel() {
+  const c = $("bkSelCount");
+  if (c) c.textContent = bk.sel.size;
+  let sum = 0;
+  bk.sel.forEach((k) => {
+    const r = bk.rows.find((x) => x.key === k);
+    const b = bk.budgets[k] != null ? Number(bk.budgets[k])
+      : Number(r ? r.suggested_budget : 0);
+    if (isFinite(b)) sum += b;
+  });
+  const s = $("bkBudgetSum");
+  if (s) s.textContent = "¥" + sum.toLocaleString("en-US");
+  const g = $("bkGenerate");
+  if (g) g.disabled = !bk.sel.size;
+}
+
+/* 按策略给「已勾选」的行填充预算 */
+function bkApplyBudget() {
+  if (!bk.sel.size) { toast("请先勾选父体"); return; }
+  const mode = $("bkBudgetMode").value;
+  const val = Number($("bkBudgetValue").value) || 100;
+  const picked = bk.rows.filter((r) => bk.sel.has(r.key));
+  if (mode === "equal") {
+    picked.forEach((r) => { bk.budgets[r.key] = val; });
+  } else {
+    const total = picked.reduce((a, r) => a + (Number(r.price_median) || 0), 0);
+    picked.forEach((r) => {
+      const w = total > 0 ? (Number(r.price_median) || 0) / total : 1 / picked.length;
+      bk.budgets[r.key] = Math.max(100, Math.round(val * w));
+    });
+  }
+  bkRenderTable();
+  toast(`已按${mode === "equal" ? "等权" : "加权总预算池"}填充 ${picked.length} 个活动的预算`);
+}
+
+async function bkGenerate() {
+  if (!bk.sel.size) { toast("请先勾选要建广告的父体"); return; }
+  const num = (id, dft) => { const v = Number($(id).value); return isFinite(v) && v > 0 ? v : dft; };
+  const items = [...bk.sel].map((k) => ({
+    key: k,
+    budget: bk.budgets[k] != null ? Number(bk.budgets[k]) : undefined,
+    product_name: (bk.names[k] || "").trim() || undefined,
+  }));
+  const settings = {
+    bidding_strategy: $("bkStrategy").value,
+    default_bid: num("bkDefaultBid", 25),
+    bid_close: num("bkClose", 25),
+    bid_loose: num("bkLoose", 20),
+    bid_substitutes: num("bkSub", 25),
+    bid_complements: num("bkComp", 20),
+    include_targeting: $("bkTargeting").checked,
+    include_placement: $("bkPlacement").checked,
+    placement_top_pct: Number($("bkTopPct").value) || 0,
+    placement_product_pct: Number($("bkProdPct").value) || 0,
+    portfolio_id: $("bkPortfolio").value.trim(),
+    fill_ids: $("bkFillIds").checked,
+  };
+
+  const msg = $("bkGenMsg");
+  msg.classList.remove("err");
+  msg.textContent = `生成中…（${items.length} 个活动）`;
+  try {
+    const res = await fetch("/api/bulk/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items, settings }),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j && j.detail) msg = j.detail; } catch (e) { /* ignore */ }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") || "";
+    const m = cd.match(/filename=([^;]+)/);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (m ? m[1] : "amazon_sp_bulk.xlsx").trim().replace(/^"|"$/g, "");
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    msg.textContent = `已生成 · ${items.length} 个活动 · ${(blob.size / 1024).toFixed(1)} KB`;
+    toast("Bulk Excel 已生成，可直接到亚马逊广告后台「批量操作 → 上传」");
+  } catch (e) {
+    msg.classList.add("err");
+    msg.textContent = "生成失败：" + e.message;
+    toast("生成失败：" + String(e.message).slice(0, 120));
+  }
+}
+
+/* 投放配置: 折叠 / 摘要 */
+function bkCfgText() {
+  const strat = {
+    "Fixed bid": "固定竞价",
+    "Dynamic bids - down only": "仅降低",
+    "Dynamic bids - up and down": "提高和降低",
+  }[$("bkStrategy").value] || "固定竞价";
+  const mode = $("bkBudgetMode").value === "equal" ? "等权" : "加权池";
+  const bv = $("bkBudgetValue").value || 100;
+  const extra = [];
+  const top = Number($("bkTopPct").value) || 0;
+  const prod = Number($("bkProdPct").value) || 0;
+  if (top || prod) extra.push(`溢价 顶部 ${top}% / 商品页 ${prod}%`);
+  if (!$("bkTargeting").checked) extra.push("不含投放组");
+  if (!$("bkFillIds").checked) extra.push("编号列留空");
+  return `${strat} · 默认竞价 ¥${$("bkDefaultBid").value} · ${mode} ¥${bv}`
+    + (extra.length ? " · " + extra.join(" · ") : "");
+}
+
+function bkCfgSync() {
+  const s = $("bkCfgSum");
+  if (s) s.textContent = bkCfgText();
+}
+
+function bkToggleCfg(force) {
+  const body = $("bkCfgBody"), arrow = $("bkCfgArrow");
+  if (!body) return;
+  const open = force != null ? force : body.hasAttribute("hidden");
+  if (open) body.removeAttribute("hidden"); else body.setAttribute("hidden", "");
+  arrow.textContent = open ? "收起 ▴" : "展开 ▾";
+}
+
+$("bkCfgToggle").onclick = () => bkToggleCfg();
+["bkStrategy", "bkDefaultBid", "bkClose", "bkLoose", "bkSub", "bkComp",
+ "bkBudgetMode", "bkBudgetValue", "bkTopPct", "bkProdPct", "bkPortfolio",
+ "bkTargeting", "bkPlacement", "bkFillIds"].forEach((id) => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input",
+    bkCfgSync);
+});
+$("bkApplyBudget").onclick = bkApplyBudget;
+$("bkGenerate").onclick = bkGenerate;
+$("bkSelAll2").onclick = () => {
+  bkSorted().forEach((r) => bk.sel.add(r.key));
+  bkRenderTable();
+  toast(`已勾选 ${bk.sel.size} 个父体`);
+};
+$("bkSelNone2").onclick = () => { bk.sel.clear(); bkRenderTable(); };
+bkCfgSync();
 
 /* ===================================================================
    在线产品 (销售 > 在线产品)

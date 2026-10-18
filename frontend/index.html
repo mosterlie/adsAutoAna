@@ -25,6 +25,7 @@
       <button class="seg-btn active" data-view="table">数据表格</button>
       <button class="seg-btn" data-view="product">产品视角</button>
       <button class="seg-btn" data-view="online">在线产品</button>
+      <button class="seg-btn" data-view="bulk">批量建广告</button>
       <button class="seg-btn" data-view="settings">配置管理</button>
     </div>
     <button class="btn btn-primary" id="btnCrawl">同步数据</button>
@@ -139,6 +140,111 @@
   <section class="p-content">
     <div class="table-wrap p-wrap" id="olWrap"></div>
   </section>
+</div>
+
+<!-- ================= 批量建广告: 库内父体 → 亚马逊 SP Bulk Excel ================= -->
+<div id="bulkView" style="display:none">
+  <!-- 顶部: 标题 + 计数 + 筛选 -->
+  <div class="panel bk-head" id="bkBar"></div>
+
+  <!-- 投放配置: 默认折叠, 展开后按「竞价 / 预算 / 广告位 / 输出」分组 -->
+  <div class="panel bk-cfg" id="bkCfg">
+    <div class="bk-cfg-head" id="bkCfgToggle">
+      <span class="bk-cfg-title">投放配置</span>
+      <span class="bk-cfg-sum" id="bkCfgSum"></span>
+      <span class="bk-cfg-arrow" id="bkCfgArrow">展开 ▾</span>
+    </div>
+    <div class="bk-cfg-body" id="bkCfgBody" hidden>
+      <div class="bk-group">
+        <div class="bk-group-title">竞价</div>
+        <div class="bk-row">
+          <label>竞价策略</label>
+          <select id="bkStrategy">
+            <option value="Fixed bid">固定竞价 (Fixed bid)</option>
+            <option value="Dynamic bids - down only">仅降低 (Dynamic down)</option>
+            <option value="Dynamic bids - up and down">提高和降低 (Dynamic up &amp; down)</option>
+          </select>
+        </div>
+        <div class="bk-row">
+          <label>广告组默认竞价 (JPY)</label>
+          <input type="number" id="bkDefaultBid" min="1" step="1" value="25">
+        </div>
+      </div>
+
+      <div class="bk-group">
+        <div class="bk-group-title">自动投放 4 组竞价 (JPY)</div>
+        <div class="bk-grid4">
+          <div class="bk-row"><label>紧密</label><input type="number" id="bkClose" min="1" value="25" title="close-match"></div>
+          <div class="bk-row"><label>宽泛</label><input type="number" id="bkLoose" min="1" value="20" title="loose-match"></div>
+          <div class="bk-row"><label>同类</label><input type="number" id="bkSub" min="1" value="25" title="substitutes"></div>
+          <div class="bk-row"><label>关联</label><input type="number" id="bkComp" min="1" value="20" title="complements"></div>
+        </div>
+      </div>
+
+      <div class="bk-group">
+        <div class="bk-group-title">预算分配 (作用于已勾选活动)</div>
+        <div class="bk-row">
+          <label>分配方式</label>
+          <select id="bkBudgetMode">
+            <option value="equal">等权：每个活动相同</option>
+            <option value="weighted">加权池：按售价中位数占比</option>
+          </select>
+        </div>
+        <div class="bk-row">
+          <label>金额 / 总预算池 (JPY)</label>
+          <div class="bk-inline">
+            <input type="number" id="bkBudgetValue" min="1" step="10" value="100"
+                   title="等权 = 单活动预算；加权 = 总预算池">
+            <button class="btn btn-mini" id="bkApplyBudget">应用到已选</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bk-group">
+        <div class="bk-group-title">广告位与组合</div>
+        <div class="bk-row">
+          <label>搜索顶部溢价 (%)</label>
+          <input type="number" id="bkTopPct" min="0" max="900" value="0" title="Placement Top，0 = 不生成该行">
+        </div>
+        <div class="bk-row">
+          <label>商品页面溢价 (%)</label>
+          <input type="number" id="bkProdPct" min="0" max="900" value="0" title="Placement Product Page，0 = 不生成该行">
+        </div>
+        <div class="bk-row">
+          <label>广告组合编号 (可空)</label>
+          <input type="text" id="bkPortfolio" placeholder="留空则不写入">
+        </div>
+      </div>
+
+      <div class="bk-group">
+        <div class="bk-group-title">输出内容</div>
+        <label class="bk-chk"><input type="checkbox" id="bkTargeting" checked>生成 4 组自动投放行</label>
+        <label class="bk-chk"><input type="checkbox" id="bkPlacement" checked>生成广告位加成行</label>
+        <label class="bk-chk" title="勾选 = 用父 SKU 填「广告活动编号/广告组编号」作为表内引用键（实盘验证过的写法）；不勾 = 留空由亚马逊分配。若上传报编号无效，取消勾选重试。">
+          <input type="checkbox" id="bkFillIds" checked>编号列填父 SKU</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 表格: 占满剩余高度 -->
+  <div class="bk-main">
+    <div class="table-wrap bk-wrap" id="bkWrap"></div>
+  </div>
+
+  <!-- 底部常驻操作条 -->
+  <div class="bk-foot">
+    <div class="bk-foot-l">
+      <span>已选 <b id="bkSelCount">0</b> 个活动</span>
+      <span class="bk-dot">·</span>
+      <span>日均预算合计 <b id="bkBudgetSum">¥0</b></span>
+      <span class="bk-msg" id="bkGenMsg"></span>
+    </div>
+    <div class="bk-foot-r">
+      <button class="btn" id="bkSelAll2">全选本页</button>
+      <button class="btn" id="bkSelNone2">清空</button>
+      <button class="btn btn-primary" id="bkGenerate">生成 Bulk Excel</button>
+    </div>
+  </div>
 </div>
 
 <!-- ================= 配置管理: 模型底座等 ================= -->
