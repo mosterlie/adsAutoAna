@@ -18,60 +18,31 @@
 <body class="bg-slate-100 text-slate-800 min-h-screen antialiased">
   <div id="app" v-cloak class="mx-auto max-w-none px-0 py-0">
 
-    <!-- ==================== 广告创建（赛狐布局复刻） ==================== -->
+    <!-- ==================== 广告创建: 直接进入「创建广告活动」表单 ==================== -->
     <div class="bg-[#EEEEF6] min-h-screen flex flex-col">
 
-      <!-- 一级导航（复刻赛狐顶栏 40px / #0B1839） -->
-      <div class="h-10 bg-[#0B1839] flex items-center text-[13px] text-white/85 select-none">
-        <div class="w-14 h-10 flex items-center justify-center shrink-0">
-          <div class="w-5 h-5 bg-[#FFA91E] rounded-[3px] flex items-center justify-center">
-            <span class="text-[#0B1839] font-black text-[11px] leading-none">狐</span>
-          </div>
-        </div>
-        <div class="flex items-center h-full">
-          <span v-for="m in ['商品','销售','订单','客服','广告','FBA','仓库','物流','数据','财务','合规','工具','设置']"
-                :key="m"
-                :class="['px-3 h-full flex items-center cursor-default whitespace-nowrap',
-                         m === '广告' ? 'text-[#FFA91E] bg-white/10' : 'hover:bg-white/10']">
-            {{ m }}
-          </span>
-        </div>
-        <div class="ml-auto flex items-center gap-2 pr-3 shrink-0">
-          <select v-if="shopList.length" v-model="adShop"
-                  class="bg-white/15 text-white text-[12px] rounded px-2 h-[26px] outline-none border border-white/10 max-w-[140px]">
-            <option v-for="shop in shopList" :key="shop" :value="shop" class="text-slate-800">{{ shop }}</option>
-          </select>
-          <button @click="loadFromDb()"
-                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap">
-            {{ shopList.length ? '重新载入' : '载入数据' }}
-          </button>
-          <span class="text-[12px] text-white/70 ml-1">本地词库 {{ dictStats.count }} 个</span>
-          <input type="file" ref="dictInput" @change="importDict" class="hidden" accept=".json" />
-          <button @click="$refs.dictInput.click()"
-                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap"
-                  title="上传 AI 清洗后的纯净中日对照 JSON 文件">导入词库</button>
-          <button @click="refreshNameMatching" :disabled="!shopList.length || refreshingNames"
-                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap disabled:opacity-40"
-                  :title="shopList.length ? '用当前最新词库重新匹配全部商品的原始日文标题' : '请先载入在线产品数据'">
-            {{ refreshingNames ? '刷新中…' : '刷新品名' }}
-          </button>
-          <button @click="openDict"
-                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap"
-                  title="查看 / 编辑本地词库 data/ja_zh_dict.json">词库管理</button>
-          <span class="text-[12px] text-white/70">管理员</span>
-        </div>
+      <!-- 工具条: 只保留数据/词库相关操作(原一级菜单、二级 tab 已移除) -->
+      <div class="flex items-center gap-2 px-3 h-11 bg-white border-b border-[#E4E6EB] text-[12px] text-[#0F0F0F] select-none">
+        <button @click="loadFromDb()"
+                class="h-[26px] px-2 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA] whitespace-nowrap">
+          {{ shopList.length ? '重新载入' : '载入数据' }}
+        </button>
+        <span class="text-[#8A8F99]">本地词库 {{ dictStats.count }} 个</span>
+        <input type="file" ref="dictInput" @change="importDict" class="hidden" accept=".json" />
+        <button @click="$refs.dictInput.click()"
+                class="h-[26px] px-2 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA] whitespace-nowrap"
+                title="上传 AI 清洗后的纯净中日对照 JSON 文件">导入词库</button>
+        <button @click="refreshNameMatching" :disabled="!shopList.length || refreshingNames"
+                class="h-[26px] px-2 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA] whitespace-nowrap disabled:opacity-40"
+                :title="shopList.length ? '用当前最新词库重新匹配全部商品的原始日文标题' : '请先载入在线产品数据'">
+          {{ refreshingNames ? '刷新中…' : '刷新品名' }}
+        </button>
+        <button @click="openDict"
+                class="h-[26px] px-2 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA] whitespace-nowrap"
+                title="查看 / 编辑本地词库 data/ja_zh_dict.json">词库管理</button>
       </div>
 
-      <!-- 二级 tab（复刻赛狐 #253A87 / 33px） -->
-      <div class="h-[33px] bg-[#253A87] flex items-end px-2 select-none">
-        <div v-for="t in ['批量创建','订单处理','广告管理','在线产品','创建广告活动']" :key="t"
-             :class="['px-3 h-[31px] flex items-center text-[13px] rounded-t-[6px] cursor-default whitespace-nowrap',
-                      t === '创建广告活动' ? 'bg-[#EEEEF6] text-[#0F0F0F] font-medium' : 'text-white/85 hover:bg-white/10']">
-          {{ t }}
-        </div>
-      </div>
-
-      <!-- 主体：左表单 + 右步骤 -->
+      <!-- 主体：表单 -->
       <div class="flex items-start gap-6 px-3 py-3">
 
         <!-- 左：白色表单卡片 -->
@@ -634,15 +605,6 @@
           </div>
         </div>
 
-        <!-- 右：步骤导航（复刻赛狐） -->
-        <div class="w-[140px] shrink-0 sticky top-3 select-none">
-          <div v-for="(s, i) in adSteps" :key="s" @click="goAdBlock(i)"
-               :class="['flex items-center gap-2 h-[49px] text-[14px] cursor-pointer',
-                        i === 1 ? 'text-[#2969FF] font-medium' : 'text-[#0F0F0F]']">
-            <span :class="['w-[7px] h-[7px] rounded-full shrink-0', i === 1 ? 'bg-[#2969FF]' : 'bg-[#C8CBD4]']"></span>
-            {{ s }}
-          </div>
-        </div>
       </div>
 
       <!-- 底部固定操作条 -->
