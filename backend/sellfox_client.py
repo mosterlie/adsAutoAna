@@ -242,6 +242,10 @@ def build_payload(tab: str, shop_ids: List[int], start: str, end: str,
 # ---------------------------------------------------------------------------
 # 客户端
 # ---------------------------------------------------------------------------
+class SellfoxBusinessError(RuntimeError):
+    """接口返回 code != 0(登录态失效/参数错误等): 重试没有意义, 直接抛出"""
+
+
 class SellfoxClient:
     def __init__(self, cookies: Dict[str, str], verbose_logger=None):
         self.cookies = dict(cookies or {})
@@ -252,7 +256,12 @@ class SellfoxClient:
 
     # ---- 通用请求 ----
     def _post(self, api: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        url = config.ORIGIN + GW + api
+        if api.startswith("http"):
+            url = api
+        elif api.startswith("/"):        # 绝对路径(老网关接口, 如 /api/cpcSPManage/...)
+            url = config.ORIGIN + api
+        else:
+            url = config.ORIGIN + GW + api
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/plain, */*",
@@ -271,12 +280,20 @@ class SellfoxClient:
                     continue
                 j = r.json()
                 if j.get("code") != 0:
-                    raise RuntimeError(f"业务错误 code={j.get('code')} msg={j.get('msg')}")
+                    # 业务错误(典型: code=2001 登录态失效) → 不重试, 立即上报
+                    raise SellfoxBusinessError(
+                        f"业务错误 code={j.get('code')} msg={j.get('msg')}")
                 return j
+            except SellfoxBusinessError:
+                raise
             except Exception as e:      # noqa: BLE001
                 last_err = str(e)
                 time.sleep(1.2 * attempt)
         raise RuntimeError(f"接口请求失败 {api}: {last_err}")
+
+    # ---- 通用 POST(供非采集类接口复用, 如建议竞价) ----
+    def post(self, api: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self._post(api, payload)
 
     # ---- 店铺 + 广告组合 ----
     def get_shops(self, shop_ids: Optional[List[int]] = None) -> Dict[str, Any]:

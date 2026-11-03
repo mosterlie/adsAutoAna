@@ -1,0 +1,51 @@
+[
+ {
+  "method": "GET",
+  "url": "https://aegis.qq.com/collect/whitelist?id=aZL6W4A16vzjNXJOKD&uin=&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793692851777&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp&referer=",
+  "post": "",
+  "status": 200,
+  "resp": "{\"retcode\":0,\"result\":{\"is_in_white_list\":false,\"rate\":1,\"use_gzip\":0}}"
+ },
+ {
+  "method": "GET",
+  "url": "https://aegis.qq.com/collect/pv?id=aZL6W4A16vzjNXJOKD&uin=&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793692851777&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp&referer=",
+  "post": "",
+  "status": 204,
+  "resp": ""
+ },
+ {
+  "method": "GET",
+  "url": "https://aegis.qq.com/collect/whitelist?id=aZL6W4A16vzjNXJOKD&uin=402058&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793692851777&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp&referer=&ext1=402058",
+  "post": "",
+  "status": 200,
+  "resp": "{\"retcode\":0,\"result\":{\"is_in_white_list\":false,\"rate\":1,\"use_gzip\":0}}"
+ },
+ {
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/product/productRightSpPageListSearch",
+  "post": "{\"pageNo\":1,\"pageSize\":20,\"shopId\":\"711811\",\"searchField\":\"asin\",\"searchValue\":\"\",\"searchType\":\"exact\",\"onlineStatus\":\"\",\"orderType\":\"desc\",\"type\":\"sp\"}",
+  "status": 200,
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"pageNo\":1,\"pageSize\":20,\"totalPage\":87,\"totalSize\":1727,\"rows\":[{\"id\":60338233,\"shopId\":711811,\"sku\":\"ll070-100cm-220 ド7-a\",\"asin\":\"B0HQ5WMB3J\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (100cm-2つの ドア,シンクなし)\",\"imgUrl\":\"https://m.media-amazon.com/images/I/31yMPOETv0L.jpg\",\"domain\":\"www.amazon.co.jp\",\"childList\":[{\"id\":60337806,\"shopId\":711811,\"sku\":\"ll070-160cm-3つのドア-c\",\"asin\":\"B0HQ5ZP2QW\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (160cm-3つのドア,シンク2つ)\",\"imgUrl\":\"https://m.media-amazon.com/images/I/31akarrCERL.jpg\",\"isMeetConditions\":true,\"price\":\"130268.00\",\"standardPriceCurrency\":\"JPY\",\"batchCreateParentAsin\":\"B0HQ5Z3RMD\"},{\"id\":60337847,\"shopId\":711811,\"sku\":\"ll070-120cm-3つ0 ド7-b\",\"asin\":\"B0HQ5X58H6\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (120cm-3つのドア,シンク1つ)\",\"imgUrl\":\"https://m.media-amazon.com/images/I/31mOTLB7QZL.jpg\",\"isMeetConditions\":true,\"price\":\"89712.00\",\"standardPriceCurrency\":\"JPY\",\"batchCreateParentAsin\":\"B0HQ5Z3RMD\"},{\"id\":60337862,\"shopId\":711811,\"sku\":\"ll070-160cm-3つのドア-a\",\"asin\":\"B0HQ5T88BD\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (160cm-3つの"
+ },
+ {
+  "method": "GET",
+  "url": "https://aegis.qq.com/speed/performance?dnsLookup=825&tcp=138&ssl=78&ttfb=101&contentDownload=10&domParse=337&resourceDownload=360&firstScreenTiming=2963&id=aZL6W4A16vzjNXJOKD&uin=402058&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793692851777&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp&referer=&ext1=402058",
+  "post": "",
+  "status": 204,
+  "resp": ""
+ },
+ {
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/multiple/target/suggestBid/recommendations",
+  "post": "{\"shopId\":\"711811\",\"biddingStrategy\":\"AUTO_FOR_SALES\",\"asins\":[\"B0HQ5ZP2QW\",\"B0HQ5X58H6\",\"B0HQ5T88BD\",\"B0HQ5XXRNP\",\"B0HQ5SLR7F\",\"B0HQ5TL8S8\",\"B0HQ5TXPCX\",\"B0HQ5XQ9G3\",\"B0HQ61XJTV\",\"B0HQ5ZF23S\",\"B0HQ5ZGTNP\",\"B0HQ5TD9HP\",\"B0HQ62MPYW\",\"B0HQ5RTKMT\",\"B0HQ5WMB3J\"],\"targetingExpressions\":[{\"type\":\"CLOSE_MATCH\",\"value\":\"\"},{\"type\":\"LOOSE_MATCH\",\"value\":\"\"},{\"type\":\"SUBSTITUTES\",\"value\":\"\"},{\"type\":\"COMPLEMENTS\",\"value\":\"\"}],\"placementProductPage\":null,\"placementTop\":null,\"placementRestOfSearch\":null,\"campaignId\":\"\",\"groupId\":\"\"}",
+  "status": 200,
+  "resp": "{\"code\":0,\"msg\":\"\",\"data\":{\"bidInfo\":[]}}"
+ },
+ {
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/multiple/target/suggestBid/recommendations",
+  "post": "{\"shopId\":\"711811\",\"biddingStrategy\":\"AUTO_FOR_SALES\",\"asins\":[\"B0HQ5ZP2QW\",\"B0HQ5X58H6\",\"B0HQ5T88BD\",\"B0HQ5XXRNP\",\"B0HQ5SLR7F\",\"B0HQ5TL8S8\",\"B0HQ5TXPCX\",\"B0HQ5XQ9G3\",\"B0HQ61XJTV\",\"B0HQ5ZF23S\",\"B0HQ5ZGTNP\",\"B0HQ5TD9HP\",\"B0HQ62MPYW\",\"B0HQ5RTKMT\",\"B0HQ5WMB3J\",\"B0HQ2X582L\"],\"targetingExpressions\":[{\"type\":\"CLOSE_MATCH\",\"value\":\"\"},{\"type\":\"LOOSE_MATCH\",\"value\":\"\"},{\"type\":\"SUBSTITUTES\",\"value\":\"\"},{\"type\":\"COMPLEMENTS\",\"value\":\"\"}],\"placementProductPage\":null,\"placementTop\":null,\"placementRestOfSearch\":null,\"campaignId\":\"\",\"groupId\":\"\"}",
+  "status": 200,
+  "resp": "{\"code\":0,\"msg\":\"\",\"data\":{\"bidInfo\":[]}}"
+ }
+]

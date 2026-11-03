@@ -48,6 +48,28 @@
         <!-- 左：白色表单卡片 -->
         <div class="flex-1 min-w-0 bg-white rounded-[6px] px-4 py-4">
 
+          <!-- ========== 区块 0：选择广告类型（复刻赛狐 SP/SB/SD） ========== -->
+          <div class="mb-5">
+            <div class="flex items-center gap-1.5 mb-3">
+              <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
+              <h2 class="text-[14px] font-medium text-[#0F0F0F]">选择广告类型</h2>
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="button"
+                      class="h-9 px-5 rounded-[4px] border border-[#2969FF] bg-[#F2F7FF] text-[#2969FF] text-[13px] font-medium">
+                商品推广（SP）
+              </button>
+              <button type="button" disabled title="当前版本仅支持商品推广(SP)"
+                      class="h-9 px-5 rounded-[4px] border border-[#DADCE0] bg-white text-[#0F0F0F] text-[13px] cursor-not-allowed">
+                品牌推广（SB）
+              </button>
+              <button type="button" disabled title="当前版本仅支持商品推广(SP)"
+                      class="h-9 px-5 rounded-[4px] border border-[#DADCE0] bg-white text-[#0F0F0F] text-[13px] cursor-not-allowed">
+                展示型推广（SD）
+              </button>
+            </div>
+          </div>
+
           <!-- ========== 区块 1：创建广告活动 ========== -->
           <div id="ad-block-1" class="mb-6">
             <div class="flex items-center gap-1.5 mb-5">
@@ -104,12 +126,12 @@
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>每日预算</div>
               <div class="flex items-center gap-2">
-                <div class="flex items-center h-8 border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
-                  <span class="px-2 text-[12px] text-[#606266] bg-[#F5F7FA] h-full flex items-center border-r border-[#E4E6EB]">JPY</span>
+                <div class="flex items-center h-8 w-[160px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                  <span class="px-2 text-[12px] text-[#606266] h-full flex items-center">JP￥</span>
                   <input v-if="adBudgetMode === 'equal'" type="number" min="0" v-model.number="adSingleBudget"
-                         class="h-full w-[140px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                         class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none" placeholder="请输入" />
                   <input v-else type="number" min="0" v-model.number="adPoolBudget"
-                         class="h-full w-[140px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                         class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none" placeholder="请输入" />
                 </div>
                 <div class="flex items-center gap-3 text-[12px] text-[#606266]">
                   <label class="inline-flex items-center gap-1 cursor-pointer">
@@ -127,17 +149,21 @@
             <!-- 定向策略 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>定向策略</div>
-              <div class="flex-1 min-w-0 pt-0.5">
-                <select v-model="adSettings.targeting_type"
-                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
-                  <option value="auto">自动投放</option>
-                  <option value="manual" disabled>手动投放（当前版本暂不支持）</option>
-                </select>
-                <p class="mt-1.5 text-[12px] text-[#8A8F99] leading-5">
-                  {{ adSettings.targeting_type === 'manual'
-                     ? '亚马逊根据您选择的关键词或产品进行投放'
-                     : '亚马逊将自动分析您的广告产品，并找到相关的关键词和产品进行投放' }}
-                </p>
+              <div class="flex flex-col gap-2.5 pt-0.5">
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" value="auto" v-model="adSettings.targeting_type" class="mt-[3px] accent-[#2969FF]" />
+                  <span>
+                    <span class="block leading-5">自动投放</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊将自动分析您的广告产品，并找到相关的关键词和产品进行投放</span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-not-allowed" title="当前版本仅支持自动投放">
+                  <input type="radio" value="manual" disabled class="mt-[3px]" />
+                  <span>
+                    <span class="block leading-5">手动投放</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊根据您选择的关键词或产品进行投放</span>
+                  </span>
+                </label>
               </div>
             </div>
 
@@ -163,103 +189,71 @@
             <!-- 站点 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8">站点</div>
-              <div class="flex-1 min-w-0 pt-0.5">
-                <select v-model="adSettings.campaign_site"
-                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
-                  <option value="all">亚马逊及其他网站</option>
-                  <option value="business">亚马逊企业购</option>
-                </select>
-                <p class="mt-1.5 text-[12px] text-[#8A8F99] leading-5">
-                  {{ adSettings.campaign_site === 'business'
-                     ? '采用 B2B 方案来提升销售额，并独家触达亚马逊企业购平台上的企业采购客户。'
-                     : '广告将在亚马逊站内展示，包括亚马逊网站和亚马逊企业购平台，同时也会在亚马逊站外的精选网站和应用程序中展示。' }}
-                </p>
-              </div>
-            </div>
-
-            <!-- 亚马逊站外广告目标 -->
-            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">亚马逊站外广告目标</div>
-              <div class="flex-1 min-w-0 pt-0.5">
-                <select v-model="adSettings.off_amazon_goal"
-                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
-                  <option value="maximize_reach">扩大亚马逊站外的受众触达</option>
-                  <option value="minimize_spend">仅触达亚马逊受众</option>
-                </select>
-                <p class="mt-1.5 text-[12px] text-[#8A8F99] leading-5">
-                  {{ adSettings.off_amazon_goal === 'minimize_spend'
-                     ? '仅在亚马逊自有自营资产上的广告位投放广告。'
-                     : '允许在亚马逊站内及站外的广告位投放广告，此设置可能会增加亚马逊站外的展示量和销售机会。' }}
-                </p>
+              <div class="flex flex-col gap-2.5 pt-0.5">
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" value="all" v-model="adSettings.campaign_site" class="mt-[3px] accent-[#2969FF]" />
+                  <span>
+                    <span class="block leading-5">亚马逊及其他网站</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">广告将在亚马逊站内展示，包括亚马逊网站和亚马逊企业购平台，同时也会在亚马逊站外的精选网站和应用程序中展示。</span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-not-allowed opacity-45">
+                  <input type="radio" value="business" disabled class="mt-[3px]" />
+                  <span>
+                    <span class="block leading-5">亚马逊企业购</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">采用 B2B 方案来提升销售额，并独家触达亚马逊企业购平台上的企业采购客户。</span>
+                  </span>
+                </label>
               </div>
             </div>
 
             <!-- 根据广告位调整竞价 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8">根据广告位调整竞价</div>
-              <div class="flex-1 min-w-0">
-                <table class="w-full max-w-[760px] border-collapse text-[12px]">
-                  <thead>
-                    <tr class="text-[#8A8F99]">
-                      <th class="text-left font-normal py-1.5 w-[180px]">广告位</th>
-                      <th class="text-left font-normal py-1.5 w-[150px]">竞价调整比例</th>
-                      <th class="text-left font-normal py-1.5">竞价示例</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr class="border-t border-[#EEF0F3]">
-                      <td class="py-2">搜索结果顶部（首页）</td>
-                      <td class="py-2">
-                        <div class="flex items-center gap-1">
-                          <input type="number" min="0" max="900" v-model.number="adSettings.placement_top_pct" placeholder="请输入"
-                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                          <span>%</span>
-                        </div>
-                      </td>
-                      <td class="py-2 text-[#B4B8C2]">{{ bidExample(adSettings.placement_top_pct) }}</td>
-                    </tr>
-                    <tr class="border-t border-[#EEF0F3]">
-                      <td class="py-2">搜索结果其余位置</td>
-                      <td class="py-2">
-                        <div class="flex items-center gap-1">
-                          <input type="number" min="0" max="900" v-model.number="adSettings.placement_rest_pct" placeholder="请输入"
-                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                          <span>%</span>
-                        </div>
-                      </td>
-                      <td class="py-2 text-[#B4B8C2]">{{ bidExample(adSettings.placement_rest_pct) }}</td>
-                    </tr>
-                    <tr class="border-t border-[#EEF0F3]">
-                      <td class="py-2">商品详情页</td>
-                      <td class="py-2">
-                        <div class="flex items-center gap-1">
-                          <input type="number" min="0" max="900" v-model.number="adSettings.placement_product_pct" placeholder="请输入"
-                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                          <span>%</span>
-                        </div>
-                      </td>
-                      <td class="py-2 text-[#B4B8C2]">{{ bidExample(adSettings.placement_product_pct) }}</td>
-                    </tr>
-                    <tr class="border-t border-[#EEF0F3] text-[#B4B8C2]">
-                      <td class="py-2">亚马逊企业购</td>
-                      <td class="py-2">
-                        <div class="flex items-center gap-1">
-                          <input type="number" disabled placeholder="请输入"
-                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right bg-[#F5F7FA]" />
-                          <span>%</span>
-                        </div>
-                      </td>
-                      <td class="py-2">平均而言，与整体广告活动效果相比，广告主在亚马逊企业购站内的广告投资回报率要高出 2 到 3 倍。</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="flex-1 min-w-0 flex flex-col gap-2">
+                <div class="flex items-center">
+                  <span class="w-[120px] shrink-0 leading-8">搜索结果顶部（首页）</span>
+                  <div class="flex items-center h-8 w-[140px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                    <input type="number" min="0" max="900" v-model.number="adSettings.placement_top_pct" placeholder="请输入"
+                           class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none text-right" />
+                    <span class="px-2 text-[12px] text-[#8A8F99]">%</span>
+                  </div>
+                  <span class="ml-2 text-[12px] text-[#8A8F99]">{{ bidExample(adSettings.placement_top_pct) }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="w-[120px] shrink-0 leading-8">搜索结果其余位置</span>
+                  <div class="flex items-center h-8 w-[140px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                    <input type="number" min="0" max="900" v-model.number="adSettings.placement_rest_pct" placeholder="请输入"
+                           class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none text-right" />
+                    <span class="px-2 text-[12px] text-[#8A8F99]">%</span>
+                  </div>
+                  <span class="ml-2 text-[12px] text-[#8A8F99]">{{ bidExample(adSettings.placement_rest_pct) }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="w-[120px] shrink-0 leading-8">商品详情页</span>
+                  <div class="flex items-center h-8 w-[140px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                    <input type="number" min="0" max="900" v-model.number="adSettings.placement_product_pct" placeholder="请输入"
+                           class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none text-right" />
+                    <span class="px-2 text-[12px] text-[#8A8F99]">%</span>
+                  </div>
+                  <span class="ml-2 text-[12px] text-[#8A8F99]">{{ bidExample(adSettings.placement_product_pct) }}</span>
+                </div>
+                <div class="flex items-center">
+                  <span class="w-[120px] shrink-0 leading-8">亚马逊企业购</span>
+                  <div class="flex items-center h-8 w-[140px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                    <input type="number" min="0" max="900" v-model.number="adSettings.placement_business_pct" placeholder="请输入"
+                           class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none text-right" />
+                    <span class="px-2 text-[12px] text-[#8A8F99]">%</span>
+                  </div>
+                  <span class="ml-2 text-[12px] text-[#8A8F99]">平均而言，与整体广告活动效果相比，广告主在亚马逊企业购站内的广告投资回报率要高出 2 到 3 倍。</span>
+                </div>
               </div>
             </div>
 
-            <!-- AMC 自定义受众定价（原为接口拉取人群包，改为手工输入） -->
+            <!-- AMC 自定义受众定价（人群包原为接口下拉，改为手工输入） -->
             <div class="flex items-start text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8">AMC自定义受众定价</div>
-              <div class="flex-1 min-w-0 pt-1">
+              <div class="flex-1 min-w-0">
                 <label class="inline-flex items-center cursor-pointer">
                   <input type="checkbox" v-model="adSettings.amc_enabled" class="sr-only peer" />
                   <span class="relative w-8 h-4 bg-[#DADCE0] rounded-full peer-checked:bg-[#2969FF] transition-colors
@@ -268,13 +262,13 @@
                 </label>
                 <div v-if="adSettings.amc_enabled" class="mt-2 flex items-center gap-2">
                   <span>对</span>
-                  <input v-model="adSettings.amc_audience" placeholder="受众名称（手工输入）"
-                         class="h-7 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                  <input v-model="adSettings.amc_audience" placeholder="请选择受众人群包"
+                         class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
                   <span>提价</span>
-                  <div class="flex items-center gap-1">
+                  <div class="flex items-center h-8 w-[150px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
                     <input type="number" min="0" v-model.number="adSettings.amc_bid_pct" placeholder="请输入"
-                           class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                    <span>%</span>
+                           class="h-full flex-1 min-w-0 px-2 text-[12px] outline-none text-right" />
+                    <span class="px-2 text-[12px] text-[#8A8F99]">%</span>
                   </div>
                 </div>
               </div>
@@ -290,29 +284,12 @@
               <h2 class="text-[14px] font-medium text-[#0F0F0F]">创建广告组</h2>
             </div>
 
-            <!-- 选品范围（本地在线产品打标，选品用，不属于广告活动表单）-->
-            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">选品范围</div>
-              <div class="flex items-center gap-3">
-                <select v-model="sourceMark" @change="loadFromDb()"
-                        title="按「在线产品」页的打标筛选候选商品，再手工勾选要投放的"
-                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
-                  <option value="">全部品</option>
-                  <option value="pass">仅打标「通过」</option>
-                  <option value="fail">仅打标「不通过」</option>
-                </select>
-                <span class="text-[11px] text-[#B4B8C2]">
-                  打标来源：在线产品 › 操作列 通过 / 不通过（通过 {{ (dbSummary.marks || {}).pass || 0 }} · 不通过 {{ (dbSummary.marks || {}).fail || 0 }}）
-                </span>
-              </div>
-            </div>
-
             <!-- 广告组名称 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组名称</div>
               <div class="flex items-center gap-3">
                 <input v-model="adSettings.ad_group_name" placeholder="示例：圣诞节大促"
-                       class="h-8 w-[474px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                       class="h-8 w-[490px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
                 <span class="text-[11px] text-[#B4B8C2]">
                   留空则与活动同名：{{ adCampaigns.length ? adCampaignName(adCampaigns[0]) : '父SKU_品名_自动_日期' }}
                 </span>
@@ -324,7 +301,7 @@
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组默认竞价</div>
               <div class="flex items-center gap-3">
                 <div class="flex items-center h-8 border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
-                  <span class="px-2 text-[12px] text-[#606266] bg-[#F5F7FA] h-full flex items-center border-r border-[#E4E6EB]">JPY</span>
+                  <span class="px-2 text-[12px] text-[#606266] h-full flex items-center">JP￥</span>
                   <input type="number" min="0" v-model.number="adSettings.default_bid"
                          class="h-full w-[120px] px-2 text-[12px] outline-none" placeholder="请输入" />
                 </div>
@@ -334,7 +311,7 @@
               </div>
             </div>
 
-            <!-- 添加推广的广告产品 -->
+            <!-- 添加推广的广告产品：左选品 / 右已添加（复刻赛狐双栏） -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>添加推广的广告产品</div>
               <div class="flex-1 min-w-0">
@@ -349,96 +326,190 @@
                   <p v-if="error" class="mt-2 text-[12px] text-[#F54242]">{{ error }}</p>
                 </div>
 
-                <div v-else class="border border-[#E4E6EB] rounded-[4px]">
-                  <!-- 工具条 -->
-                  <div class="flex items-center gap-3 px-2 h-9 border-b border-[#E4E6EB] bg-[#F7F8FA]">
-                    <input v-model="adSearch" placeholder="搜索 父SKU / 品名 / ASIN"
-                           class="h-6 w-[220px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
-                    <span class="text-[12px] text-[#606266]">
-                      已添加 <strong class="text-[#0F0F0F]">{{ adSelected.length }}</strong> 个父体
-                      · <strong class="text-[#0F0F0F]">{{ adSelectedKidCount }}</strong> 个子体
-                    </span>
-                    <div class="ml-auto flex items-center gap-3">
-                      <button @click="toggleAdSelectAll" :disabled="!adFiltered.length"
-                              class="text-[12px] text-[#2969FF] hover:underline disabled:opacity-40 whitespace-nowrap">
-                        {{ isAllAdSelected ? '移除全部' : '添加全部' }}
+                <div v-else class="grid grid-cols-2 gap-3 items-start">
+                  <!-- 左：选择广告产品 -->
+                  <div class="border border-[#E4E6EB] rounded-[4px] flex flex-col min-w-0">
+                    <div class="flex items-center gap-6 px-3 h-9 border-b border-[#EEEEF6]">
+                      <button @click="adInputMode = 'search'"
+                              :class="['relative h-full text-[12px]', adInputMode === 'search' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
+                        搜索
+                        <span v-if="adInputMode === 'search'" class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#FA8C16]"></span>
                       </button>
-                      <button v-if="adSelected.length" @click="clearAdProducts"
-                              class="text-[12px] text-[#2969FF] hover:underline whitespace-nowrap">清空已选</button>
+                      <button @click="adInputMode = 'input'"
+                              :class="['relative h-full text-[12px]', adInputMode === 'input' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
+                        输入列表
+                        <span v-if="adInputMode === 'input'" class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#FA8C16]"></span>
+                      </button>
+                      <button @click="adInputMode = 'online'"
+                              :class="['relative h-full text-[12px]', adInputMode === 'online' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
+                        在线搜索
+                        <span v-if="adInputMode === 'online'" class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#FA8C16]"></span>
+                      </button>
                     </div>
-                  </div>
 
-                  <!-- 表头 -->
-                  <div class="grid grid-cols-[36px_46px_112px_104px_1fr_76px_92px_74px] bg-[#F7F8FA] text-[12px] text-[#606266] border-b border-[#EEEEF6]">
-                    <div class="pl-3 h-8 flex items-center">勾选</div>
-                    <div class="h-8 flex items-center">图片</div>
-                    <div class="h-8 flex items-center">父ASIN</div>
-                    <div class="h-8 flex items-center">父SKU</div>
-                    <div class="h-8 flex items-center">品名</div>
-                    <div class="h-8 flex items-center">子体</div>
-                    <div class="h-8 flex items-center">客单价</div>
-                    <div class="h-8 flex items-center justify-end pr-3">操作</div>
-                  </div>
+                    <!-- 搜索 -->
+                    <template v-if="adInputMode === 'search'">
+                      <div class="flex items-center gap-2 px-2 py-2 border-b border-[#EEEEF6]">
+                        <select class="h-7 px-1.5 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white outline-none">
+                          <option>按创建时间降序</option>
+                        </select>
+                        <select v-model="sourceMark" @change="loadFromDb()"
+                                :title="`按在线产品打标筛选（通过 ${(dbSummary.marks || {}).pass || 0} · 不通过 ${(dbSummary.marks || {}).fail || 0}）`"
+                                class="h-7 px-1.5 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white outline-none">
+                          <option value="">全部品</option>
+                          <option value="pass">仅通过</option>
+                          <option value="fail">仅不通过</option>
+                        </select>
+                        <select class="h-7 px-1.5 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white outline-none">
+                          <option>ASIN</option>
+                          <option>MSKU</option>
+                          <option>品名</option>
+                        </select>
+                        <input v-model="adSearch" placeholder="双击可批量搜索内容"
+                               class="h-7 flex-1 min-w-0 border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                        <button class="h-7 w-7 shrink-0 border border-[#DADCE0] rounded-[4px] flex items-center justify-center text-[#8A8F99] hover:border-[#2969FF]">
+                          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.3" /><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.3" /></svg>
+                        </button>
+                      </div>
 
-                  <!-- 商品行 + 子体展开 -->
-                  <div class="max-h-[330px] overflow-y-auto">
-                    <template v-for="p in adFiltered" :key="p.parent_sku">
-                      <div class="grid grid-cols-[36px_46px_112px_104px_1fr_76px_92px_74px] items-center text-[12px] border-b border-[#F0F1F5] hover:bg-[#FAFBFF]">
-                        <div class="pl-3 py-1.5">
-                          <input type="checkbox" :checked="!!p.ad_selected" @change="toggleAdProduct(p)"
-                                 class="accent-[#2969FF]" />
-                        </div>
-                        <div class="py-1.5">
-                          <img v-if="p.image_url && !imgErrors[p.parent_sku]" :src="p.image_url" :alt="p.parent_sku"
-                               @error="imgErrors[p.parent_sku] = true"
-                               class="w-8 h-8 rounded border border-[#E4E6EB] object-cover" loading="lazy" />
-                          <div v-else class="w-8 h-8 rounded border border-[#E4E6EB] bg-[#F7F8FA]"></div>
-                        </div>
-                        <div class="py-1.5 pr-2 font-mono text-[11px] text-[#606266] truncate"
-                             :title="(p.parent_asins || []).join(' / ')">{{ (p.parent_asins || [])[0] || '-' }}</div>
-                        <div class="py-1.5 pr-2 truncate" :title="p.parent_sku">{{ p.parent_sku }}</div>
-                        <div class="py-1.5 pr-2 min-w-0">
-                          <p class="truncate text-[#0F0F0F]">{{ p.product_name }}</p>
-                          <p class="text-[11px] text-[#B4B8C2] truncate" :title="p.raw_name">{{ p.raw_name }}</p>
-                        </div>
-                        <div class="py-1.5">
-                          <button @click="p._kidsOpen = !p._kidsOpen"
-                                  class="text-[12px] text-[#2969FF] hover:underline"
-                                  :title="p.ad_selected ? '展开 / 收起子体，逐个勾选要投放的子 ASIN' : '先勾选父体再选子体'">
-                            {{ adKidOnCount(p) }}/{{ (p.children || []).length }}
-                            <span class="text-[10px]">{{ p._kidsOpen ? '▲' : '▼' }}</span>
-                          </button>
-                        </div>
-                        <div class="py-1.5 text-[#606266]">¥{{ fmt(p.avg_price) }}</div>
-                        <div class="py-1.5 pr-3 text-right">
-                          <button @click="p.ad_selected ? removeAdProduct(p) : addAdProduct(p)"
-                                  class="text-[12px] text-[#2969FF] hover:underline">
-                            {{ p.ad_selected ? '移除' : '添加' }}
-                          </button>
+                      <div class="grid grid-cols-[minmax(0,1fr)_150px_96px] bg-[#F7F8FA] text-[#606266] border-b border-[#EEEEF6]">
+                        <div class="px-3 h-8 flex items-center">产品信息</div>
+                        <div class="h-8 flex items-center">ASIN/MSKU</div>
+                        <div class="h-8 flex items-center justify-end pr-3">
+                          <button @click="addPageRows" :disabled="!adPageRows.length"
+                                  class="text-[12px] text-[#2969FF] hover:underline disabled:opacity-40">添加本页</button>
                         </div>
                       </div>
 
-                      <!-- 子体明细（投放的子 ASIN 可单独勾选） -->
-                      <div v-if="p._kidsOpen" class="bg-[#F7F9FF] border-b border-[#EEEEF6]">
-                        <div class="grid grid-cols-[36px_1fr_1fr_100px] text-[11px] text-[#8A8F99] px-3 py-1.5">
-                          <div>投放</div>
-                          <div>子 ASIN</div>
-                          <div>MSKU</div>
-                          <div class="text-right pr-1">售价 (JPY)</div>
-                        </div>
-                        <div v-for="c in (p.children || [])" :key="c.asin + '|' + c.msku"
-                             class="grid grid-cols-[36px_1fr_1fr_100px] items-center px-3 py-1 text-[12px]">
-                          <div>
-                            <input type="checkbox" :checked="isKidOn(p, c)" @change="toggleKid(p, c)"
-                                   class="accent-[#2969FF]" />
+                      <div class="max-h-[300px] overflow-y-auto">
+                        <div v-for="r in adPageRows" :key="r.key"
+                             class="grid grid-cols-[minmax(0,1fr)_150px_96px] items-center text-[12px] border-b border-[#F0F1F5] last:border-b-0 py-1.5 hover:bg-[#FAFBFF]">
+                          <div class="px-3 flex items-center gap-2 min-w-0">
+                            <img v-if="r.p.image_url && !imgErrors[r.p.parent_sku]" :src="r.p.image_url"
+                                 @error="imgErrors[r.p.parent_sku] = true"
+                                 class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] object-cover" loading="lazy" />
+                            <div v-else class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] bg-[#F7F8FA]"></div>
+                            <span class="truncate" :title="r.p.product_name">{{ r.p.product_name }}</span>
+                            <span class="shrink-0 text-[11px] text-[#8A8F99]">（可售）</span>
                           </div>
-                          <div class="font-mono text-[11px]">{{ c.asin }}</div>
-                          <div class="text-[11px] text-[#606266] truncate pr-2" :title="c.msku">{{ c.msku }}</div>
-                          <div class="text-right pr-1">¥{{ fmt(c.price) }}</div>
+                          <div class="min-w-0 pr-2">
+                            <p class="truncate font-mono text-[11px]">{{ r.c.asin }}</p>
+                            <p class="truncate text-[11px] text-[#8A8F99]" :title="r.c.msku">{{ r.c.msku }}</p>
+                          </div>
+                          <div class="pr-3 text-right leading-[18px] whitespace-nowrap">
+                            <button @click="addParent(r.p)" class="block w-full text-[#2969FF] hover:underline">添加</button>
+                            <button @click="addVariant(r.p, r.c)" class="block w-full text-[#2969FF] hover:underline">添加变体</button>
+                          </div>
+                        </div>
+                        <div v-if="!adPageRows.length" class="py-10 text-center text-[12px] text-[#B4B8C2]">没有匹配的商品</div>
+                      </div>
+
+                      <div class="flex items-center gap-2 px-3 h-9 border-t border-[#EEEEF6] text-[#606266]">
+                        <span>共 {{ adFlatRows.length }} 条</span>
+                        <div class="ml-auto flex items-center gap-1">
+                          <button @click="adPage = Math.max(1, adPage - 1)" :disabled="adPage <= 1"
+                                  class="w-6 h-6 border border-[#DADCE0] rounded-[3px] disabled:opacity-40">‹</button>
+                          <span class="px-1">{{ adPage }}/{{ adPageCount }}</span>
+                          <button @click="adPage = Math.min(adPageCount, adPage + 1)" :disabled="adPage >= adPageCount"
+                                  class="w-6 h-6 border border-[#DADCE0] rounded-[3px] disabled:opacity-40">›</button>
+                          <span class="ml-1">20 条/页</span>
                         </div>
                       </div>
                     </template>
-                    <div v-if="!adFiltered.length" class="py-10 text-center text-[12px] text-[#B4B8C2]">没有匹配的商品</div>
+
+                    <!-- 在线搜索（调赛狐接口, 按 ASIN） -->
+                    <template v-else-if="adInputMode === 'online'">
+                      <div class="flex items-center gap-2 px-2 py-2 border-b border-[#EEEEF6]">
+                        <input v-model="adOnlineKw" @keyup.enter="searchOnline"
+                               placeholder="请输入ASIN（可多个，逗号/空格分隔）"
+                               class="h-7 flex-1 min-w-0 border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                        <button @click="searchOnline" :disabled="adOnlineLoading || !adOnlineKw.trim()"
+                                class="h-7 w-7 shrink-0 border border-[#DADCE0] rounded-[4px] flex items-center justify-center text-[#8A8F99] hover:border-[#2969FF] disabled:opacity-40">
+                          <svg viewBox="0 0 16 16" class="w-3.5 h-3.5"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.3" /><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.3" /></svg>
+                        </button>
+                      </div>
+                      <div class="grid grid-cols-[minmax(0,1fr)_110px] bg-[#F7F8FA] text-[#606266] border-b border-[#EEEEF6]">
+                        <div class="px-3 h-8 flex items-center">商品信息</div>
+                        <div class="h-8 flex items-center justify-end pr-3">
+                          <button @click="addAllOnline" :disabled="!adOnlineItems.length"
+                                  class="text-[12px] text-[#2969FF] hover:underline disabled:opacity-40">添加全部</button>
+                        </div>
+                      </div>
+                      <div class="max-h-[300px] overflow-y-auto">
+                        <div v-for="it in adOnlineItems" :key="it.parent_asin"
+                             class="grid grid-cols-[minmax(0,1fr)_110px] items-center text-[12px] border-b border-[#F0F1F5] last:border-b-0 py-1.5 hover:bg-[#FAFBFF]">
+                          <div class="px-3 flex items-center gap-2 min-w-0">
+                            <img v-if="it.img && !imgErrors[it.parent_asin]" :src="it.img"
+                                 @error="imgErrors[it.parent_asin] = true"
+                                 class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] object-cover" loading="lazy" />
+                            <div v-else class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] bg-[#F7F8FA]"></div>
+                            <div class="min-w-0 leading-tight">
+                              <p class="truncate" :title="it.title">{{ it.title }}</p>
+                              <p class="truncate text-[11px] text-[#8A8F99] font-mono">{{ it.parent_asin }} · {{ it.children.length }} 个子体</p>
+                            </div>
+                          </div>
+                          <div class="pr-3 text-right">
+                            <button @click="addOnlineItem(it)"
+                                    :disabled="adOnlineAddedSet[it.parent_asin]"
+                                    class="text-[12px] text-[#2969FF] hover:underline disabled:text-[#B4B8C2] disabled:no-underline">
+                              {{ adOnlineAddedSet[it.parent_asin] ? '已添加' : '添加' }}
+                            </button>
+                          </div>
+                        </div>
+                        <div v-if="adOnlineLoading" class="py-10 text-center text-[12px] text-[#2969FF] animate-pulse">正在从赛狐在线搜索…</div>
+                        <div v-else-if="!adOnlineItems.length" class="py-10 text-center text-[12px] text-[#B4B8C2]">输入 ASIN 后点搜索</div>
+                      </div>
+                    </template>
+
+                    <!-- 输入列表 -->
+                    <template v-else>
+                      <div class="p-3">
+                        <textarea v-model="adAsinInput" rows="9"
+                                  placeholder="输入 ASIN，用逗号、空格或换行分隔"
+                                  class="w-full border border-[#DADCE0] rounded-[4px] px-2 py-1.5 text-[12px] outline-none focus:border-[#2969FF] resize-none"></textarea>
+                        <div class="mt-2 flex items-center gap-2">
+                          <button @click="addByAsinInput"
+                                  class="h-7 px-3 bg-[#2969FF] hover:bg-[#1f57d6] text-white text-[12px] rounded-[4px]">添加</button>
+                          <span class="text-[11px] text-[#B4B8C2]">支持 ASIN / MSKU，未匹配到的会被忽略</span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+
+                  <!-- 右：已添加 -->
+                  <div class="border border-[#E4E6EB] rounded-[4px] flex flex-col min-w-0">
+                    <div class="flex items-center px-3 h-9 border-b border-[#EEEEF6]">
+                      <span>已添加 <strong class="text-[#0F0F0F]">{{ adAddedRows.length }}</strong>/1000 个产品</span>
+                      <button v-if="adAddedRows.length" @click="clearAdProducts"
+                              class="ml-auto text-[12px] text-[#2969FF] hover:underline">移除全部</button>
+                    </div>
+                    <div class="grid grid-cols-[1fr_150px] bg-[#F7F8FA] text-[#606266] border-b border-[#EEEEF6]">
+                      <div class="px-3 h-8 flex items-center">产品信息</div>
+                      <div class="h-8 flex items-center">ASIN/MSKU</div>
+                    </div>
+                    <div class="max-h-[334px] overflow-y-auto">
+                      <div v-for="r in adAddedRows" :key="'add-' + r.key"
+                           class="group grid grid-cols-[1fr_150px] items-center text-[12px] border-b border-[#F0F1F5] last:border-b-0 py-1.5 hover:bg-[#FAFBFF]">
+                        <div class="px-3 flex items-center gap-2 min-w-0">
+                          <img v-if="r.p.image_url && !imgErrors[r.p.parent_sku]" :src="r.p.image_url"
+                               class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] object-cover" loading="lazy" />
+                          <div v-else class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] bg-[#F7F8FA]"></div>
+                          <span class="truncate" :title="r.p.product_name">{{ r.p.product_name }}</span>
+                          <button @click="removeAdded(r)" class="ml-auto shrink-0 text-[#2969FF] opacity-0 group-hover:opacity-100">移除</button>
+                        </div>
+                        <div class="min-w-0 pr-2">
+                          <p class="truncate font-mono text-[11px]">{{ r.c.asin }}</p>
+                          <p class="truncate text-[11px] text-[#8A8F99]" :title="r.c.msku">{{ r.c.msku }}</p>
+                        </div>
+                      </div>
+                      <div v-if="!adAddedRows.length" class="py-14 flex flex-col items-center justify-center text-[12px] text-[#B4B8C2]">
+                        <svg viewBox="0 0 64 64" class="w-14 h-14 text-[#E4E6EB] mb-2">
+                          <path d="M8 22l24-12 24 12v22L32 56 8 44z" fill="none" stroke="currentColor" stroke-width="2" />
+                          <path d="M8 22l24 12 24-12M32 34v22" fill="none" stroke="currentColor" stroke-width="2" />
+                        </svg>
+                        暂无数据
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -471,32 +542,68 @@
             </div>
 
             <div class="flex items-start text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">匹配类型竞价</div>
               <div class="flex-1 border border-[#E4E6EB] rounded-[4px] overflow-hidden">
-                <div class="grid grid-cols-[64px_1fr_2fr_120px] bg-[#F7F8FA] text-[#606266]">
-                  <div class="px-3 h-9 flex items-center border-b border-[#E4E6EB]">启用</div>
-                  <div class="px-2 h-9 flex items-center border-b border-[#E4E6EB]">匹配类型</div>
-                  <div class="px-3 h-9 flex items-center border-b border-[#E4E6EB]">说明</div>
-                  <div class="px-3 h-9 flex items-center border-b border-[#E4E6EB]">竞价 (JPY)</div>
+                <div class="grid grid-cols-[150px_150px_150px_1fr] items-center bg-[#F7F8FA] text-[#606266] h-[46px] border-b border-[#E4E6EB]">
+                  <div class="px-3">投放组</div>
+                  <div class="px-3">建议竞价<span v-if="adSuggestLoading" class="text-[#B4B8C2]">（获取中…）</span></div>
+                  <div class="px-3 flex items-center">
+                    <select :value="adApplyLevel" @change="applyAllBids($event.target.value)"
+                            class="h-6 text-[12px] text-[#2969FF] bg-transparent outline-none cursor-pointer">
+                      <option value="" class="text-[#606266]">应用</option>
+                      <option value="low">建议竞价-最低价</option>
+                      <option value="mid">建议竞价-建议价</option>
+                      <option value="high">建议竞价-最高价</option>
+                    </select>
+                  </div>
+                  <div class="px-3 flex items-center gap-1.5">
+                    <span class="shrink-0">竞价</span>
+                    <div class="flex items-center h-7 w-[136px] border border-[#DADCE0] rounded-[4px] overflow-hidden bg-white">
+                      <span class="px-1.5 text-[12px] text-[#606266]">JP￥</span>
+                      <span class="text-[12px] text-[#C0C4CC]">请输入</span>
+                    </div>
+                  </div>
                 </div>
                 <div v-for="row in adTargetingRows" :key="row.key"
-                     class="grid grid-cols-[64px_1fr_2fr_120px] items-center border-b border-[#F0F1F5] last:border-b-0">
-                  <div class="px-3 py-2">
-                    <input type="checkbox" v-model="row.enabled" class="accent-[#2969FF]" />
+                     class="grid grid-cols-[150px_150px_150px_1fr] items-center border-b border-[#F0F1F5] last:border-b-0 h-[46px]">
+                  <div class="px-3 flex items-center gap-2">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" v-model="row.enabled" class="sr-only peer" />
+                      <span class="relative w-7 h-[15px] bg-[#DADCE0] rounded-full peer-checked:bg-[#2969FF] transition-colors
+                                   after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full
+                                   after:h-[11px] after:w-[11px] after:transition-all peer-checked:after:translate-x-3"></span>
+                    </label>
+                    <span :class="row.enabled ? '' : 'text-[#B4B8C2]'">{{ row.label }}</span>
                   </div>
-                  <div class="px-2 py-2" :class="row.enabled ? '' : 'text-[#B4B8C2]'">{{ row.label }}</div>
-                  <div class="px-3 py-2 text-[#8A8F99]">{{ row.desc }}</div>
-                  <div class="px-3 py-2">
-                    <input type="number" min="0" v-model.number="adSettings[row.key]" :disabled="!row.enabled"
-                           class="h-6 w-[72px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF] disabled:bg-[#F5F7FA] disabled:text-[#B4B8C2]" />
+                  <div class="px-3"
+                       :class="adBidRangeText(row.pred) === '-' ? 'text-[#B4B8C2]' : 'text-[#0F0F0F]'"
+                       :title="adBidRangeText(row.pred) === '-' ? '未获取到该投放组的建议竞价' : '低 / 中 / 高（当前已选商品合并建议）'">
+                    {{ adBidRangeText(row.pred) }}
+                  </div>
+                  <div class="px-3 flex items-center">
+                    <select v-if="adBidBand(row.pred)" @change="applyRowBid(row.pred, $event.target.value); $event.target.value = ''"
+                            class="h-6 text-[12px] text-[#2969FF] bg-transparent outline-none cursor-pointer">
+                      <option value="" class="text-[#606266]">应用</option>
+                      <option value="low">建议竞价-最低价</option>
+                      <option value="mid">建议竞价-建议价</option>
+                      <option value="high">建议竞价-最高价</option>
+                    </select>
+                    <span v-else class="text-[#B4B8C2]">-</span>
+                  </div>
+                  <div class="px-3 flex items-center gap-1.5">
+                    <span class="shrink-0 invisible">竞价</span>
+                    <div class="flex items-center h-7 w-[136px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                      <span class="px-1.5 text-[12px] text-[#606266]">JP￥</span>
+                      <input type="number" min="0" v-model.number="adSettings[row.key]" :disabled="!row.enabled"
+                             @input="markBidTouched(row.key)"
+                             class="h-full flex-1 min-w-0 px-1 text-[12px] outline-none disabled:bg-[#F5F7FA]" placeholder="请输入" />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="flex items-start mt-4 text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"></div>
-              <label class="inline-flex items-center gap-2 cursor-pointer pt-1.5">
+            <div class="flex items-center mt-4 text-[12px] text-[#0F0F0F]">
+              <label class="inline-flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" v-model="adSettings.include_targeting" class="accent-[#2969FF]" />
                 生成 4 组自动匹配 Targeting 行
               </label>
@@ -542,8 +649,18 @@
 
                   <div class="flex flex-wrap items-center gap-3 text-[12px] mb-2">
                     <span class="text-[#606266]">非法字符处理方式</span>
-                    <span class="text-[#C0C4CC] cursor-help"
-                          title="关键词中的英文标点（如 ! ? - ' &amp;）按此规则处理后再写入表格">&#9432;</span>
+                    <span class="text-[#C0C4CC] cursor-help relative inline-flex"
+                          @mouseenter="negTip = true" @mouseleave="negTip = false"
+                          @click="negTip = !negTip">&#9432;<span
+                        v-if="negTip"
+                        class="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-[300px] px-3 py-2
+                               bg-[#303133] text-white text-[11px] leading-relaxed rounded-[4px]
+                               shadow-lg z-50 whitespace-normal pointer-events-none">
+                      <p class="mb-1">关键词中包含平台不支持的标点符号时，系统将按所选方式自动处理。</p>
+                      <p>直接清除：nike@shoes → nikeshoes</p>
+                      <p>替换为空格：nike@shoes → nike shoes</p>
+                      <p>不做处理：nike@shoes → nike@shoes</p>
+                    </span></span>
                     <label v-for="m in adIllegalModes" :key="m.value" class="inline-flex items-center gap-1.5 cursor-pointer">
                       <input type="radio" :value="m.value" v-model="adNegIllegalMode" class="accent-[#2969FF]" />
                       {{ m.label }}
@@ -601,8 +718,11 @@
               <!-- 左：输入 -->
               <div class="border border-[#E4E6EB] rounded-[4px] bg-white flex flex-col">
                 <div class="flex items-center gap-5 px-3 h-9 border-b border-[#EEEEF6] shrink-0">
-                  <button class="h-full text-[12px] text-[#C0C4CC] cursor-not-allowed"
-                          title="搜索需调用后台商品接口，当前版本请使用「输入列表」手工粘贴 ASIN">搜索</button>
+                  <button @click="adNegProductTab = 'search'"
+                          :class="['relative h-full text-[12px]', adNegProductTab === 'search' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
+                    搜索
+                    <span v-if="adNegProductTab === 'search'" class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#FA8C16]"></span>
+                  </button>
                   <button @click="adNegProductTab = 'input'"
                           :class="['relative h-full text-[12px]', adNegProductTab === 'input' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
                     输入列表
@@ -610,7 +730,51 @@
                   </button>
                 </div>
 
-                <div class="px-3 pt-3 flex-1">
+                <!-- 搜索：调赛狐接口按 ASIN 查商品 -->
+                <template v-if="adNegProductTab === 'search'">
+                  <div class="flex items-center gap-2 px-2 py-2 border-b border-[#EEEEF6]">
+                    <input v-model="adNegSearchKw" @keyup.enter="searchNegAsins"
+                           placeholder="请输入ASIN（可多个，逗号/空格分隔）"
+                           class="h-7 flex-1 min-w-0 border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                    <button @click="searchNegAsins" :disabled="adNegSearchLoading || !adNegSearchKw.trim()"
+                            class="h-7 w-7 shrink-0 border border-[#DADCE0] rounded-[4px] flex items-center justify-center text-[#8A8F99] hover:border-[#2969FF] disabled:opacity-40">
+                      <svg viewBox="0 0 16 16" class="w-3.5 h-3.5"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.3" /><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.3" /></svg>
+                    </button>
+                  </div>
+                  <div class="grid grid-cols-[minmax(0,1fr)_96px] bg-[#F7F8FA] text-[#606266] border-b border-[#EEEEF6]">
+                    <div class="px-3 h-8 flex items-center">商品信息</div>
+                    <div class="h-8 flex items-center justify-end pr-3">
+                      <button @click="addAllNegSearch" :disabled="!adNegSearchItems.length"
+                              class="text-[12px] text-[#2969FF] hover:underline disabled:opacity-40">添加全部</button>
+                    </div>
+                  </div>
+                  <div class="max-h-[238px] overflow-y-auto">
+                    <div v-for="it in adNegSearchItems" :key="it.asin"
+                         class="grid grid-cols-[minmax(0,1fr)_96px] items-center text-[12px] border-b border-[#F5F6F8] last:border-b-0 py-1.5 hover:bg-[#FAFBFF]">
+                      <div class="px-3 flex items-center gap-2 min-w-0">
+                        <img v-if="it.img && !imgErrors[it.asin]" :src="it.img"
+                             @error="imgErrors[it.asin] = true"
+                             class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] object-cover" loading="lazy" />
+                        <div v-else class="w-7 h-7 shrink-0 rounded border border-[#E4E6EB] bg-[#F7F8FA]"></div>
+                        <div class="min-w-0 leading-tight">
+                          <p class="truncate" :class="it.found ? '' : 'text-[#F54242]'"
+                             :title="it.title || it.asin">{{ it.found ? (it.title || it.asin) : '未找到该 ASIN' }}</p>
+                          <p class="truncate text-[11px] text-[#8A8F99] font-mono">{{ it.asin }}</p>
+                        </div>
+                      </div>
+                      <div class="pr-3 text-right">
+                        <button v-if="it.found" @click="addNegSearchItem(it)"
+                                class="text-[12px] text-[#2969FF] hover:underline">添加</button>
+                        <span v-else class="text-[11px] text-[#B4B8C2]">-</span>
+                      </div>
+                    </div>
+                    <div v-if="adNegSearchLoading" class="py-8 text-center text-[12px] text-[#2969FF] animate-pulse">正在从赛狐在线搜索…</div>
+                    <div v-else-if="!adNegSearchItems.length" class="py-8 text-center text-[12px] text-[#B4B8C2]">输入 ASIN 后点搜索</div>
+                  </div>
+                </template>
+
+                <!-- 输入列表 -->
+                <div v-else class="px-3 pt-3 flex-1">
                   <textarea v-model="adNegAsinInputText" rows="9"
                             placeholder="输入否定ASIN，并用逗号、空格或换行将它们隔开。"
                             class="w-full border border-[#DADCE0] rounded-[4px] px-2 py-1.5 text-[12px] resize-none outline-none focus:border-[#2969FF]"></textarea>
@@ -738,15 +902,15 @@
     </div>
 
     <transition name="fade">
-      <div v-if="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-5 py-3 rounded-lg shadow-lg">{{ toast }}</div>
+      <div v-if="toast" class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[999] max-w-[380px] bg-white border border-[#E4E6EB] text-[#303133] text-sm px-5 py-3 rounded-lg shadow-lg leading-relaxed">{{ toast }}</div>
     </transition>
   </div>
 
   <script>
-    const { createApp, ref, computed } = Vue;
+    const { createApp, ref, computed, watch } = Vue;
 
     const DEFAULT_SETTINGS = () => ({
-      bidding_strategy: 'Fixed bid',
+      bidding_strategy: 'Dynamic bids - up and down',
       default_bid: 25,
       placement_top_pct: 0,
       placement_product_pct: 0,
@@ -822,10 +986,10 @@
           campaign_name: '',
           targeting_type: 'auto',
           campaign_site: 'all',
-          off_amazon_goal: 'maximize_reach',
           amc_enabled: false,
           amc_audience: '',
           amc_bid_pct: 0,
+          placement_business_pct: 0,
           ad_group_name: '',
           start_date: (() => {
             const d = new Date();
@@ -840,9 +1004,10 @@
         const adNegKwTab = ref('input');          // input | library（library 暂不可用）
         const adNegProductTab = ref('input');     // search | input（search 暂不可用）
         const adNegMatchType = ref('negativeExact');
-        const adNegIllegalMode = ref('space');    // clear | space | none
+        const adNegIllegalMode = ref('clear');    // clear | space | none（默认直接清除）
         const adNegKeywordInput = ref('');
         const adNegKeywords = ref([]);            // [{text, match}]
+        const negTip = ref(false);                // ⓘ 提示气泡
         const adNegAsinInputText = ref('');
         const adNegAsins = ref([]);
         const adIllegalModes = [
@@ -857,12 +1022,17 @@
         const adTargetingRows = ref([
           { key: 'bid_close', pred: 'close-match', enabled: true, label: '紧密匹配', desc: '与您的商品密切相关的搜索词' },
           { key: 'bid_loose', pred: 'loose-match', enabled: true, label: '宽泛匹配', desc: '与您的商品不太相关的搜索词' },
-          { key: 'bid_substitutes', pred: 'substitutes', enabled: true, label: '同类商品', desc: '与您的商品相似的同类商品' },
-          { key: 'bid_complements', pred: 'complements', enabled: true, label: '关联商品', desc: '与您的商品互补的商品' }
+          { key: 'bid_substitutes', pred: 'substitutes', enabled: true, label: '同类产品', desc: '与您的商品相似的同类商品' },
+          { key: 'bid_complements', pred: 'complements', enabled: true, label: '关联产品', desc: '与您的商品互补的商品' }
         ]);
 
         const fmt = (n) => Number(n || 0).toLocaleString('ja-JP');
-        const showToast = (m) => { toast.value = m; setTimeout(() => (toast.value = ''), 2600); };
+        let toastTimer = null;
+        const showToast = (m) => {
+          toast.value = m;
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => (toast.value = ''), 2600);
+        };
 
         const currentShopData = computed(() => allShopsData.value[selectedShop.value] || null);
 
@@ -1014,7 +1184,7 @@
             const qs = sourceMark.value ? `?mark=${encodeURIComponent(sourceMark.value)}` : '';
             const res = await fetch('/api/adcreator/products' + qs);
             const json = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(json.detail || '读取在线产品库失败');
+            if (!res.ok) throw new Error(json.detail || '读取商品数据失败');
 
             const shops = json.shops || {};
             allShopsData.value = shops;
@@ -1026,21 +1196,23 @@
             if (!shopList.value.includes(adShop.value)) adShop.value = shopList.value[0] || '';
             headerRow.value = 0;
             resolvedCols.value = json.resolved_columns || {};
-            dataSource.value = 'db';
+            dataSource.value = json.source || 'db';
             dbSummary.value = json.summary || {};
-            fileName.value = `在线产品库 · ${dbSummary.value.parents || 0} 个父体 / ${dbSummary.value.children || 0} 个子体`;
+            const tag = json.source === 'sellfox' ? '赛狐在线' : '本地在线产品库';
+            fileName.value = `${tag} · ${dbSummary.value.parents || 0} 个父体 / ${dbSummary.value.children || 0} 个子体`;
 
             if (!shopList.value.length) {
               error.value = sourceMark.value
                 ? '当前筛选下没有商品（该标记下暂无父体），请切回「全部」。'
-                : '本地在线产品库还没有数据，请先在「在线产品」页采集。';
+                : '没有可用的商品数据（赛狐接口与本地库均为空）。';
               return;
             }
             // 商品由用户在「添加推广的广告产品」里手工勾选，这里不预选
             const total = shopList.value.reduce((s, k) => s + (shops[k].total_parents || 0), 0);
-            showToast(`已载入在线产品库：${shopList.value.length} 个店铺 / ${total} 个父体`);
+            showToast(`已载入${tag}：${shopList.value.length} 个店铺 / ${total} 个父体`);
+            if (dbSummary.value.note) showToast(dbSummary.value.note);
           } catch (e) {
-            error.value = e.message || '读取在线产品库失败';
+            error.value = e.message || '读取商品数据失败';
             allShopsData.value = {};
             shopList.value = [];
           } finally {
@@ -1110,7 +1282,8 @@
           return [...list].sort((a, b) => naturalCompare(a.parent_sku, b.parent_sku));
         });
 
-        const adSelected = computed(() => adProducts.value.filter(p => p.ad_selected));
+        const adSelected = computed(() =>
+          [...adProducts.value, ...adExtraProducts.value].filter(p => p.ad_selected));
         const isAllAdSelected = computed(() =>
           adFiltered.value.length > 0 && adFiltered.value.every(p => p.ad_selected));
         const adProductCount = computed(() =>
@@ -1187,12 +1360,270 @@
         const adTotalBudget = computed(() =>
           adCampaigns.value.reduce((s, c) => s + Number(adBudgetMap.value[c.parent_sku] || 0), 0));
 
+        // ── 选品: 平铺到子 ASIN, 复刻赛狐「添加 / 添加变体」──
+        const adInputMode = ref('search');
+        const adAsinInput = ref('');
+        const adPage = ref(1);
+        const adPageSize = 20;
+        const adFlatRows = computed(() => {
+          const out = [];
+          adFiltered.value.forEach(p => (p.children || []).forEach(c =>
+            out.push({ key: `${p.parent_sku}|${c.asin}`, p, c })));
+          return out;
+        });
+        const adPageCount = computed(() =>
+          Math.max(1, Math.ceil(adFlatRows.value.length / adPageSize)));
+        const adPageRows = computed(() =>
+          adFlatRows.value.slice((adPage.value - 1) * adPageSize, adPage.value * adPageSize));
+        const adAddedRows = computed(() => {
+          const out = [];
+          adSelected.value.forEach(p => adKids(p).forEach(c =>
+            out.push({ key: `${p.parent_sku}|${c.asin}`, p, c })));
+          return out;
+        });
+        const addParent = (p) => { p.ad_selected = true; };
+        const addVariant = (p, c) => {
+          p.ad_selected = true;
+          if (p._kidOff && p._kidOff[c.asin]) delete p._kidOff[c.asin];
+        };
+        const addPageRows = () => {
+          adPageRows.value.forEach(r => { r.p.ad_selected = true; });
+        };
+        const removeAdded = (r) => {
+          const on = adKids(r.p);
+          if (on.length <= 1) {                 // 只剩这一个子体, 直接移出父体
+            r.p.ad_selected = false;
+            r.p._kidOff = {};
+            fillBidsFromSuggest();
+            return;
+          }
+          r.p._kidOff = r.p._kidOff || {};
+          r.p._kidOff[r.c.asin] = true;
+          fillBidsFromSuggest();
+        };
+        const addByAsinInput = () => {
+          const tokens = String(adAsinInput.value || '')
+            .split(/[\s,，;；]+/).filter(Boolean).map(t => t.toLowerCase());
+          if (!tokens.length) { showToast('请先输入 ASIN 或 MSKU'); return; }
+          let hit = 0;
+          adProducts.value.forEach(p => {
+            (p.children || []).forEach(c => {
+              const k = String(c.asin || '').toLowerCase();
+              const m = String(c.msku || '').toLowerCase();
+              if (tokens.includes(k) || tokens.includes(m)) {
+                p.ad_selected = true;
+                if (p._kidOff && p._kidOff[c.asin]) delete p._kidOff[c.asin];
+                hit += 1;
+              }
+            });
+          });
+          showToast(hit ? `已添加 ${hit} 个 ASIN` : '未匹配到 ASIN / MSKU');
+        };
+        watch(adSearch, () => { adPage.value = 1; });
+
+        // ── 在线搜索（调赛狐接口 productRightSpPageListSearch, 按 ASIN）──
+        const adOnlineKw = ref('');
+        const adOnlineLoading = ref(false);
+        const adOnlineItems = ref([]);
+        const adExtraProducts = ref([]);      // 从赛狐在线搜索添加的商品（不在本地池）
+
+        const addOnlineProduct = (it) => {
+          const kids = (it.children || []).map(c => ({
+            asin: c.asin, msku: c.msku, price: Number(c.price) || 0 }));
+          const priced = kids.filter(c => c.price > 0);
+          return {
+            parent_sku: it.sku || it.parent_asin,
+            product_name: it.title || it.parent_asin,
+            raw_name: it.title || '',
+            image_url: it.img || '',
+            child_count: kids.length,
+            avg_price: priced.length
+              ? Math.round(priced.reduce((s, c) => s + c.price, 0) / priced.length * 100) / 100 : 0,
+            parent_asins: [it.parent_asin],
+            children: kids,
+            ad_selected: true,
+            _online: true
+          };
+        };
+        const adOnlineAddedSet = computed(() => {
+          const s = {};
+          adExtraProducts.value.forEach(p => (p.parent_asins || []).forEach(a => { s[a] = true; }));
+          return s;
+        });
+        const searchOnline = async () => {
+          const kw = String(adOnlineKw.value || '').trim();
+          if (!kw) { showToast('请输入 ASIN'); return; }
+          adOnlineLoading.value = true;
+          try {
+            const res = await fetch('/api/adcreator/sellfox-search?shop='
+              + encodeURIComponent(adShop.value) + '&kw=' + encodeURIComponent(kw));
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.detail || '搜索失败');
+            adOnlineItems.value = j.items || [];
+            if (!adOnlineItems.value.length) showToast('未搜索到商品');
+          } catch (e) {
+            adOnlineItems.value = [];
+            showToast(e.message || '搜索失败');
+          } finally {
+            adOnlineLoading.value = false;
+          }
+        };
+        const addOnlineItem = (it) => {
+          if (!it || adOnlineAddedSet.value[it.parent_asin]) return false;
+          adExtraProducts.value.push(addOnlineProduct(it));
+          return true;
+        };
+        const addAllOnline = () => {
+          let n = 0;
+          adOnlineItems.value.forEach(it => { if (addOnlineItem(it)) n += 1; });
+          showToast(n ? `已添加 ${n} 个在线商品` : '商品均已添加');
+        };
+
+        // ── 建议竞价：对齐赛狐原页面逻辑 ──
+        // 源码逆向（use-ad-create-steps-anchor chunk）: watch [已选ASIN, 广告位%, 竞价策略]
+        // 任一变化即把**全部已选 ASIN 合并一次请求**（不按品拆），返回三档写入各投放组。
+        const adSuggest = ref(null);          // {'close-match':[低,中,高], ...}（合并口径）
+        const adSuggestLoading = ref(false);
+        const adBidTouched = ref({});         // 用户手改过的投放组竞价，不自动覆盖
+        const AD_BID_ROW = {
+          'close-match': 'bid_close', 'loose-match': 'bid_loose',
+          substitutes: 'bid_substitutes', complements: 'bid_complements'
+        };
+        // 页面竞价方案 → 赛狐 biddingStrategy（源码映射: autoForSales/legacyForSales/manual）
+        const AD_STRATEGY_MAP = {
+          'Dynamic bids - up and down': 'LEGACY_FOR_SALES',
+          'Dynamic bids - down only': 'AUTO_FOR_SALES',
+          'Fixed bid': 'MANUAL'
+        };
+
+        const adSelectedAsins = computed(() =>
+          adSelected.value.flatMap(p => adKids(p).map(c => c.asin)).filter(Boolean));
+        const adSuggestKey = computed(() => [
+          adShop.value, adSettings.value.bidding_strategy,
+          adSettings.value.placement_top_pct, adSettings.value.placement_rest_pct,
+          adSettings.value.placement_product_pct,
+          [...adSelectedAsins.value].sort().join(',')
+        ].join('|'));
+
+        const adBidBand = (pred) => {
+          const b = adSuggest.value && adSuggest.value[pred];
+          return Array.isArray(b) && b.length ? b : null;
+        };
+        const adBidRangeText = (pred) => {
+          const b = adBidBand(pred);
+          if (!b) return '-';
+          const parts = b.filter(v => v > 0);
+          return parts.length ? parts.join(' / ') : '-';
+        };
+
+        // 用「建议」档（中位）回填「竞价」，用户手改过的不动
+        const fillBidsFromSuggest = () => {
+          adTargetingRows.value.forEach(row => {
+            if (!row.enabled || adBidTouched.value[row.key]) return;
+            const b = adBidBand(row.pred);
+            if (b && b[1] > 0) adSettings.value[row.key] = b[1];
+          });
+        };
+        const markBidTouched = (key) => {
+          adBidTouched.value = { ...adBidTouched.value, [key]: true };
+        };
+
+        // 「应用」：把某一档建议竞价写入竞价输入框（对齐赛狐：表头=所有启用组，行内=本组）
+        const adApplyLevel = ref('');
+        const applyBidLevel = (pred, level) => {
+          const b = adBidBand(pred);
+          if (!b) { showToast('暂无建议竞价'); return; }
+          const idx = level === 'low' ? 0 : level === 'high' ? 2 : 1;
+          const v = b[idx];
+          if (!(v > 0)) { showToast('该档位无建议值'); return; }
+          return v;
+        };
+        const applyAllBids = (level) => {
+          adApplyLevel.value = '';
+          if (!level) return;
+          // 批量应用：每行取**各自**三档里的对应档位（最低/建议/最高），不是复制同一个值
+          const idx = level === 'low' ? 0 : level === 'high' ? 2 : 1;
+          const name = level === 'low' ? '最低价' : level === 'high' ? '最高价' : '建议价';
+          let n = 0;
+          adTargetingRows.value.forEach(r => {
+            const b = adBidBand(r.pred);
+            const v = b && b[idx];
+            if (v > 0) {
+              adSettings.value[r.key] = v;
+              adBidTouched.value = { ...adBidTouched.value, [r.key]: true };
+              n += 1;
+            }
+          });
+          showToast(n ? `已按${name}批量应用 ${n} 个投放组（各行取各自建议值）` : '暂无建议竞价');
+        };
+        const applyRowBid = (pred, level) => {
+          if (!level) return;
+          const v = applyBidLevel(pred, level);
+          if (!(v > 0)) return;
+          const row = adTargetingRows.value.find(r => r.pred === pred);
+          if (!row) return;
+          adSettings.value[row.key] = v;
+          adBidTouched.value = { ...adBidTouched.value, [row.key]: true };
+          showToast(`${row.label} 竞价已设为 JP￥${v}`);
+        };
+
+        let suggestTimer = null;
+        let lastSuggestKey = '';
+        const fetchSuggest = async () => {
+          const key = adSuggestKey.value;
+          if (key === lastSuggestKey) return;         // 同一状态不重复请求
+          lastSuggestKey = key;
+          const shop = adShop.value;
+          const asins = adSelectedAsins.value;
+          if (!shop || !asins.length) { adSuggest.value = null; return; }
+          adSuggestLoading.value = true;
+          try {
+            const res = await fetch('/api/adcreator/suggest-bids', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shop,
+                asins,
+                bidding_strategy: AD_STRATEGY_MAP[adSettings.value.bidding_strategy] || 'LEGACY_FOR_SALES',
+                placement_top: Number(adSettings.value.placement_top_pct) || null,
+                placement_rest: Number(adSettings.value.placement_rest_pct) || null,
+                placement_product: Number(adSettings.value.placement_product_pct) || null
+              })
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              throw new Error(j.detail || '建议竞价接口失败');
+            }
+            const j = await res.json();
+            adSuggest.value = j.bids || null;
+            fillBidsFromSuggest();
+          } catch (e) {
+            adSuggest.value = null;
+            showToast(e.message || '建议竞价获取失败');
+          } finally {
+            adSuggestLoading.value = false;
+          }
+        };
+        const scheduleSuggest = () => {
+          clearTimeout(suggestTimer);
+          suggestTimer = setTimeout(fetchSuggest, 700);   // 防抖：广告位%连续输入时只发一次
+        };
+        watch([adSuggestKey], scheduleSuggest);
+
+        const resetSuggestBids = () => {
+          adSuggest.value = null;
+          lastSuggestKey = '';
+          adBidTouched.value = {};
+          const d = DEFAULT_SETTINGS();
+          Object.values(AD_BID_ROW).forEach(k => { adSettings.value[k] = d[k]; });
+        };
+
         // 广告位竞价示例（复刻赛狐：¥1.00 竞价按百分比调整后的结果）
         const bidExample = (pct) => {
           const p = Number(pct) || 0;
-          if (p <= 0) return '示例：对于此广告位，JPY 1.00 竞价将保持 JPY 1.00 不变';
+          if (p <= 0) return '示例：对于此广告位，$1.00竞价将保持$1.00不变';
           const v = (1 + p / 100).toFixed(2);
-          return `示例：对于此广告位，JPY 1.00 竞价将变为 JPY ${v}`;
+          return `示例：对于此广告位，$1.00竞价将变为$${v}`;
         };
 
         // 本地日期（与后端 campaign_name 的 today_str 保持一致）
@@ -1260,14 +1691,56 @@
         const removeNegAsin = (a) => {
           adNegAsins.value = adNegAsins.value.filter((x) => x !== a);
         };
+
+        // 否定商品「搜索」：调赛狐接口按 ASIN 查商品，再一键加为否定
+        const adNegSearchKw = ref('');
+        const adNegSearchLoading = ref(false);
+        const adNegSearchItems = ref([]);
+        const searchNegAsins = async () => {
+          const kw = String(adNegSearchKw.value || '').trim();
+          if (!kw) { showToast('请输入 ASIN'); return; }
+          adNegSearchLoading.value = true;
+          try {
+            const res = await fetch('/api/adcreator/search-asins-for-targeting?shop='
+              + encodeURIComponent(adShop.value) + '&kw=' + encodeURIComponent(kw));
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.detail || '搜索失败');
+            adNegSearchItems.value = j.items || [];
+            if (!adNegSearchItems.value.length) showToast('未搜索到商品');
+          } catch (e) {
+            adNegSearchItems.value = [];
+            showToast(e.message || '搜索失败');
+          } finally {
+            adNegSearchLoading.value = false;
+          }
+        };
+        const addNegSearchItem = (it, silent = false) => {
+          if (!it || !it.found) return 0;
+          const asin = String(it.asin || '').toUpperCase();
+          if (!/^[A-Z0-9]{10}$/.test(asin)) return 0;
+          let added = 0;
+          if (!adNegAsins.value.includes(asin)) {
+            adNegAsins.value.push(asin);
+            added = 1;
+          }
+          if (!silent) showToast(added ? `已添加否定 ASIN：${asin}` : `${asin} 已在否定列表`);
+          return added;
+        };
+        const addAllNegSearch = () => {
+          let n = 0;
+          adNegSearchItems.value.forEach(it => { n += addNegSearchItem(it, true); });
+          showToast(n ? `已添加 ${n} 个否定 ASIN` : '均在否定列表中');
+        };
         const clearNegAsins = () => { adNegAsins.value = []; };
 
         const addAdProduct = (p) => { p.ad_selected = true; p._kidsOpen = true; };
-        const removeAdProduct = (p) => { p.ad_selected = false; p._kidsOpen = false; };
+        const removeAdProduct = (p) => { p.ad_selected = false; p._kidsOpen = false; fillBidsFromSuggest(); };
         const clearAdProducts = () => {
           adProducts.value.forEach(p => {
             p.ad_selected = false; p._kidsOpen = false; p._kidOff = {};
           });
+          adExtraProducts.value = [];
+          resetSuggestBids();
         };
         const clearKidFilter = (p) => { p._kidOff = {}; };
         const goAdBlock = (i) => {
@@ -1283,11 +1756,13 @@
         const resetAdForm = () => {
           adSearch.value = '';
           adProducts.value.forEach(p => { p.ad_selected = false; p._kidsOpen = false; p._kidOff = {}; });
+          adExtraProducts.value = [];
           adNegKeywords.value = [];
           adNegAsins.value = [];
           adNegKeywordInput.value = '';
           adNegAsinInputText.value = '';
           adSettings.value = { ...adSettings.value, campaign_name: '', ad_group_name: '' };
+          resetSuggestBids();
           showToast('已清空当前广告创建表单');
         };
 
@@ -1298,6 +1773,7 @@
             if (!target) p._kidsOpen = false;
             if (target) p._kidOff = {};      // 全部添加 = 全部子体都投
           });
+          if (!target) fillBidsFromSuggest();
         };
 
         const exportAdExcel = async () => {
@@ -1522,10 +1998,18 @@
           adCampaigns, adTotalBudget, adCampaignName, adExporting, exportAdExcel, bidExample,
           adSteps, adTargetingRows, addAdProduct, removeAdProduct, clearAdProducts, goAdBlock,
           toggleAdProduct, isKidOn, toggleKid, adKidOnCount, adSelectedKidCount, clearKidFilter,
-          adNegKwTab, adNegProductTab, adNegMatchType, adNegIllegalMode, adIllegalModes,
+          adInputMode, adAsinInput, adPage, adPageCount, adPageRows, adFlatRows, adAddedRows,
+          addParent, addVariant, addPageRows, removeAdded, addByAsinInput,
+          adSuggestLoading, adBidRangeText, markBidTouched,
+          adApplyLevel, applyAllBids, applyRowBid, adBidBand,
+          adOnlineKw, adOnlineLoading, adOnlineItems, adOnlineAddedSet,
+          searchOnline, addOnlineItem, addAllOnline,
+          adNegKwTab, adNegProductTab, adNegMatchType, adNegIllegalMode, adIllegalModes, negTip,
           adNegKeywordInput, adNegKeywords, negKeywordCount,
           addNegKeywords, removeNegKeyword, clearNegKeywords,
-          adNegAsinInputText, adNegAsins, addNegAsins, removeNegAsin, clearNegAsins
+          adNegAsinInputText, adNegAsins, addNegAsins, removeNegAsin, clearNegAsins,
+          adNegSearchKw, adNegSearchLoading, adNegSearchItems,
+          searchNegAsins, addNegSearchItem, addAllNegSearch
         };
       }
     }).mount('#app');

@@ -1,0 +1,15 @@
+[
+ {
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/multiple/target/suggestBid/recommendations",
+  "status": 200,
+  "post": "{\"shopId\":\"711811\",\"biddingStrategy\":\"AUTO_FOR_SALES\",\"asins\":[\"B0HQ5ZP2QW\",\"B0HQ5X58H6\",\"B0HQ5T88BD\",\"B0HQ5XXRNP\",\"B0HQ5SLR7F\",\"B0HQ5TL8S8\",\"B0HQ5TXPCX\",\"B0HQ5XQ9G3\",\"B0HQ61XJTV\",\"B0HQ5ZF23S\",\"B0HQ5ZGTNP\",\"B0HQ5TD9HP\",\"B0HQ62MPYW\",\"B0HQ5RTKMT\",\"B0HQ5WMB3J\"],\"targetingExpressions\":[{\"type\":\"CLOSE_MATCH\",\"value\":\"\"},{\"type\":\"LOOSE_MATCH\",\"value\":\"\"},{\"type\":\"SUBSTITUTES\",\"value\":\"\"},{\"type\":\"COMPLEMENTS\",\"value\":\"\"}],\"placementProductPage\":null,\"placementTop\":null,\"placementRestOfSearch\":null,\"campaignId\":\"\",\"groupId\":\"\"}",
+  "headers": {
+   "content-type": "application/json",
+   "cookie": "MYJ_MKTG_fd02153a09=JTdCJTdE; x-hng=lang=zh-CN&domain=www.sellfox.com; _ga=GA1.1.1839127066.1788581313; TDC_itoken=427456439%3A1788581381; _uetvid=7607e8b0a8df11f1848bf146633279dd; sf_u=%2BWlW5QD1EQ0KfY0DW6CL1sm%2B8R9Yhm8WM7x%2BQPLGKfKiF9woeF9gSiSY%2BJjFlRgzjnmQ81ZOKF370mty%2F4zzoYkOFjCYD5hPq%2FTRVRb9vsT44094U%2F1RTn4XcxQis%2FNX6ENE6pu%2Fej%2FTQy%2Fd8HZ3sLHQCPwIAwBPdsIdvnZSYxR2Y%2B3lpRBa5gpDyNN0DUn8ZQ7z9dJ1WCnm8QymvwRwOTUvSE0jw5L0ma7bpEnhYRrJuzAj%2BD5OYv2HOjQrQ3mKbj93AO1CaSMbvheP%2B0bwwgQxVmUXWRTrygTjlTBjd%2FtuQ2RNUoNBLN5SNmH9ILQFrsGhwH0j%2FHW9PguMxaTM6TfgE2EHlhCvfQFHIIv0SBXRAhNceNmNo20wHalS8yuM; sf_help=1; Hm_lvt_92c5c06f81bf2aca28a4d8657431d728=1793580671,1793589520,1793608824,1793609285; HMACCOUNT=B4457FBF3E21DE7C; Hm_lvt_76b4378fb47ac1a49775fa52e1deba97=1793580729,1793589521,1793608826,1793609285; _ga_PMPKLEEXWQ=GS2.1.s1793620427$o63$g0$t1793620427$j60$l0$h0; _gcl_au=1.1.1014978864.1788581313.-.-.1788581313.1354829443.1793620428.1793620427; Hm_lpvt_92c5c06f81bf2aca28a4d8657431d728=1793689212; MYJ_fd02153a09=JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI4NWIzODU4Ny1lNjQxLTRmZWItYmFmOS0xNzIwMjQ2Y2Q5NWYlMjIlMkMlMjJ1c2VySWQlMjIlM0E0MDIwNTglMkMlMjJwYXJlbnRJZCUyMiUzQTQwMjA1OCUyQyUyMnNlc3Npb25JZCUyMiUzQTE3OTM2ODk0NTQzMTAlMkMlMjJvcHRPdXQlMjIlM0FmYWxzZSUyQyUyMmxhc3RFdmVudElkJTIyJTNBMjQwNCU3RA==; tgw_l7_route=254ad2175f9ab7df33eea35fc165dc06; Hm_lpvt_76b4378fb47ac1a49775fa52e1deba97=1793692899; MYJ_fd02153a09=JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI4NWIzODU4Ny1lNjQxLTRmZWItYmFmOS0xNzIwMjQ2Y2Q5NWYlMjIlMkMlMjJ1c2VySWQlMjIlM0E0MDIwNTglMkMlMjJwYXJlbnRJZCUyMiUzQTQwMjA1OCUyQyUyMnNlc3Npb25JZCUyMiUzQTE3OTM2OTI4NTI1NDMlMkMlMjJvcHRPdXQlMjIlM0FmYWxzZSUyQyUyMmxhc3RFdmVudFRpbWUlMjIlM0ExNzkzNjkyOTExODc4JTJDJTIybGFzdEV2ZW50SWQlMjIlM0EyNDE2JTdE",
+   "origin": "https://www.sellfox.com",
+   "referer": "https://www.sellfox.com/amzup-web-main/amzup-web-cpc-vue3?amzup-web-cpc-vue3=%2Fcpc-vue3%2Fweb%2Fcpc-vue3%2Fad-create%2Findex.html%3FshopIdList%3D711811%26adType%3Dsp",
+   "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+  },
+  "resp": "{\"code\":0,\"msg\":\"\",\"data\":{\"bidInfo\":[]}}"
+ }
+]

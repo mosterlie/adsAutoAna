@@ -1,0 +1,402 @@
+[
+ {
+  "type": "document",
+  "method": "GET",
+  "url": "https://www.sellfox.com/amzup-web-main/amzup-web-cpc-vue3?amzup-web-cpc-vue3=%2Fcpc-vue3%2Fweb%2Fcpc-vue3%2Fad-create%2Findex.html%3FshopIdList%3D711811%26adType%3Dsp%26ts%3D1793694715835",
+  "status": 200,
+  "post": "",
+  "resp": "<!doctype html><html><head><title>赛狐ERP - 跨境电商精细化管理系统</title><meta charset=\"UTF-8\"/><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\"/><meta http-equiv=\"cache-control\" content=\"no-store\"/><meta http-equiv=\"Pragma\" content=\"no-store\"/><meta http-equiv=\"expires\" content=\"0\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no\"/><meta name=\"keywords\" content=\"亚马逊ERP,跨境电商ERP,亚马逊运营ERP,亚马逊精细化运营管理ERP,亚马逊运营系统,赛狐,赛狐ERP，\"/><meta name=\"description\" content=\"赛狐ERP是店小秘旗下专为亚马逊卖家打造的精细化运营管理系统，提供管理、运营、财务、供应链全链路的数字化解决方案。\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:site_name\" content=\"赛狐Sellfox\"/><meta content=\"telephone=no\" name=\"format-detection\"/><meta content=\"yes\" name=\"apple-mobile-web-app-capable\"/><meta content=\"black\" name=\"apple-mobile-web-app-status-bar-style\"/><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/theme/theme_03/elementUI_theme_2026.min.css\"><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/vxe-table-3.2.1/lib/vxe_table_theme_2025.min.css\"><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/icon_flags/icon_flags.min.css\"><script data-inline=\"index.js\"></script><link rel=\"icon\" href=\"https://s1.sellfox.com/sellfox-web/2026-11/favicon.ico\"><link href=\"https://s1.sellfox.com/sellfox-web/2026-11/css/web-static.8f840bea.css\" rel=\"stylesheet\"><link href=\"https://s1.sellfox.com/sellfox-web/2026-11/css/index.0fb866e0.css\" rel=\"stylesheet\"></head><bod"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://aegis.qq.com/collect/pv?id=aZL6W4A16vzjNXJOKD&uin=&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793694772178&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp%2526ts%253D1793694715835&referer=",
+  "status": 204,
+  "post": "",
+  "resp": ""
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/isLogin.json?reqTime=1793694772262",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":true,\"ts\":1793694772588}"
+ },
+ {
+  "type": "fetch",
+  "method": "GET",
+  "url": "https://www.sellfox.com/cpc/web/transition.html",
+  "status": 200,
+  "post": "",
+  "resp": "<!doctype html><html><head><title>赛狐ERP - 跨境电商精细化管理系统</title><meta charset=\"UTF-8\"/><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\"/><meta http-equiv=\"cache-control\" content=\"no-store\"/><meta http-equiv=\"Pragma\" content=\"no-store\"/><meta http-equiv=\"expires\" content=\"0\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no\"/><meta name=\"keywords\" content=\"亚马逊ERP,跨境电商ERP,亚马逊运营ERP,亚马逊精细化运营管理ERP,亚马逊运营系统,赛狐,赛狐ERP，\"/><meta name=\"description\" content=\"赛狐ERP是店小秘旗下专为亚马逊卖家打造的精细化运营管理系统，提供管理、运营、财务、供应链全链路的数字化解决方案。\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:site_name\" content=\"赛狐Sellfox\"/><meta content=\"telephone=no\" name=\"format-detection\"/><meta content=\"yes\" name=\"apple-mobile-web-app-capable\"/><meta content=\"black\" name=\"apple-mobile-web-app-status-bar-style\"/><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/theme/theme_03/elementUI_theme_2026.min.css\"><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/vxe-table-3.2.1/lib/vxe_table_theme_2025.min.css\"><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/icon_flags/icon_flags.min.css\"><style>#main-first-screen-loading {\n                display: none;\n                flex-direction: column;\n                align-items: center;\n                justify-content: center;\n                top: 50%;\n                left: 50%;\n                position: absolute;\n                transform: translateY(-50%) translate"
+ },
+ {
+  "type": "fetch",
+  "method": "GET",
+  "url": "https://www.sellfox.com/finance/web/transition.html",
+  "status": 200,
+  "post": "",
+  "resp": "<!doctype html><html><head><title>赛狐ERP - 跨境电商精细化管理系统</title><meta charset=\"UTF-8\"/><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\"/><meta http-equiv=\"cache-control\" content=\"no-store\"/><meta http-equiv=\"Pragma\" content=\"no-store\"/><meta http-equiv=\"expires\" content=\"0\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no\"/><meta name=\"keywords\" content=\"亚马逊ERP,跨境电商ERP,亚马逊运营ERP,亚马逊精细化运营管理ERP,亚马逊运营系统,赛狐,赛狐ERP，\"/><meta name=\"description\" content=\"赛狐ERP是店小秘旗下专为亚马逊卖家打造的精细化运营管理系统，提供管理、运营、财务、供应链全链路的数字化解决方案。\"/><meta property=\"og:type\" content=\"website\"/><meta property=\"og:site_name\" content=\"赛狐Sellfox\"/><meta content=\"telephone=no\" name=\"format-detection\"/><meta content=\"yes\" name=\"apple-mobile-web-app-capable\"/><meta content=\"black\" name=\"apple-mobile-web-app-status-bar-style\"/><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/theme/theme_03/elementUI_theme_2026.min.css\"><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/vxe-table-3.2.1/lib/vxe_table_theme_2025.min.css\"><link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/icon_flags/icon_flags.min.css\"><style>#main-first-screen-loading {\n                display: none;\n                flex-direction: column;\n                align-items: center;\n                justify-content: center;\n                top: 50%;\n                left: 50%;\n                position: absolute;\n                transform: translateY(-50%) translate"
+ },
+ {
+  "type": "fetch",
+  "method": "GET",
+  "url": "https://www.sellfox.com/vue3/web/transition.html",
+  "status": 200,
+  "post": "",
+  "resp": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <title>赛狐ERP - 跨境电商精细化管理系统</title>\n    <meta charset=\"UTF-8\" />\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\" />\n    <meta http-equiv=\"cache-control\" content=\"no-store\" />\n    <meta http-equiv=\"Pragma\" content=\"no-store\" />\n    <meta http-equiv=\"expires\" content=\"0\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no\" />\n    <meta name=\"keywords\" content=\"亚马逊ERP,跨境电商ERP,亚马逊运营ERP,亚马逊精细化运营管理ERP,亚马逊运营系统,赛狐,赛狐ERP，\" />\n    <meta\n        name=\"description\"\n        content=\"赛狐ERP是店小秘旗下专为亚马逊卖家打造的精细化运营管理系统，提供管理、运营、财务、供应链全链路的数字化解决方案。\"\n    />\n    <meta property=\"og:type\" content=\"website\" />\n    <meta property=\"og:site_name\" content=\"赛狐Sellfox\" />\n    <meta content=\"telephone=no\" name=\"format-detection\" />\n    <meta content=\"yes\" name=\"apple-mobile-web-app-capable\" />\n    <meta content=\"black\" name=\"apple-mobile-web-app-status-bar-style\" />\n    <link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/icon_flags/icon_flags.min.css\">\n    <!-- element-plus/dist/index.css 资源改为 CDN 引入是为了提高加载顺序，优先加载和执行，避免同类名优先级样式覆盖 Vue3 公共组件样式问题 -->\n    <!-- 注意：以后升级 Element-Plus 版本，必须上传对应版本的样式文件到 CDN（https://s1.sellfox.com/fe-res/s/element-plus/<版本号>/index.css），并同步更新下方链接中的版本号 -->\n    <link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/element-plus/2.13.1/index.css\" />\n    <style type=\"text/css\">\n      #main-first-screen-loading {\n          display: none;\n  "
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/index.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"login\":true,\"user\":{\"id\":402058,\"puid\":402058,\"openId\":502258,\"mobile\":\"18511560280\",\"email\":null,\"nickname\":\"管理员\",\"createTime\":\"2026-09-05 12:10:02\",\"subUser\":true,\"adminUser\":true,\"authCpc\":true,\"authShop\":true,\"authTTShop\":false,\"validAuthShop\":null,\"vcAuthShop\":false,\"planType\":0,\"freeUser\":true,\"overShop\":false,\"remainOrder\":null,\"remainDays\":null,\"roleNames\":[],\"roleNameStr\":null,\"accountName\":\"sf.2609053t2aLnpc\",\"accountUpdateNum\":0,\"authType\":0,\"remainExpireDays\":null,\"status\":1,\"userDepDtoList\":null,\"self\":null},\"warehouse\":\"0\",\"shelf\":\"0\",\"shopSites\":[{\"shopId\":711811,\"shopName\":\"金梧汇辰\",\"sellingPartnerId\":\"A3IM82P5RF6MRV\",\"region\":\"fe\",\"marketplaceId\":\"A1VC38T7YXB528\",\"marketplace\":\"JP\",\"marketplaceCN\":\"日本\",\"domain\":\"www.amazon.co.jp\",\"cpcAuth\":true,\"lowCostStore\":false,\"shopType\":null,\"platformShopType\":null,\"platformType\":\"AMAZON\",\"platformName\":\"Amazon\",\"status\":0,\"shopWarehouseName\":\"金梧汇辰-日本仓\"}],\"pack\":{\"haveBuy\":true,\"master\":null,\"userPack\":{\"id\":93029,\"puid\":402058,\"packId\":1,\"packName\":\"免费版\",\"total\":3000,\"remain\":3000,\"startTime\":\"2026-09-05 12:10:04\",\"endTime\":\"2026-09-05 12:10:04\",\"delayTime\":\"2026-09-05 12:10:04\",\"outStatus\":\"active\",\"delayDays\":0,\"remainDays\":0,\"packSource\":\"normal\"},\"packList\":null,\"goodsList\":null,\"havePendingPack\":false},\"userRights\":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,\"MOD_CUSTOM_REPORT\",\"MOD_STAT_SPU\",\"MOD_FINANCIAL_PROFIT_REPORT\",\"MOD_BUSINESS_"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://aegis.qq.com/collect/whitelist?id=aZL6W4A16vzjNXJOKD&uin=&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793694772178&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp%2526ts%253D1793694715835&referer=",
+  "status": 200,
+  "post": "",
+  "resp": "{\"retcode\":0,\"result\":{\"is_in_white_list\":false,\"rate\":1,\"use_gzip\":0}}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-stats/sellfox/dynamicpath/config",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"OK\",\"data\":[{\"oldPath\":\"/api/multiplatform/mercado/product/globalProductPage.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/globalProductPage\"},{\"oldPath\":\"/api/multiplatform/mercado/product/listAllGlobalVariation.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/listAllGlobalVariation\"},{\"oldPath\":\"/api/multiplatform/mercado/product/productPage.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/productPage\"},{\"oldPath\":\"/api/multiplatform/mercado/product/listAllVariation.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/listAllVariation\"},{\"oldPath\":\"/api/multiplatform/mercado/product/manualSyncProduct.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/manualSyncProduct\"},{\"oldPath\":\"/api/multiplatform/mercado/product/match.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/match\"},{\"oldPath\":\"/api/multiplatform/mercado/product/cancelMatch.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/cancelMatch\"},{\"oldPath\":\"/api/multiplatform/mercado/product/getCbtVariation.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product/sellfox/api/multiplatform/mercado/product/getCbtVariation\"},{\"oldPath\":\"/api/multiplatform/mercado/product/adjustPrice.json\",\"newPath\":\"/api/gw/sellfox/sellfox-product"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/index/default90day.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":false,\"ts\":1793694773170}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-warehouse/sellfox/api/warehouse/gary/checkFiFoGray",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":false,\"ts\":0}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/oversea/getOverseaPickingListAgentSystem.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[],\"ts\":1793694773178}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/fba/shippingOrder/isEnablePicking.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"\",\"data\":false,\"ts\":1793694773180}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/index/customShops.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[],\"ts\":1793694773180}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/index/multiPlatformShops.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[],\"ts\":1793694773183}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/shop/getSupportLowCostStore.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":false,\"ts\":1793694773187}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-warehouse/sellfox/warehouse/warehouseThirdList",
+  "status": 200,
+  "post": "{\"needThird\":true}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"id\":340234,\"name\":\"虚拟仓库\",\"type\":-1,\"mode\":0,\"manager\":\"-\",\"managerMobile\":\"-\",\"address\":null,\"replenishSite\":\"-\",\"isBatch\":false,\"overseaWarehouseId\":null,\"overseaMode\":0,\"dep\":false,\"userIdList\":null,\"disableUserIdList\":null,\"depIdList\":null,\"disableDepIdList\":null,\"puid\":402058,\"soleMark\":\"-\",\"createId\":402058,\"updateId\":402058,\"isPd\":0,\"delSign\":0,\"agentId\":null}],\"ts\":0}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-warehouse/sellfox/warehouse/warehouseThirdList",
+  "status": 200,
+  "post": "{\"needThird\":true}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"id\":340234,\"name\":\"虚拟仓库\",\"type\":-1,\"mode\":0,\"manager\":\"-\",\"managerMobile\":\"-\",\"address\":null,\"replenishSite\":\"-\",\"isBatch\":false,\"overseaWarehouseId\":null,\"overseaMode\":0,\"dep\":false,\"userIdList\":null,\"disableUserIdList\":null,\"depIdList\":null,\"disableDepIdList\":null,\"puid\":402058,\"soleMark\":\"-\",\"createId\":402058,\"updateId\":402058,\"isPd\":0,\"delSign\":0,\"agentId\":null}],\"ts\":0}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-warehouse/sellfox/warehouse/warehouseThirdList",
+  "status": 200,
+  "post": "{\"needThird\":true,\"controlled\":\"enable\"}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"id\":340234,\"name\":\"虚拟仓库\",\"type\":-1,\"mode\":0,\"manager\":\"-\",\"managerMobile\":\"-\",\"address\":null,\"replenishSite\":\"-\",\"isBatch\":false,\"overseaWarehouseId\":null,\"overseaMode\":0,\"dep\":false,\"userIdList\":null,\"disableUserIdList\":null,\"depIdList\":null,\"disableDepIdList\":null,\"puid\":402058,\"soleMark\":\"-\",\"createId\":402058,\"updateId\":402058,\"isPd\":0,\"delSign\":0,\"agentId\":null}],\"ts\":0}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-warehouse/sellfox/warehouse/warehouseThirdList",
+  "status": 200,
+  "post": "{\"needThird\":true,\"controlled\":\"enable\"}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"id\":340234,\"name\":\"虚拟仓库\",\"type\":-1,\"mode\":0,\"manager\":\"-\",\"managerMobile\":\"-\",\"address\":null,\"replenishSite\":\"-\",\"isBatch\":false,\"overseaWarehouseId\":null,\"overseaMode\":0,\"dep\":false,\"userIdList\":null,\"disableUserIdList\":null,\"depIdList\":null,\"disableDepIdList\":null,\"puid\":402058,\"soleMark\":\"-\",\"createId\":402058,\"updateId\":402058,\"isPd\":0,\"delSign\":0,\"agentId\":null}],\"ts\":0}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/shop/selectAllPlatformShopInfo.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"platform\":\"AMAZON\",\"platformName\":\"Amazon\",\"shopInfoList\":[{\"id\":711811,\"shopName\":\"金梧汇辰\",\"marketplace\":\"A1VC38T7YXB528\",\"marketplaceName\":\"日本\",\"cpcAuth\":true}]},{\"platform\":\"TEMU\",\"platformName\":\"Temu\",\"shopInfoList\":null},{\"platform\":\"TIKTOK\",\"platformName\":\"TikTok\",\"shopInfoList\":null},{\"platform\":\"WALMART\",\"platformName\":\"Walmart\",\"shopInfoList\":null},{\"platform\":\"SHEIN\",\"platformName\":\"SHEIN\",\"shopInfoList\":null},{\"platform\":\"WAYFAIR\",\"platformName\":\"Wayfair\",\"shopInfoList\":null},{\"platform\":\"ALIEXPRESS\",\"platformName\":\"AliExpress\",\"shopInfoList\":null},{\"platform\":\"MERCADO\",\"platformName\":\"MercadoLibre\",\"shopInfoList\":null},{\"platform\":\"EBAY\",\"platformName\":\"eBay\",\"shopInfoList\":null},{\"platform\":\"SHOPEE\",\"platformName\":\"Shopee\",\"shopInfoList\":null},{\"platform\":\"LAZADA\",\"platformName\":\"Lazada\",\"shopInfoList\":null},{\"platform\":\"SHOPIFY\",\"platformName\":\"Shopify\",\"shopInfoList\":null},{\"platform\":\"RAKUTEN\",\"platformName\":\"Rakuten\",\"shopInfoList\":null},{\"platform\":\"CDISCOUNT\",\"platformName\":\"Cdiscount\",\"shopInfoList\":null},{\"platform\":\"OTTO\",\"platformName\":\"OTTO\",\"shopInfoList\":null},{\"platform\":\"OZON\",\"platformName\":\"Ozon\",\"shopInfoList\":null},{\"platform\":\"COUPANG\",\"platformName\":\"Coupang\",\"shopInfoList\":null}],\"ts\":1793694773725}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://aegis.qq.com/collect/whitelist?id=aZL6W4A16vzjNXJOKD&uin=402058&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793694772178&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp%2526ts%253D1793694715835&referer=&ext1=402058",
+  "status": 200,
+  "post": "",
+  "resp": "{\"retcode\":0,\"result\":{\"is_in_white_list\":false,\"rate\":1,\"use_gzip\":0}}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/config/fbaAllotEnabled.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":false,\"ts\":1793694773786}"
+ },
+ {
+  "type": "fetch",
+  "method": "GET",
+  "url": "https://www.sellfox.com/cpc-vue3/web/transition.html",
+  "status": 200,
+  "post": "",
+  "resp": "<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <title>赛狐ERP - 跨境电商精细化管理系统</title>\n    <meta charset=\"UTF-8\" />\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\" />\n    <meta http-equiv=\"cache-control\" content=\"no-store\" />\n    <meta http-equiv=\"Pragma\" content=\"no-store\" />\n    <meta http-equiv=\"expires\" content=\"0\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no\" />\n    <meta name=\"keywords\" content=\"亚马逊ERP,跨境电商ERP,亚马逊运营ERP,亚马逊精细化运营管理ERP,亚马逊运营系统,赛狐,赛狐ERP，\" />\n    <meta\n        name=\"description\"\n        content=\"赛狐ERP是店小秘旗下专为亚马逊卖家打造的精细化运营管理系统，提供管理、运营、财务、供应链全链路的数字化解决方案。\"\n    />\n    <meta property=\"og:type\" content=\"website\" />\n    <meta property=\"og:site_name\" content=\"赛狐Sellfox\" />\n    <meta content=\"telephone=no\" name=\"format-detection\" />\n    <meta content=\"yes\" name=\"apple-mobile-web-app-capable\" />\n    <meta content=\"black\" name=\"apple-mobile-web-app-status-bar-style\" />\n    <link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/c/icon_flags/icon_flags.min.css\">\n    <!-- element-plus/dist/index.css 资源改为 CDN 引入是为了提高加载顺序，优先加载和执行，避免同类名优先级样式覆盖 Vue3 公共组件样式问题 -->\n    <!-- 注意：以后升级 Element-Plus 版本，必须上传对应版本的样式文件到 CDN（https://s1.sellfox.com/fe-res/s/element-plus/<版本号>/index.css），并同步更新下方链接中的版本号 -->\n    <link rel=\"stylesheet\" href=\"https://s1.sellfox.com/fe-res/s/element-plus/2.13.1/index.css\" />\n    <style type=\"text/css\">\n      #main-first-screen-loading {\n          display: none;\n  "
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/account/user.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"ddUser\":null,\"user\":{\"id\":402058,\"puid\":402058,\"openId\":502258,\"mobile\":\"18511560280\",\"email\":null,\"nickname\":\"管理员\",\"createTime\":\"2026-09-05 12:10:02\",\"subUser\":null,\"adminUser\":null,\"authCpc\":null,\"authShop\":null,\"authTTShop\":null,\"validAuthShop\":null,\"vcAuthShop\":null,\"planType\":0,\"freeUser\":null,\"overShop\":null,\"remainOrder\":null,\"remainDays\":null,\"roleNames\":[],\"roleNameStr\":null,\"accountName\":\"sf.2609053t2aLnpc\",\"accountUpdateNum\":0,\"authType\":0,\"remainExpireDays\":null,\"status\":1,\"userDepDtoList\":null,\"self\":null},\"ddAuthCorp\":null,\"userFeature\":{\"thousandOrder\":null,\"companyName\":null,\"performanceMonitor\":false}},\"ts\":1793694773791}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/getPageTag.json?type=0",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":null,\"ts\":1793694773794}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/systemNotice/getSinglePageNotice.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"singlePageNotice\":[]},\"ts\":1793694773798}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/sys/map/group/list.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"id\":106,\"groupName\":\"广告投放前准备\",\"remark\":\"\",\"remarkState\":true,\"groupContent\":\"[{\\\"name\\\":\\\"关键词调研\\\",\\\"type\\\":\\\"1\\\",\\\"children\\\":[{\\\"name\\\":\\\"ABA搜索词分析\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"SearchTerm\\\"},{\\\"name\\\":\\\"出单搜索词\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"OrderTarget\\\"},{\\\"name\\\":\\\"词频分析\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"WordFrequencyAnalysis\\\"}]},{\\\"name\\\":\\\"关键词收藏\\\",\\\"type\\\":\\\"1\\\",\\\"children\\\":[{\\\"name\\\":\\\"关键词库\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"KeyWordsLibrary\\\"}]}]\",\"template\":true,\"sort\":999},{\"id\":1,\"groupName\":\"广告投放中管理\",\"remark\":\"\",\"remarkState\":true,\"groupContent\":\"[{\\\"name\\\":\\\"创建广告\\\",\\\"type\\\":\\\"1\\\",\\\"children\\\":[{\\\"name\\\":\\\"广告管理\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"AdCampaignList\\\"},{\\\"name\\\":\\\"批量新建\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"spBatchCreate\\\"}]},{\\\"name\\\":\\\"广告托管策略\\\",\\\"type\\\":\\\"1\\\",\\\"children\\\":[{\\\"name\\\":\\\"分时调预算\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"Budget\\\"},{\\\"name\\\":\\\"自动化规则\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"AutoRules\\\"},{\\\"name\\\":\\\"抢排名\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"KeywordPlacement\\\"}]}]\",\"template\":true,\"sort\":999},{\"id\":2,\"groupName\":\"广告投放后复盘\",\"remark\":\"\",\"remarkState\":true,\"groupContent\":\"[{\\\"name\\\":\\\"整体数据分析\\\",\\\"type\\\":\\\"1\\\",\\\"children\\\":[{\\\"name\\\":\\\"经营看板\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"ShopBoardIndex\\\"},{\\\"name\\\":\\\"广告全景仪\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"AdBoard\\\"}]},{\\\"name\\\":\\\"广告产品分析\\\",\\\"type\\\":\\\"1\\\",\\\"children\\\":[{\\\"name\\\":\\\"产品分析\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"ProductAnalysisIndex\\\"},{\\\"name\\\":\\\"产品广告透视\\\",\\\"type\\\":\\\"2\\\",\\\"pageKey\\\":\\\"Perspective\\\"},{\\\"name\\\":\\\""
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/msg/unread/eightEarliest.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"systemMsg\":[],\"countSystemMsg\":\"0\",\"buyerMsg\":null,\"countBuyerMsg\":\"0\",\"a2ZMsg\":null,\"countA2ZMsg\":\"0\",\"type\":1,\"unreadWarningMsgCount\":null,\"totalUnreadMsgCount\":\"0\",\"warningMsgList\":null},\"ts\":1793694773804}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/index/notice.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"pushTypeStr\":\"middle\",\"announcements\":[{\"createTime\":\"2025-09-09 09:50:18\",\"updateTime\":\"2025-09-09 09:51:26\",\"id\":1367,\"popupTitle\":\"功能上新\",\"navigationTitle\":\"Temu半托管支持预估利润！出单即可看到预估毛利！ \",\"title\":\"Temu半托管支持预估利润！出单即可看到预估毛利！\",\"subtitle\":\"\",\"titleLabel\":\"\",\"titleStyle\":\"new\",\"source\":\"赛狐\",\"context\":\"<p><span class=\\\"ql-size-16px\\\">【多平台】&gt;【数据】&gt;</span><a href=\\\"https://www.sellfox.com/amzup-web-main/web/temuProductAnalyse/index.html\\\" rel=\\\"noopener noreferrer\\\" target=\\\"_blank\\\" class=\\\"ql-size-16px\\\">【Temu产品分析】</a></p><p><span class=\\\"ql-size-16px\\\">1. 新增【Temu产品分析】功能，集利润、销售、成本、流量数据为一体的数据分析平台，可跨店铺实时计算产品利润</span></p><p><span class=\\\"ql-size-16px\\\">2. 通过出单后预估利润，掌握产品盈利状况，运营报活动更有底气</span></p><p><span class=\\\"ql-size-16px\\\">3. 结算后，同步更新结算数据，赚不赚钱早知道</span></p><p><span class=\\\"ql-size-16px\\\">3. 支持设置订单利润预估规则，实现精准预估，出单即知利润，订单亏损可最快速及时止损</span></p><p><span class=\\\"ql-size-16px\\\">- 自定义预估规则，按需按场景配置。如预估买家运费、退款、罚款等</span></p><p><span class=\\\"ql-size-16px\\\">- 自动获取产品申报价和活动价</span></p><p><span class=\\\"ql-size-16px\\\">- 自动预估发货面单费等物流费用</span></p><p><img src=\\\"https://sellfox-public-1251220924.picgz.myqcloud.com/sellfox-public/manage/notice/65/79325e569f8b4f5d9bb7bfc1465d3670.jpg\\\"><img src=\\\"https://sellfox-public-1251220924.picgz.myqcloud.com/sellfox-public/manage/notice/65/fc25f736596149e2976668e725c6d143.jpg\\\"></p>\",\"status\":1,\"publishRange\":\"all\",\"isHot\":0,\"isPop\":1,\"popType\":\"textAndContent\",\"publishTime\":\"2025-09-09 09:41:19\",\"endPopTime\":\"2025-09-20 00:00:"
+ },
+ {
+  "type": "fetch",
+  "method": "POST",
+  "url": "https://events.sellfox.com/events",
+  "status": 200,
+  "post": "{\"api_key\":\"fd02153a093d94914a7662ebff78ea9b\",\"events\":\"9RipUzK0UPPzYKk87Ikx0SuLg0uUq+KRLXQOnBqc3YnoQv4EhPn2KhKcsGjStqMO2WTvDrdnEsJ/MhYqffXRA1QI1UP/uWvwevAud+DFejq4eGmgbMrCqNLmXzjDYXx41d4avRBLRQyy2v2mPyKWiTzF7NHfr8xxbcPnlbeOkqe/eNA4uFhOB1Ret2VsjvZxVCFEI2IRzpVYPa4+rkG5CXUZb/TZIeIKNCwbcN/Zb71Be/e4uD48S44I1UTKXiVgA/8x3e+5ZcaJ4NP+HqaXFa1ytlvl3QbUPlsw48ewQfL3y/QxCmefPs44BjSdzrbNNI3rK76OJ/Th/2sZNAJ1T8xIn7qu5yzhuoa3kzj+ObO9NRfAXqp1UqUuctHE062SKVnnZaFIvwr0R0H2eX9rkdplsYAltr4l3UjEBsqSoNA+Iqdh1SQeQEJXuHceQD3ShFN7vb44RkmLOOSnOdYzF0ztBzDcmCI9WFe+yyqb0i4i4zMp0l7l0RHmzuOFs7KvhVfvwtm20TBVMHB7FC4+ErzBOjfmfEHkeNudiu4qj794wqN26o1ENRxBz7E76Uffczu2Wrcr5LzfwRYLiQJRYHWujf+tgaqzMJic01cYxZshEBPKibDJ6az36OnkX/MAEkw/hX8Jr6v8lKyPB5UocP+pQb49uyJGbqnfbofvIaOZUeG4djTMzcnGD6cPBMeLMzaLL4QYJIQODw4IWtSVpblWPCBzS2kQwzAzxDOR",
+  "resp": "{\"code\":200,\"body\":{\"events_ingested\":0,\"payloadSizeBytes\":10,\"server_upload_time\":\"2026-11-03T08:32:53.827Z\"}}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/msg/getYellowNotice.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"id\":1,\"displayTime\":\"2026-06-16 09:24:26\",\"endTime\":\"2026-06-19 10:42:52\",\"url\":\"\",\"content\":\"重磅让利！超值钜惠！赛狐618年中大促来啦（即日起至6.18）具体优惠请联系专属客户经理\\n\\n\\n\",\"noticeStatus\":1},\"ts\":1793694773923}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/account/user.json",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"ddUser\":null,\"user\":{\"id\":402058,\"puid\":402058,\"openId\":502258,\"mobile\":\"18511560280\",\"email\":null,\"nickname\":\"管理员\",\"createTime\":\"2026-09-05 12:10:02\",\"subUser\":null,\"adminUser\":null,\"authCpc\":null,\"authShop\":null,\"authTTShop\":null,\"validAuthShop\":null,\"vcAuthShop\":null,\"planType\":0,\"freeUser\":null,\"overShop\":null,\"remainOrder\":null,\"remainDays\":null,\"roleNames\":[],\"roleNameStr\":null,\"accountName\":\"sf.2609053t2aLnpc\",\"accountUpdateNum\":0,\"authType\":0,\"remainExpireDays\":null,\"status\":1,\"userDepDtoList\":null,\"self\":null},\"ddAuthCorp\":null,\"userFeature\":{\"thousandOrder\":null,\"companyName\":null,\"performanceMonitor\":false}},\"ts\":1793694773928}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/account/checkPasswordExpired.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":false,\"ts\":1793694773956}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/systemNotice/getPopupWindowInfo.json",
+  "status": 200,
+  "post": "{}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"noticeList\":[{\"noticeId\":1627,\"publishTime\":\"2026-11-02 09:19:26\",\"popupStartTime\":\"2026-11-02 09:36:02\",\"popupEndTime\":\"2026-11-04 09:19:26\",\"noticeType\":1,\"popupTitle\":\"功能上新\",\"noticeTitle\":\"【订单处理】支持按包裹打印拣货单，拣货整理更高效\",\"noticePath\":\"亚马逊>订单处理\",\"noticeUrl\":\"https://www.sellfox.com/amzup-web-main/web/orderShip/index.html\",\"noticeContext\":\"<p>1、灵活排序与合并展示：支持按跟踪号或订单号排序，同一订单可自动合并单元格，单据整洁易核对</p><p>2、渠道明细支持打印：拣货单支持打印物流渠道细分信息，方便对账与渠道统计</p><p><img src=\\\"https://sellfox-public-1251220924.picgz.myqcloud.com/sellfox-public/manage/notice/215/1fd2191f1a0545489e580f3fe4651f19.jpg\\\"></p>\"}],\"collectionInfo\":{\"collectionId\":null,\"popupStartTime\":null,\"popupEndTime\":null,\"collectionList\":null}},\"ts\":1793694774530}"
+ },
+ {
+  "type": "fetch",
+  "method": "POST",
+  "url": "https://events.sellfox.com/events",
+  "status": 200,
+  "post": "{\"api_key\":\"fd02153a093d94914a7662ebff78ea9b\",\"events\":\"9RipUzK0UPPzYKk87Ikx0SuLg0uUq+KRLXQOnBqc3YnoQv4EhPn2KhKcsGjStqMO2WTvDrdnEsJ/MhYqffXRA1QI1UP/uWvwevAud+DFejq4eGmgbMrCqNLmXzjDYXx41d4avRBLRQyy2v2mPyKWiTzF7NHfr8xxbcPnlbeOkqe/eNA4uFhOB1Ret2VsjvZxVCFEI2IRzpVYPa4+rkG5CXUZb/TZIeIKNCwbcN/Zb71Be/e4uD48S44I1UTKXiVgA/8x3e+5ZcaJ4NP+HqaXFa1ytlvl3QbUPlsw48ewQfL3y/QxCmefPs44BjSdzrbNNI3rK76OJ/Th/2sZNAJ1T8xIn7qu5yzhuoa3kzj+ObO9NRfAXqp1UqUuctHE062SKVnnZaFIvwr0R0H2eX9rkdplsYAltr4l3UjEBsqSoNA+Iqdh1SQeQEJXuHceQD3ShFN7vb44RkmLOOSnOdYzF0ztBzDcmCI9WFe+yyqb0i4i4zMp0l7l0RHmzuOFs7KvhVfvwtm20TBVMHB7FC4+ErzBOjfmfEHkeNudiu4qj794wqN26o1ENRxBz7E76Uffczu2Wrcr5LzfwRYLiQJRYHWujf+tgaqzMJic01cYxZshEBPKibDJ6az36OnkX/MAEkw/hX8Jr6v8lKyPB5UocP+pQb49uyJGbqnfbofvIaOZUeG4djTMzcnGD6cPBMeLMzaLL4QYJIQODw4IWtSVpblWPCBzS2kQwzAzxDOR",
+  "resp": "{\"code\":200,\"body\":{\"events_ingested\":0,\"payloadSizeBytes\":10,\"server_upload_time\":\"2026-11-03T08:32:54.629Z\"}}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/portfolio/getAllPortfolioDataProductRight.json",
+  "status": 200,
+  "post": "{\"shopId\":\"711811\",\"isHidden\":false}",
+  "resp": "{\"code\":0,\"msg\":\"\",\"data\":[{\"portfolioId\":\"96681495531868\",\"portfolioName\":\"早期尝试\"},{\"portfolioId\":\"69195939170607\",\"portfolioName\":\"手工广告\"}],\"ts\":1793694774816}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/ds.json?url=%2Famzup-web-cpc-vue3&pid=1793694774402058&id=1793694774402058",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":null,\"data\":null,\"ts\":1793694774853}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/amc/audience/listAdsAudience",
+  "status": 200,
+  "post": "{\"shopId\":\"711811\",\"adType\":\"sp\"}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":[{\"audienceId\":\"408360424830131174\",\"audienceName\":\"Clicked or Added brand's product to cart\",\"audienceDescription\":\"The \\\"clicked or added brand’s product to cart\\\" audience includes people who have clicked or added to cart within the last 3 months, but haven’t purchased.\",\"defaultAudience\":true,\"name\":\"Clicked or Added brand's product to cart\"},{\"audienceId\":\"415843617176535033\",\"audienceName\":\"High interest based on shopping history\",\"audienceDescription\":\"People whose shopping activity indicates a high interest in purchasing the advertised product\",\"defaultAudience\":true,\"name\":\"High interest based on shopping history\"},{\"audienceId\":\"370519134610744724\",\"audienceName\":\"Purchased brand's product\",\"audienceDescription\":\"The \\\"purchased brand’s product\\\" audience includes people who have purchased a product from this brand within the last 3 months.\",\"defaultAudience\":true,\"name\":\"Purchased brand's product\"}]}"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://aegis.qq.com/speed/performance?dnsLookup=0&tcp=0&ssl=0&ttfb=160&contentDownload=0&domParse=138&resourceDownload=414&firstScreenTiming=1816&id=aZL6W4A16vzjNXJOKD&uin=402058&version=4.2.6868&aid=f50f8e4c-9c4c-425f-8680-3179f72d8e12&env=production&platform=4&netType=4&vp=1680%20*%201050&sr=1680%20*%201050&sessionId=session-1793694772178&from=https%3A%2F%2Fwww.sellfox.com%2Famzup-web-main%2Famzup-web-cpc-vue3%3Famzup-web-cpc-vue3%3D%252Fcpc-vue3%252Fweb%252Fcpc-vue3%252Fad-create%252Findex.html%253FshopIdList%253D711811%2526adType%253Dsp%2526ts%253D1793694715835&referer=&ext1=402058",
+  "status": 204,
+  "post": "",
+  "resp": ""
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/product/productRightSpPageListSearch",
+  "status": 200,
+  "post": "{\"pageNo\":1,\"pageSize\":20,\"shopId\":\"711811\",\"searchField\":\"asin\",\"searchValue\":\"\",\"searchType\":\"exact\",\"onlineStatus\":\"\",\"orderType\":\"desc\",\"type\":\"sp\"}",
+  "resp": "{\"code\":0,\"msg\":\"success\",\"data\":{\"pageNo\":1,\"pageSize\":20,\"totalPage\":87,\"totalSize\":1727,\"rows\":[{\"id\":60338233,\"shopId\":711811,\"sku\":\"ll070-100cm-220 ド7-a\",\"asin\":\"B0HQ5WMB3J\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (100cm-2つの ドア,シンクなし)\",\"imgUrl\":\"https://m.media-amazon.com/images/I/31yMPOETv0L.jpg\",\"domain\":\"www.amazon.co.jp\",\"childList\":[{\"id\":60337806,\"shopId\":711811,\"sku\":\"ll070-160cm-3つのドア-c\",\"asin\":\"B0HQ5ZP2QW\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (160cm-3つのドア,シンク2つ)\",\"imgUrl\":\"https://m.media-amazon.com/images/I/31akarrCERL.jpg\",\"isMeetConditions\":true,\"price\":\"130268.00\",\"standardPriceCurrency\":\"JPY\",\"batchCreateParentAsin\":\"B0HQ5Z3RMD\"},{\"id\":60337847,\"shopId\":711811,\"sku\":\"ll070-120cm-3つ0 ド7-b\",\"asin\":\"B0HQ5X58H6\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (120cm-3つのドア,シンク1つ)\",\"imgUrl\":\"https://m.media-amazon.com/images/I/31mOTLB7QZL.jpg\",\"isMeetConditions\":true,\"price\":\"89712.00\",\"standardPriceCurrency\":\"JPY\",\"batchCreateParentAsin\":\"B0HQ5Z3RMD\"},{\"id\":60337862,\"shopId\":711811,\"sku\":\"ll070-160cm-3つのドア-a\",\"asin\":\"B0HQ5T88BD\",\"onlineStatus\":\"Active\",\"title\":\"一体型簡易流し台 キッチンシンク 作業台 キッチンキャビネット 厚い手 大容量 収納キャビネット ステンレス鋼 頑丈 耐久性 耐食性 耐熱性 家庭用 業務用 飲食店 食堂 バルコニー 野菜を洗う切る 掃除が簡単 (160cm-3つの"
+ },
+ {
+  "type": "xhr",
+  "method": "GET",
+  "url": "https://www.sellfox.com/api/ds.json?url=%2Fweb%2Fcpc-vue3%2Fad-create%2Findex.html&pid=1793694775402058&id=1793694775402058",
+  "status": 200,
+  "post": "",
+  "resp": "{\"code\":0,\"msg\":null,\"data\":null,\"ts\":1793694775520}"
+ },
+ {
+  "type": "fetch",
+  "method": "POST",
+  "url": "https://events.sellfox.com/events",
+  "status": 200,
+  "post": "{\"api_key\":\"fd02153a093d94914a7662ebff78ea9b\",\"events\":\"RLpOBdqgFiZE0IhOiRhdpKoUV20layX86RtTcdxaUoZU3hCf5KxrQD+0tKA9MY6XKhfdu7Y7qVi9RY+IAPbi1cN/RlSh3EyNAtJtdU/++Y/3Y43ppvJMJkg5VvYwiqX59SgT6FPMz3ADgd9TMHvN89f060zkpDFz3yPr/RDtMGJMAkdLAg8CkgtO7kF5SRCtdCJ+pFO9THBXX6GrzQtHPMjmFWgTclf9okbvkQdkadnqEkkE/ShIT5AaausInc+PtGsiGrb6czPTYjOKISkQtegCOL+JnvYrOGs6Tr6gZz9hsHO2Yp0QlruqfQApQMxvTQ+AGPzXfMjUL6pUj0T8PSMPLZMlqjD0aL2gQxuhqwgzeKnVRYOacrqAlJ8Lh/ZODpZk+ST0hTGODBqKcycOWBzPWf61DhKGgd6zAR/SXuaoa32JkYUbrN5NxoDb7k5lAoalvroEla7dpBtlAapmGUrsgPmEcufvttA4wK49MLIscN0c8MFarEV2pcfyhGuaf5WUrkkURgIN3LfoCkCReuRiRmu8sCnDdBVme0VpKsOiHag6CuyHY65VD6bWrnra1JaBCK5QWCLsKAdGY/5X0D5zEFkxgPV88we+yTZNFimHO69Ir701ixpxSjwfiZseheJ5uoyzkMVFNT8evZn9AuOGoFxL+uQueX9sPxZE1DsrpqHnjnScuy7Pnh9JJ2pLgJSzhBSS+XJxGRD+5oWMA8wUXaJnbpPfLizBv4Ri",
+  "resp": "{\"code\":200,\"body\":{\"events_ingested\":0,\"payloadSizeBytes\":10,\"server_upload_time\":\"2026-11-03T08:32:55.827Z\"}}"
+ },
+ {
+  "type": "fetch",
+  "method": "POST",
+  "url": "https://events.sellfox.com/events",
+  "status": 200,
+  "post": "{\"api_key\":\"fd02153a093d94914a7662ebff78ea9b\",\"events\":\"RLpOBdqgFiZE0IhOiRhdpKoUV20layX86RtTcdxaUoZU3hCf5KxrQD+0tKA9MY6XKhfdu7Y7qVi9RY+IAPbi1cN/RlSh3EyNAtJtdU/++Y/3Y43ppvJMJkg5VvYwiqX59SgT6FPMz3ADgd9TMHvN89f060zkpDFz3yPr/RDtMGJMAkdLAg8CkgtO7kF5SRCtdCJ+pFO9THBXX6GrzQtHPMjmFWgTclf9okbvkQdkadnqEkkE/ShIT5AaausInc+PtGsiGrb6czPTYjOKISkQtegCOL+JnvYrOGs6Tr6gZz9hsHO2Yp0QlruqfQApQMxvTQ+AGPzXfMjUL6pUj0T8PSMPLZMlqjD0aL2gQxuhqwgzeKnVRYOacrqAlJ8Lh/ZODpZk+ST0hTGODBqKcycOWBzPWf61DhKGgd6zAR/SXuaoa32JkYUbrN5NxoDb7k5lAoalvroEla7dpBtlAapmGUrsgPmEcufvttA4wK49MLIscN0c8MFarEV2pcfyhGuaf5WUrkkURgIN3LfoCkCReuRiRmu8sCnDdBVme0VpKsOiHag6CuyHY65VD6bWrnra1JaBCK5QWCLsKAdGY/5X0D5zEFkxgPV88we+yTZNFimHO69Ir701ixpxSjwfiZseheJ5uoyzkMVFNT8evZn9AuOGoFxL+uQueX9sPxZE1DsrpqHnjnScuy7Pnh9JJ2pLgJSzhBSS+XJxGRD+5oWMA8wUXaJnbpPfLizBv4Ri",
+  "resp": "{\"code\":200,\"body\":{\"events_ingested\":0,\"payloadSizeBytes\":10,\"server_upload_time\":\"2026-11-03T08:32:56.155Z\"}}"
+ },
+ {
+  "type": "fetch",
+  "method": "POST",
+  "url": "https://events.sellfox.com/events",
+  "status": 200,
+  "post": "{\"api_key\":\"fd02153a093d94914a7662ebff78ea9b\",\"events\":\"RLpOBdqgFiZE0IhOiRhdpKoUV20layX86RtTcdxaUoZU3hCf5KxrQD+0tKA9MY6XKhfdu7Y7qVi9RY+IAPbi1cN/RlSh3EyNAtJtdU/++Y/3Y43ppvJMJkg5VvYwiqX50qYMIMg/ggrZwQh1lvZsQVIcixcj7StALQlTod7k2Rv6wYu+NedCoDkBssbmNbU7dCJ+pFO9THBXX6GrzQtHPMjmFWgTclf9okbvkQdkadnqEkkE/ShIT5AaausInc+PtGsiGrb6czPTYjOKISkQtegCOL+JnvYrOGs6Tr6gZz9hsHO2Yp0QlruqfQApQMxvTQ+AGPzXfMjUL6pUj0T8PSMPLZMlqjD0aL2gQxuhqwgzeKnVRYOacrqAlJ8Lh/ZO3q4RGfz040sZlNhB3TYvPNU3GvvP4+vMTxrU4a1XEuGJsZ4K7qnrFZdRO6+pXtG39sKf7wWqNNna8QcQL8j8xgm4pyB2LEaTxlG9LD/CjTYscN0c8MFarEV2pcfyhGuaf5WUrkkURgIN3LfoCkCRejioNlkzb+ablUaNv/gHt5MQfrDjrxN669fsw2xcagAJVZEv54+F4AbIeDnL9vP/o3Wujf+tgaqzMJic01cYxZu/CPX4fwq8yyFO0L6aqU3nqDyMWSq8RmFm8rOKhphbYL79ayR3U4FE/7sl3iwApfhs6JAg54EwPE17kX8ZNLlhpC2z4LaYVYo1t8eYdzW2b3t4zsZx/3kmYKxP+Wc8",
+  "resp": "{\"code\":200,\"body\":{\"events_ingested\":0,\"payloadSizeBytes\":10,\"server_upload_time\":\"2026-11-03T08:32:56.198Z\"}}"
+ },
+ {
+  "type": "xhr",
+  "method": "POST",
+  "url": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/multiple/target/suggestBid/recommendations",
+  "status": 200,
+  "post": "{\"shopId\":\"711811\",\"biddingStrategy\":\"AUTO_FOR_SALES\",\"asins\":[\"B0HQ5ZP2QW\",\"B0HQ5X58H6\",\"B0HQ5T88BD\",\"B0HQ5XXRNP\",\"B0HQ5SLR7F\",\"B0HQ5TL8S8\",\"B0HQ5TXPCX\",\"B0HQ5XQ9G3\",\"B0HQ61XJTV\",\"B0HQ5ZF23S\",\"B0HQ5ZGTNP\",\"B0HQ5TD9HP\",\"B0HQ62MPYW\",\"B0HQ5RTKMT\",\"B0HQ5WMB3J\"],\"targetingExpressions\":[{\"type\":\"CLOSE_MATCH\",\"value\":\"\"},{\"type\":\"LOOSE_MATCH\",\"value\":\"\"},{\"type\":\"SUBSTITUTES\",\"value\":\"\"},{\"type\":\"COMPLEMENTS\",\"value\":\"\"}],\"placementProductPage\":null,\"placementTop\":null,\"placementRestOfSearch\":null,\"campaignId\":\"\",\"groupId\":\"\"}",
+  "resp": "{\"code\":0,\"msg\":\"\",\"data\":{\"bidInfo\":[]}}"
+ },
+ {
+  "type": "document",
+  "method": "GET",
+  "url": "https://www.sellfox.com/cpc/web/transition.html",
+  "status": 200,
+  "post": "",
+  "resp": "<TargetClosedError>"
+ },
+ {
+  "type": "document",
+  "method": "GET",
+  "url": "https://www.sellfox.com/",
+  "status": 200,
+  "post": "",
+  "resp": "<TargetClosedError>"
+ },
+ {
+  "type": "document",
+  "method": "GET",
+  "url": "https://www.sellfox.com/finance/web/transition.html",
+  "status": 200,
+  "post": "",
+  "resp": "<TargetClosedError>"
+ },
+ {
+  "type": "document",
+  "method": "GET",
+  "url": "https://www.sellfox.com/",
+  "status": 200,
+  "post": "",
+  "resp": "<TargetClosedError>"
+ }
+]
