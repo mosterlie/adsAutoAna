@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -383,7 +383,8 @@ def product_list(keyword: str = "", order_field: str = "ad_cost",
     st = term_status.parent_states(
         [r.get("parent_asin") or r.get("asin") or "" for r in rows])
     for r in rows:
-        s = st.get(r.get("parent_asin") or r.get("asin") or "") or {}
+        pa = r.get("parent_asin") or r.get("asin") or ""
+        s = st.get(pa) or {}
         r["terms_total"] = int(s.get("terms_total") or 0)
         r["terms_fetched"] = int(s.get("terms_fetched") or 0)
         r["terms_labeled"] = int(s.get("terms_labeled") or 0)
@@ -562,6 +563,48 @@ def term_label_save(req: TermLabelReq = Body(...)) -> Dict[str, Any]:
     return {"ok": True, "label": saved, "asin": req.asin.strip(), "term": req.term.strip()}
 
 
+# ---- 父 ASIN 来源链接 (店小秘 parents_*.csv 关联) ----
+@router.post("/parent_links/import")
+def parent_links_import(path: str = Body("", embed=True)) -> Dict[str, Any]:
+    """导入 parents_*.csv 里的「来源链接1(亚马逊)/来源链接2(采购源)」到父 ASIN
+
+    path 为空时取 data/ 下最新的 parents_*.csv; 以父ASIN 为键覆盖更新。
+    返回导入条数、两个链接的非空数、以及与库内已有父ASIN 的匹配情况。
+    """
+    from backend import parent_links as pl
+    try:
+        return pl.import_csv(path or "")
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/favicon")
+def site_favicon(u: str = Query("")) -> Response:
+    """采购源链接的站点图标 (服务端代取 + 磁盘缓存)
+
+    入参是**页面 URL**(不是图片地址), 内部按主域找 favicon;
+    取不到返回 404, 前端 <img onerror> 回退成纯域名文字。
+    """
+    from backend import favicon as fav
+    hit = fav.get(u)
+    if not hit:
+        raise HTTPException(404, "favicon not found")
+    data, ctype = hit
+    return Response(content=data, media_type=ctype,
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+
+@router.get("/parent_links")
+def parent_links_list(asin: str = Query(""), keyword: str = Query("")) -> Dict[str, Any]:
+    """父 ASIN 来源链接: 传 asin 取单条(子ASIN 自动归到父), 否则按关键词列出全部"""
+    from backend import parent_links as pl
+    a = (asin or "").strip()
+    if a:
+        return {"item": db.get_parent_link(a)}
+    items = db.list_parent_links(keyword)
+    return {"total": len(items), "items": items, "csv": pl.latest_csv()}
+
+
 # ---- 在线产品 (销售 > 在线产品) ----
 @router.get("/online/meta")
 def online_meta() -> Dict[str, Any]:
@@ -572,6 +615,7 @@ def online_meta() -> Dict[str, Any]:
         "filters": db.get_online_filters(),
         "total": db.get_online_count(),
         "counts": db.get_online_counts(),
+        "mark_counts": db.get_product_mark_counts(),
         "updated_at": db.get_online_meta("updated_at"),
     }
 
@@ -582,8 +626,31 @@ def online_products(page: int = 1, page_size: int = 50, keyword: str = "",
                     order_field: str = "", order_dir: str = "desc") -> Dict[str, Any]:
     page = max(1, page)
     page_size = max(1, min(page_size, 500))
-    return db.get_online_products(page, page_size, keyword, search_field,
-                                  _parse_filters_obj(filters), order_field, order_dir)
+    out = db.get_online_products(page, page_size, keyword, search_field,
+                                 _parse_filters_obj(filters), order_field, order_dir)
+    # 来源链接(店小秘 parents_*.csv): 父体行用自身 ASIN, 子体行归到父 ASIN
+    rows = out.get("rows") or []
+    links = db.get_parent_links(
+        [str(r.get("parentAsin") or r.get("asin") or "") for r in rows])
+    for r in rows:
+        lk = links.get(str(r.get("parentAsin") or r.get("asin") or "")) or {}
+        r["amazon_url"] = lk.get("amazon_url") or ""
+        r["purchase_url"] = lk.get("purchase_url") or ""
+    return out
+
+
+class MarkReq(BaseModel):
+    asin: str = ""                   # 父 ASIN (子体行由前端归到父 ASIN)
+    mark: str = ""                   # pass=通过 / fail=不通过 / ""=取消
+
+
+@router.post("/online/mark")
+def online_mark(req: MarkReq = Body(default=MarkReq())) -> Dict[str, Any]:
+    """给某个品(父 ASIN)打标 / 取消打标, 返回最新统计"""
+    try:
+        return db.save_product_mark(req.asin, req.mark)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 class AiLabelReq(BaseModel):

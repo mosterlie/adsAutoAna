@@ -3,8 +3,11 @@
 ## 运行方式
 - **当前环境是 Windows，工作区 `D:/myCoding/adsAutoAna`**（10-16 迁入；下面 macOS 段落仅作历史参考）。
   查端口用 `netstat -ano | grep 8320`（无 `lsof`）。
-- 服务端口 **8320**（`run.py`：`--port` 默认 8320 / `--host` 默认 127.0.0.1），`python3 run.py`；
-  macOS 用 `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`（系统 3.13 无依赖）。
+- 服务端口 **8320**（`run.py`：`--port` 默认 8320 / `--host` 默认 127.0.0.1）。
+  **Windows 用 `D:/Python11/python.exe`（3.11.9，装了 uvicorn/fastapi）**：
+  `"D:/Python11/python.exe" run.py >> data/logs/server.log 2>&1`（后台跑）。
+  系统默认 `python` 是 3.13.14，**没有依赖**，别用它启动。
+  macOS 历史路径 `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`（同理 3.13 无依赖）。
 - curl 一律要加 `--noproxy '*'`（本机有代理环境）。
 - **改后端必须重启服务**。日志在 **`data/logs/server.log`**（`/tmp/adsautoana.log` 是
   10-05 之前的老路径，已失效，别再用它排查）。确认服务在跑只需两步：

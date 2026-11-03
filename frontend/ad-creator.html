@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>广告创建 · 亚马逊 SP 批量广告（复刻赛狐）</title>
+  <!-- 依赖本地化(原 autoAds 走 CDN, 平移到内网/离线环境会白屏) -->
+  <script src="/static/vendor/tailwind.js"></script>
+  <script src="/static/vendor/vue.global.prod.js"></script>
+  <style>
+    [v-cloak] { display: none; }
+    .fade-enter-active, .fade-leave-active { transition: opacity .2s ease; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+    ::-webkit-scrollbar { height: 8px; width: 8px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen antialiased">
+  <div id="app" v-cloak class="mx-auto max-w-none px-0 py-0">
+
+    <!-- ==================== 广告创建（赛狐布局复刻） ==================== -->
+    <div class="bg-[#EEEEF6] min-h-screen flex flex-col">
+
+      <!-- 一级导航（复刻赛狐顶栏 40px / #0B1839） -->
+      <div class="h-10 bg-[#0B1839] flex items-center text-[13px] text-white/85 select-none">
+        <div class="w-14 h-10 flex items-center justify-center shrink-0">
+          <div class="w-5 h-5 bg-[#FFA91E] rounded-[3px] flex items-center justify-center">
+            <span class="text-[#0B1839] font-black text-[11px] leading-none">狐</span>
+          </div>
+        </div>
+        <div class="flex items-center h-full">
+          <span v-for="m in ['商品','销售','订单','客服','广告','FBA','仓库','物流','数据','财务','合规','工具','设置']"
+                :key="m"
+                :class="['px-3 h-full flex items-center cursor-default whitespace-nowrap',
+                         m === '广告' ? 'text-[#FFA91E] bg-white/10' : 'hover:bg-white/10']">
+            {{ m }}
+          </span>
+        </div>
+        <div class="ml-auto flex items-center gap-2 pr-3 shrink-0">
+          <select v-if="shopList.length" v-model="adShop"
+                  class="bg-white/15 text-white text-[12px] rounded px-2 h-[26px] outline-none border border-white/10 max-w-[140px]">
+            <option v-for="shop in shopList" :key="shop" :value="shop" class="text-slate-800">{{ shop }}</option>
+          </select>
+          <button @click="loadFromDb()"
+                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap">
+            {{ shopList.length ? '重新载入' : '载入数据' }}
+          </button>
+          <span class="text-[12px] text-white/70 ml-1">本地词库 {{ dictStats.count }} 个</span>
+          <input type="file" ref="dictInput" @change="importDict" class="hidden" accept=".json" />
+          <button @click="$refs.dictInput.click()"
+                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap"
+                  title="上传 AI 清洗后的纯净中日对照 JSON 文件">导入词库</button>
+          <button @click="refreshNameMatching" :disabled="!shopList.length || refreshingNames"
+                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap disabled:opacity-40"
+                  :title="shopList.length ? '用当前最新词库重新匹配全部商品的原始日文标题' : '请先载入在线产品数据'">
+            {{ refreshingNames ? '刷新中…' : '刷新品名' }}
+          </button>
+          <button @click="openDict"
+                  class="text-[12px] px-2 h-[26px] rounded bg-white/10 hover:bg-white/20 whitespace-nowrap"
+                  title="查看 / 编辑本地词库 data/ja_zh_dict.json">词库管理</button>
+          <span class="text-[12px] text-white/70">管理员</span>
+        </div>
+      </div>
+
+      <!-- 二级 tab（复刻赛狐 #253A87 / 33px） -->
+      <div class="h-[33px] bg-[#253A87] flex items-end px-2 select-none">
+        <div v-for="t in ['批量创建','订单处理','广告管理','在线产品','创建广告活动']" :key="t"
+             :class="['px-3 h-[31px] flex items-center text-[13px] rounded-t-[6px] cursor-default whitespace-nowrap',
+                      t === '创建广告活动' ? 'bg-[#EEEEF6] text-[#0F0F0F] font-medium' : 'text-white/85 hover:bg-white/10']">
+          {{ t }}
+        </div>
+      </div>
+
+      <!-- 主体：左表单 + 右步骤 -->
+      <div class="flex items-start gap-6 px-3 py-3">
+
+        <!-- 左：白色表单卡片 -->
+        <div class="flex-1 min-w-0 bg-white rounded-[6px] px-4 py-4">
+
+          <!-- ========== 区块 1：创建广告活动 ========== -->
+          <div id="ad-block-1" class="mb-6">
+            <div class="flex items-center gap-1.5 mb-5">
+              <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
+              <h2 class="text-[14px] font-medium text-[#0F0F0F]">创建广告活动</h2>
+            </div>
+
+            <!-- 店铺 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>店铺</div>
+              <div class="flex items-center gap-3">
+                <select v-model="adShop"
+                        class="h-8 w-[160px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option v-for="shop in shopList" :key="shop" :value="shop">{{ shop }}</option>
+                  <option v-if="!shopList.length" value="">请先载入数据</option>
+                </select>
+                <span v-if="adShopData" class="text-[12px] text-[#8A8F99]">{{ adShopData.total_parents }} 个父体 · {{ adProductCount }} 个子体 SKU</span>
+              </div>
+            </div>
+
+            <!-- 选品范围（在线产品打标）-->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">选品范围</div>
+              <div class="flex items-center gap-3">
+                <select v-model="sourceMark" @change="loadFromDb()"
+                        title="按「在线产品」页的打标筛选候选商品，再手工勾选要投放的"
+                        class="h-8 w-[160px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="">全部品</option>
+                  <option value="pass">仅打标「通过」</option>
+                  <option value="fail">仅打标「不通过」</option>
+                </select>
+                <span class="text-[11px] text-[#B4B8C2]">
+                  打标来源：在线产品 › 操作列 通过 / 不通过（通过 {{ (dbSummary.marks || {}).pass || 0 }} · 不通过 {{ (dbSummary.marks || {}).fail || 0 }}）
+                </span>
+              </div>
+            </div>
+
+            <!-- 广告活动名称 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告活动名称</div>
+              <div class="flex items-center gap-3">
+                <input v-model="adSettings.campaign_name" placeholder="示例：节假日收藏夹"
+                       class="h-8 w-[474px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <span class="text-[11px] text-[#B4B8C2]">留空则自动命名：父SKU_品名_自动_日期</span>
+              </div>
+            </div>
+
+            <!-- 广告组合 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组合</div>
+              <div class="flex items-center gap-3">
+                <input v-model="adSettings.portfolio_id" placeholder="无广告组合"
+                       class="h-8 w-[160px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+              </div>
+            </div>
+
+            <!-- 开始/结束日期 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>开始/结束日期</div>
+              <div class="flex items-center gap-2.5">
+                <input type="date" v-model="adSettings.start_date"
+                       class="h-8 w-[200px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <input type="date" v-model="adSettings.end_date"
+                       class="h-8 w-[200px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+              </div>
+            </div>
+
+            <!-- 每日预算 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>每日预算</div>
+              <div class="flex items-center gap-2">
+                <div class="flex items-center h-8 border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                  <span class="px-2 text-[12px] text-[#606266] bg-[#F5F7FA] h-full flex items-center border-r border-[#E4E6EB]">JPY</span>
+                  <input v-if="adBudgetMode === 'equal'" type="number" min="0" v-model.number="adSingleBudget"
+                         class="h-full w-[124px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                  <input v-else type="number" min="0" v-model.number="adPoolBudget"
+                         class="h-full w-[124px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                </div>
+                <div class="flex items-center gap-3 text-[12px] text-[#606266]">
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="radio" value="equal" v-model="adBudgetMode" class="accent-[#2969FF]" />
+                    等权（每个活动）
+                  </label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer">
+                    <input type="radio" value="weighted" v-model="adBudgetMode" class="accent-[#2969FF]" />
+                    客单价加权预算池
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- 定向策略 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>定向策略</div>
+              <div class="flex-1 space-y-3 pt-1">
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" checked disabled class="mt-0.5 accent-[#2969FF]" />
+                  <span>
+                    <span class="block leading-5">自动投放</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊将自动分析您的广告产品，并找到相关的关键词和产品进行投放</span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-not-allowed opacity-50">
+                  <input type="radio" disabled class="mt-0.5" />
+                  <span>
+                    <span class="block leading-5">手动投放</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊根据您选择的关键词或产品进行投放（当前版本仅支持自动投放）</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 竞价策略 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>竞价策略</div>
+              <div class="flex flex-col gap-3 pt-1">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="Dynamic bids - up and down" v-model="adSettings.bidding_strategy" class="accent-[#2969FF]" />
+                  动态竞价-提高和降低
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="Dynamic bids - down only" v-model="adSettings.bidding_strategy" class="accent-[#2969FF]" />
+                  动态竞价-只降低
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="Fixed bid" v-model="adSettings.bidding_strategy" class="accent-[#2969FF]" />
+                  固定竞价
+                </label>
+              </div>
+            </div>
+
+            <!-- 站点 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">站点</div>
+              <div class="flex-1 space-y-3 pt-1">
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" checked disabled class="mt-0.5 accent-[#2969FF]" />
+                  <span>
+                    <span class="block leading-5">亚马逊及其他网站</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">广告将在亚马逊站内展示，包括亚马逊网站和亚马逊企业购平台，同时也会在亚马逊站外的精选网站和应用程序中展示。</span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-not-allowed opacity-50">
+                  <input type="radio" disabled class="mt-0.5" />
+                  <span>
+                    <span class="block leading-5">亚马逊企业购</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">采用 B2B 方案来提升销售额，并独家触达亚马逊企业购平台上的企业采购客户。</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 根据广告位调整竞价 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">根据广告位调整竞价</div>
+              <div class="flex-1 space-y-4 pt-1">
+                <div class="flex items-center gap-2">
+                  <span class="w-[104px] text-right text-[12px]">搜索结果顶部（首页）</span>
+                  <input type="number" min="0" max="900" v-model.number="adSettings.placement_top_pct" placeholder="请输入"
+                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                  <span class="text-[12px]">%</span>
+                  <span class="text-[12px] text-[#B4B8C2]">示例：对于此广告位，1 美元竞价将保持 1.00 不变</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-[104px] text-right text-[12px]">搜索结果其余位置</span>
+                  <input type="number" min="0" max="900" v-model.number="adSettings.placement_rest_pct" placeholder="请输入"
+                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                  <span class="text-[12px]">%</span>
+                  <span class="text-[12px] text-[#B4B8C2]">示例：对于此广告位，1 美元竞价将保持 1.00 不变</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-[104px] text-right text-[12px]">商品详情页</span>
+                  <input type="number" min="0" max="900" v-model.number="adSettings.placement_product_pct" placeholder="请输入"
+                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                  <span class="text-[12px]">%</span>
+                  <span class="text-[12px] text-[#B4B8C2]">示例：对于此广告位，1 美元竞价将保持 1.00 不变</span>
+                </div>
+                <div class="flex items-center gap-2 opacity-50">
+                  <span class="w-[104px] text-right text-[12px]">亚马逊企业购</span>
+                  <input type="number" disabled placeholder="请输入"
+                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right bg-[#F5F7FA]" />
+                  <span class="text-[12px]">%</span>
+                  <span class="text-[12px] text-[#B4B8C2]">平均而言，与整体广告活动效果相比，广告主在亚马逊企业购站内的广告投资回报率最高出 2 到 3 倍。</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- AMC 自定义受众定价 -->
+            <div class="flex items-center mb-2 text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2">AMC自定义受众定价</div>
+              <label class="relative inline-flex items-center cursor-not-allowed opacity-40">
+                <input type="checkbox" disabled class="sr-only peer" />
+                <span class="w-8 h-4 bg-[#DADCE0] rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="h-px bg-[#EEEEF6] my-4"></div>
+
+          <!-- ========== 区块 3：创建广告组 ========== -->
+          <div id="ad-block-2" class="mb-6">
+            <div class="flex items-center gap-1.5 mb-5">
+              <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
+              <h2 class="text-[14px] font-medium text-[#0F0F0F]">创建广告组</h2>
+            </div>
+
+            <!-- 广告组名称 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组名称</div>
+              <div class="flex items-center gap-3">
+                <input v-model="adSettings.ad_group_name" placeholder="示例：圣诞节大促"
+                       class="h-8 w-[474px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <span class="text-[11px] text-[#B4B8C2]">
+                  留空则与活动同名：{{ adCampaigns.length ? adCampaignName(adCampaigns[0]) : '父SKU_品名_自动_日期' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 广告组默认竞价 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组默认竞价</div>
+              <div class="flex items-center gap-3">
+                <div class="flex items-center h-8 border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                  <span class="px-2 text-[12px] text-[#606266] bg-[#F5F7FA] h-full flex items-center border-r border-[#E4E6EB]">JPY</span>
+                  <input type="number" min="0" v-model.number="adSettings.default_bid"
+                         class="h-full w-[120px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                </div>
+                <span class="text-[11px] text-[#B4B8C2]">
+                  写入广告组「默认竞价」；自动投放 4 组匹配可在下一步单独设置（未设置则继承此值）
+                </span>
+              </div>
+            </div>
+
+            <!-- 添加推广的广告产品 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>添加推广的广告产品</div>
+              <div class="flex-1 min-w-0">
+
+                <div v-if="!shopList.length" class="border border-dashed border-[#DADCE0] rounded-[4px] py-10 text-center">
+                  <p class="text-[12px] text-[#8A8F99] mb-3">还没有商品数据，请先点「从在线产品库载入」</p>
+                  <button @click="loadFromDb()"
+                          class="h-8 px-4 bg-[#2969FF] hover:bg-[#1f57d6] text-white text-[12px] rounded-[4px]">
+                    从在线产品库载入
+                  </button>
+                  <p v-if="loading" class="mt-2 text-[12px] text-[#2969FF] animate-pulse">{{ loadingText }}</p>
+                  <p v-if="error" class="mt-2 text-[12px] text-[#F54242]">{{ error }}</p>
+                </div>
+
+                <div v-else class="border border-[#E4E6EB] rounded-[4px]">
+                  <!-- 工具条 -->
+                  <div class="flex items-center gap-3 px-2 h-9 border-b border-[#E4E6EB] bg-[#F7F8FA]">
+                    <input v-model="adSearch" placeholder="搜索 父SKU / 品名 / ASIN"
+                           class="h-6 w-[220px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                    <span class="text-[12px] text-[#606266]">
+                      已添加 <strong class="text-[#0F0F0F]">{{ adSelected.length }}</strong> 个父体
+                      · <strong class="text-[#0F0F0F]">{{ adSelectedKidCount }}</strong> 个子体
+                    </span>
+                    <div class="ml-auto flex items-center gap-3">
+                      <button @click="toggleAdSelectAll" :disabled="!adFiltered.length"
+                              class="text-[12px] text-[#2969FF] hover:underline disabled:opacity-40 whitespace-nowrap">
+                        {{ isAllAdSelected ? '移除全部' : '添加全部' }}
+                      </button>
+                      <button v-if="adSelected.length" @click="clearAdProducts"
+                              class="text-[12px] text-[#2969FF] hover:underline whitespace-nowrap">清空已选</button>
+                    </div>
+                  </div>
+
+                  <!-- 表头 -->
+                  <div class="grid grid-cols-[36px_46px_112px_104px_1fr_76px_92px_74px] bg-[#F7F8FA] text-[12px] text-[#606266] border-b border-[#EEEEF6]">
+                    <div class="pl-3 h-8 flex items-center">勾选</div>
+                    <div class="h-8 flex items-center">图片</div>
+                    <div class="h-8 flex items-center">父ASIN</div>
+                    <div class="h-8 flex items-center">父SKU</div>
+                    <div class="h-8 flex items-center">品名</div>
+                    <div class="h-8 flex items-center">子体</div>
+                    <div class="h-8 flex items-center">客单价</div>
+                    <div class="h-8 flex items-center justify-end pr-3">操作</div>
+                  </div>
+
+                  <!-- 商品行 + 子体展开 -->
+                  <div class="max-h-[330px] overflow-y-auto">
+                    <template v-for="p in adFiltered" :key="p.parent_sku">
+                      <div class="grid grid-cols-[36px_46px_112px_104px_1fr_76px_92px_74px] items-center text-[12px] border-b border-[#F0F1F5] hover:bg-[#FAFBFF]">
+                        <div class="pl-3 py-1.5">
+                          <input type="checkbox" :checked="!!p.ad_selected" @change="toggleAdProduct(p)"
+                                 class="accent-[#2969FF]" />
+                        </div>
+                        <div class="py-1.5">
+                          <img v-if="p.image_url && !imgErrors[p.parent_sku]" :src="p.image_url" :alt="p.parent_sku"
+                               @error="imgErrors[p.parent_sku] = true"
+                               class="w-8 h-8 rounded border border-[#E4E6EB] object-cover" loading="lazy" />
+                          <div v-else class="w-8 h-8 rounded border border-[#E4E6EB] bg-[#F7F8FA]"></div>
+                        </div>
+                        <div class="py-1.5 pr-2 font-mono text-[11px] text-[#606266] truncate"
+                             :title="(p.parent_asins || []).join(' / ')">{{ (p.parent_asins || [])[0] || '-' }}</div>
+                        <div class="py-1.5 pr-2 truncate" :title="p.parent_sku">{{ p.parent_sku }}</div>
+                        <div class="py-1.5 pr-2 min-w-0">
+                          <p class="truncate text-[#0F0F0F]">{{ p.product_name }}</p>
+                          <p class="text-[11px] text-[#B4B8C2] truncate" :title="p.raw_name">{{ p.raw_name }}</p>
+                        </div>
+                        <div class="py-1.5">
+                          <button @click="p._kidsOpen = !p._kidsOpen"
+                                  class="text-[12px] text-[#2969FF] hover:underline"
+                                  :title="p.ad_selected ? '展开 / 收起子体，逐个勾选要投放的子 ASIN' : '先勾选父体再选子体'">
+                            {{ adKidOnCount(p) }}/{{ (p.children || []).length }}
+                            <span class="text-[10px]">{{ p._kidsOpen ? '▲' : '▼' }}</span>
+                          </button>
+                        </div>
+                        <div class="py-1.5 text-[#606266]">¥{{ fmt(p.avg_price) }}</div>
+                        <div class="py-1.5 pr-3 text-right">
+                          <button @click="p.ad_selected ? removeAdProduct(p) : addAdProduct(p)"
+                                  class="text-[12px] text-[#2969FF] hover:underline">
+                            {{ p.ad_selected ? '移除' : '添加' }}
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- 子体明细（投放的子 ASIN 可单独勾选） -->
+                      <div v-if="p._kidsOpen" class="bg-[#F7F9FF] border-b border-[#EEEEF6]">
+                        <div class="grid grid-cols-[36px_1fr_1fr_100px] text-[11px] text-[#8A8F99] px-3 py-1.5">
+                          <div>投放</div>
+                          <div>子 ASIN</div>
+                          <div>MSKU</div>
+                          <div class="text-right pr-1">售价 (JPY)</div>
+                        </div>
+                        <div v-for="c in (p.children || [])" :key="c.asin + '|' + c.msku"
+                             class="grid grid-cols-[36px_1fr_1fr_100px] items-center px-3 py-1 text-[12px]">
+                          <div>
+                            <input type="checkbox" :checked="isKidOn(p, c)" @change="toggleKid(p, c)"
+                                   class="accent-[#2969FF]" />
+                          </div>
+                          <div class="font-mono text-[11px]">{{ c.asin }}</div>
+                          <div class="text-[11px] text-[#606266] truncate pr-2" :title="c.msku">{{ c.msku }}</div>
+                          <div class="text-right pr-1">¥{{ fmt(c.price) }}</div>
+                        </div>
+                      </div>
+                    </template>
+                    <div v-if="!adFiltered.length" class="py-10 text-center text-[12px] text-[#B4B8C2]">没有匹配的商品</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 活动粒度 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">活动粒度</div>
+              <div class="flex items-center gap-5 pt-1.5">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" value="parent" v-model="adGranularity" class="accent-[#2969FF]" />
+                  每个父体 1 个活动
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" value="child" v-model="adGranularity" class="accent-[#2969FF]" />
+                  每个子体 1 个活动
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="h-px bg-[#EEEEF6] my-4"></div>
+
+          <!-- ========== 区块 4：设定投放规则 ========== -->
+          <div id="ad-block-3" class="mb-6">
+            <div class="flex items-center gap-1.5 mb-5">
+              <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
+              <h2 class="text-[14px] font-medium text-[#0F0F0F]">设定投放规则</h2>
+              <span class="text-[12px] text-[#8A8F99] ml-1">自动投放 4 组匹配</span>
+            </div>
+
+            <div class="flex items-start text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">匹配类型竞价</div>
+              <div class="flex-1 border border-[#E4E6EB] rounded-[4px] overflow-hidden">
+                <div class="grid grid-cols-[64px_1fr_2fr_120px] bg-[#F7F8FA] text-[#606266]">
+                  <div class="px-3 h-9 flex items-center border-b border-[#E4E6EB]">启用</div>
+                  <div class="px-2 h-9 flex items-center border-b border-[#E4E6EB]">匹配类型</div>
+                  <div class="px-3 h-9 flex items-center border-b border-[#E4E6EB]">说明</div>
+                  <div class="px-3 h-9 flex items-center border-b border-[#E4E6EB]">竞价 (JPY)</div>
+                </div>
+                <div v-for="row in adTargetingRows" :key="row.key"
+                     class="grid grid-cols-[64px_1fr_2fr_120px] items-center border-b border-[#F0F1F5] last:border-b-0">
+                  <div class="px-3 py-2">
+                    <input type="checkbox" v-model="row.enabled" class="accent-[#2969FF]" />
+                  </div>
+                  <div class="px-2 py-2" :class="row.enabled ? '' : 'text-[#B4B8C2]'">{{ row.label }}</div>
+                  <div class="px-3 py-2 text-[#8A8F99]">{{ row.desc }}</div>
+                  <div class="px-3 py-2">
+                    <input type="number" min="0" v-model.number="adSettings[row.key]" :disabled="!row.enabled"
+                           class="h-6 w-[72px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF] disabled:bg-[#F5F7FA] disabled:text-[#B4B8C2]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-start mt-4 text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"></div>
+              <label class="inline-flex items-center gap-2 cursor-pointer pt-1.5">
+                <input type="checkbox" v-model="adSettings.include_targeting" class="accent-[#2969FF]" />
+                生成 4 组自动匹配 Targeting 行
+              </label>
+            </div>
+          </div>
+
+          <div class="h-px bg-[#EEEEF6] my-4"></div>
+
+          <!-- ========== 区块 5：设定否定投放 ========== -->
+          <div id="ad-block-4" class="mb-2">
+            <div class="flex items-center gap-1.5 mb-4">
+              <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
+              <h2 class="text-[14px] font-medium text-[#0F0F0F]">设定否定投放</h2>
+              <span class="text-[12px] text-[#8A8F99]">（选填）</span>
+            </div>
+
+            <!-- ── 否定关键词：左输入 / 右已添加 ── -->
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <!-- 左：输入 -->
+              <div class="border border-[#E4E6EB] rounded-[4px] bg-white flex flex-col">
+                <div class="flex items-center gap-5 px-3 h-9 border-b border-[#EEEEF6] shrink-0">
+                  <button @click="adNegKwTab = 'input'"
+                          :class="['relative h-full text-[12px]', adNegKwTab === 'input' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
+                    输入列表
+                    <span v-if="adNegKwTab === 'input'" class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#FA8C16]"></span>
+                  </button>
+                  <button class="h-full text-[12px] text-[#C0C4CC] cursor-not-allowed"
+                          title="关键词库需读取后台数据，当前版本请使用「输入列表」手工录入">关键词库</button>
+                </div>
+
+                <div class="px-3 pt-3 flex-1">
+                  <div class="flex items-center gap-5 text-[12px] mb-3">
+                    <span class="text-[#606266]">匹配类型</span>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" value="negativeExact" v-model="adNegMatchType" class="accent-[#2969FF]" />
+                      否定精准
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" value="negativePhrase" v-model="adNegMatchType" class="accent-[#2969FF]" />
+                      否定词组
+                    </label>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3 text-[12px] mb-2">
+                    <span class="text-[#606266]">非法字符处理方式</span>
+                    <span class="text-[#C0C4CC] cursor-help"
+                          title="关键词中的英文标点（如 ! ? - ' &amp;）按此规则处理后再写入表格">&#9432;</span>
+                    <label v-for="m in adIllegalModes" :key="m.value" class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" :value="m.value" v-model="adNegIllegalMode" class="accent-[#2969FF]" />
+                      {{ m.label }}
+                    </label>
+                  </div>
+
+                  <textarea v-model="adNegKeywordInput" rows="9"
+                            placeholder="输入否定关键词，并以换行或是中文逗号的方式将其分隔开"
+                            class="w-full border border-[#DADCE0] rounded-[4px] px-2 py-1.5 text-[12px] resize-none outline-none focus:border-[#2969FF]"></textarea>
+                  <div class="flex justify-end py-2">
+                    <button @click="addNegKeywords"
+                            class="h-7 px-3 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white hover:border-[#2969FF] hover:text-[#2969FF]">添加</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 右：已添加 -->
+              <div class="border border-[#E4E6EB] rounded-[4px] bg-white flex flex-col">
+                <div class="flex items-center justify-between px-3 h-9 shrink-0">
+                  <span class="text-[12px] text-[#606266]">
+                    已添加 <strong class="text-[#0F0F0F]">{{ adNegKeywords.length }}</strong> 个否定关键词
+                  </span>
+                  <button v-if="adNegKeywords.length" @click="clearNegKeywords"
+                          class="text-[12px] text-[#2969FF] hover:underline">移除全部</button>
+                </div>
+                <div class="grid grid-cols-[1fr_100px_60px] bg-[#F7F8FA] text-[12px] text-[#606266] border-y border-[#EEEEF6] shrink-0">
+                  <div class="px-3 h-8 flex items-center">关键词</div>
+                  <div class="px-3 h-8 flex items-center">匹配类型</div>
+                  <div class="px-3 h-8 flex items-center justify-end text-[#2969FF]">移除全部</div>
+                </div>
+                <div class="flex-1 min-h-[286px] max-h-[286px] overflow-y-auto">
+                  <div v-for="(k, i) in adNegKeywords" :key="k.text + '|' + k.match"
+                       class="grid grid-cols-[1fr_100px_60px] items-center text-[12px] border-b border-[#F5F6F8]">
+                    <div class="px-3 py-2 truncate" :title="k.text">{{ k.text }}</div>
+                    <div class="px-3 py-2 text-[#606266]">{{ k.match === 'negativePhrase' ? '否定词组' : '否定精准' }}</div>
+                    <div class="px-3 py-2 text-right">
+                      <button @click="removeNegKeyword(i)" class="text-[#2969FF] hover:underline">移除</button>
+                    </div>
+                  </div>
+                  <div v-if="!adNegKeywords.length" class="h-[286px] flex flex-col items-center justify-center">
+                    <svg width="82" height="62" viewBox="0 0 82 62" fill="none" aria-hidden="true">
+                      <path d="M16 24 L41 12 L66 24 L41 36 Z" fill="#EFF3FC" stroke="#DDE4F4" />
+                      <path d="M16 24 L16 50 L41 62 L41 36 Z" fill="#F8FAFE" stroke="#DDE4F4" />
+                      <path d="M66 24 L66 50 L41 62 L41 36 Z" fill="#F3F6FD" stroke="#DDE4F4" />
+                      <path d="M28 6 L34 3 L40 6 L34 9 Z" fill="#E7EDFA" />
+                    </svg>
+                    <p class="text-[12px] text-[#B4B8C2] mt-2">暂无数据</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── 否定商品：左输入 / 右已添加 ── -->
+            <div class="grid grid-cols-2 gap-3">
+              <!-- 左：输入 -->
+              <div class="border border-[#E4E6EB] rounded-[4px] bg-white flex flex-col">
+                <div class="flex items-center gap-5 px-3 h-9 border-b border-[#EEEEF6] shrink-0">
+                  <button class="h-full text-[12px] text-[#C0C4CC] cursor-not-allowed"
+                          title="搜索需调用后台商品接口，当前版本请使用「输入列表」手工粘贴 ASIN">搜索</button>
+                  <button @click="adNegProductTab = 'input'"
+                          :class="['relative h-full text-[12px]', adNegProductTab === 'input' ? 'text-[#FA8C16] font-medium' : 'text-[#606266]']">
+                    输入列表
+                    <span v-if="adNegProductTab === 'input'" class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#FA8C16]"></span>
+                  </button>
+                </div>
+
+                <div class="px-3 pt-3 flex-1">
+                  <textarea v-model="adNegAsinInputText" rows="9"
+                            placeholder="输入否定ASIN，并用逗号、空格或换行将它们隔开。"
+                            class="w-full border border-[#DADCE0] rounded-[4px] px-2 py-1.5 text-[12px] resize-none outline-none focus:border-[#2969FF]"></textarea>
+                  <div class="flex items-center justify-between py-2">
+                    <span class="text-[11px] text-[#B4B8C2]">写入 Campaign Negative Product Targeting（表达式 asin="B0…"）</span>
+                    <button @click="addNegAsins"
+                            class="h-7 px-3 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white hover:border-[#2969FF] hover:text-[#2969FF]">添加</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 右：已添加 -->
+              <div class="border border-[#E4E6EB] rounded-[4px] bg-white flex flex-col">
+                <div class="flex items-center justify-between px-3 h-9 shrink-0">
+                  <span class="text-[12px] text-[#606266]">
+                    已添加 <strong class="text-[#0F0F0F]">{{ adNegAsins.length }}</strong> 个 ASIN
+                  </span>
+                  <button v-if="adNegAsins.length" @click="clearNegAsins"
+                          class="text-[12px] text-[#2969FF] hover:underline">移除全部</button>
+                </div>
+                <div class="grid grid-cols-[1fr_60px] bg-[#F7F8FA] text-[12px] text-[#606266] border-y border-[#EEEEF6] shrink-0">
+                  <div class="px-3 h-8 flex items-center">商品&amp;品牌</div>
+                  <div class="px-3 h-8 flex items-center justify-end text-[#2969FF]">移除全部</div>
+                </div>
+                <div class="flex-1 min-h-[286px] max-h-[286px] overflow-y-auto">
+                  <div v-for="a in adNegAsins" :key="a"
+                       class="grid grid-cols-[1fr_60px] items-center text-[12px] border-b border-[#F5F6F8]">
+                    <div class="px-3 py-2 font-mono">{{ a }}</div>
+                    <div class="px-3 py-2 text-right">
+                      <button @click="removeNegAsin(a)" class="text-[#2969FF] hover:underline">移除</button>
+                    </div>
+                  </div>
+                  <div v-if="!adNegAsins.length" class="h-[286px] flex flex-col items-center justify-center">
+                    <svg width="82" height="62" viewBox="0 0 82 62" fill="none" aria-hidden="true">
+                      <path d="M16 24 L41 12 L66 24 L41 36 Z" fill="#EFF3FC" stroke="#DDE4F4" />
+                      <path d="M16 24 L16 50 L41 62 L41 36 Z" fill="#F8FAFE" stroke="#DDE4F4" />
+                      <path d="M66 24 L66 50 L41 62 L41 36 Z" fill="#F3F6FD" stroke="#DDE4F4" />
+                      <path d="M28 6 L34 3 L40 6 L34 9 Z" fill="#E7EDFA" />
+                    </svg>
+                    <p class="text-[12px] text-[#B4B8C2] mt-2">暂无数据</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右：步骤导航（复刻赛狐） -->
+        <div class="w-[140px] shrink-0 sticky top-3 select-none">
+          <div v-for="(s, i) in adSteps" :key="s" @click="goAdBlock(i)"
+               :class="['flex items-center gap-2 h-[49px] text-[14px] cursor-pointer',
+                        i === 1 ? 'text-[#2969FF] font-medium' : 'text-[#0F0F0F]']">
+            <span :class="['w-[7px] h-[7px] rounded-full shrink-0', i === 1 ? 'bg-[#2969FF]' : 'bg-[#C8CBD4]']"></span>
+            {{ s }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部固定操作条 -->
+      <div class="sticky bottom-0 h-14 bg-white border-t border-[#E4E6EB] flex items-center justify-center gap-3 z-20">
+        <button @click="resetAdForm"
+                class="h-8 px-5 border border-[#DADCE0] rounded-[4px] text-[12px] text-[#0F0F0F] bg-white hover:bg-[#F5F7FA]">取消</button>
+        <button @click="exportAdExcel" :disabled="!adCampaigns.length || adExporting"
+                class="h-8 px-5 bg-[#2969FF] hover:bg-[#1f57d6] disabled:opacity-50 disabled:cursor-not-allowed text-white text-[12px] rounded-[4px]">
+          {{ adExporting ? '生成中…' : '创建' }}
+        </button>
+        <span class="absolute right-4 text-[12px] text-[#8A8F99]">
+          已选 {{ adSelected.length }} 个父体 · {{ adSelectedKidCount }} 个子体 · 将生成 {{ adCampaigns.length }} 个活动 · 合计 ¥{{ fmt(adTotalBudget) }}
+          <template v-if="negKeywordCount || adNegAsins.length">
+            · 否定 {{ negKeywordCount }} 词 / {{ adNegAsins.length }} ASIN
+          </template>
+        </span>
+      </div>
+    </div>
+
+    <!-- 词库管理弹窗 -->
+    <div v-if="dictOpen" class="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4" @click.self="dictOpen = false">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[86vh] flex flex-col">
+        <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">本地纯净名词词库</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">
+              {{ dictStats.count }} 条 · 黑名单过滤 {{ dictStats.blacklist_size }} 条 ·
+              <span class="font-mono">{{ dictStats.path }}</span>
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="reloadDict" class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-600 hover:bg-slate-50">从磁盘重载</button>
+            <button @click="dictOpen = false" class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800">关闭</button>
+          </div>
+        </div>
+
+        <div class="px-5 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center">
+          <input v-model="dictSearch" placeholder="搜索日文词或中文词…"
+                 class="flex-1 min-w-[180px] border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input v-model="newEntry.ja" placeholder="日文词" class="w-40 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input v-model="newEntry.zh" placeholder="中文词" class="w-32 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <button @click="addDictEntry" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium">新增/覆盖</button>
+        </div>
+
+        <div class="overflow-y-auto flex-1">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 sticky top-0">
+              <tr>
+                <th class="p-2.5 w-2/5">日文词</th>
+                <th class="p-2.5 w-2/5">中文词（可编辑）</th>
+                <th class="p-2.5 w-24 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="e in filteredDict" :key="e.ja" class="hover:bg-slate-50">
+                <td class="p-2.5 font-medium text-slate-700">{{ e.ja }}</td>
+                <td class="p-2.5">
+                  <input v-model="e.zh" @change="saveDictEntry(e)"
+                         class="border border-slate-300 rounded px-2 py-1 w-full text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </td>
+                <td class="p-2.5 text-center">
+                  <button @click="deleteDictEntry(e.ja)" class="text-rose-500 hover:text-rose-700">删除</button>
+                </td>
+              </tr>
+              <tr v-if="!filteredDict.length">
+                <td colspan="3" class="p-6 text-center text-slate-400">没有匹配的词条</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="px-5 py-3 border-t border-slate-200 text-[11px] text-slate-400">
+          Key 只应填写「纯物理实体名词」（如 <span class="font-mono">包丁立て</span> 而非 <span class="font-mono">包丁</span>），
+          修饰词 / 动词 / 场景词会被自动拒绝。修改立即持久化到 JSON，无需重启；也可直接编辑
+          <span class="font-mono">data/ja_zh_dict.json</span> 后点「从磁盘重载」。
+        </div>
+      </div>
+    </div>
+
+    <transition name="fade">
+      <div v-if="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-5 py-3 rounded-lg shadow-lg">{{ toast }}</div>
+    </transition>
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue;
+
+    const DEFAULT_SETTINGS = () => ({
+      bidding_strategy: 'Fixed bid',
+      default_bid: 25,
+      placement_top_pct: 0,
+      placement_product_pct: 0,
+      bid_close: 25,
+      bid_loose: 20,
+      bid_substitutes: 25,
+      bid_complements: 20,
+      portfolio_id: '',
+      include_placement: true,
+      include_targeting: true
+    });
+
+    createApp({
+      setup() {
+        const allShopsData = ref({});
+        const shopList = ref([]);
+        const selectedShop = ref('');
+        const skuSearchKeyword = ref('');
+        const budgetMode = ref('equal');
+        const singleBudgetInput = ref(100);
+        const totalPoolBudgetInput = ref(10000);
+        const sortMode = ref('sku_asc');   // sku_asc | sku_desc | price_desc
+        const imgErrors = ref({});         // 图片加载失败标记 { parent_sku: true }
+
+        // 词库管理
+        const dictOpen = ref(false);
+        const dictSearch = ref('');
+        const dictEntries = ref([]);
+        const dictStats = ref({ count: 0, blacklist_size: 0, path: '' });
+        const dictInput = ref(null);
+        const newEntry = ref({ ja: '', zh: '' });
+
+        // 「手动改名」判定：每个商品记住词库自动生成的名字（_auto_name），
+        // 当前值与自动名不一致即视为用户手动改过 —— 刷新品名时会保留。
+        const isNameManuallyEdited = (item) =>
+          item && item._auto_name !== undefined && item.product_name !== item._auto_name;
+
+        // 跨店铺唯一键（店铺 + 父 SKU）
+        const itemKey = (shop, item) => `${shop}||${item.parent_sku}`;
+
+        const filteredDict = computed(() => {
+          const kw = dictSearch.value.trim().toLowerCase();
+          if (!kw) return dictEntries.value;
+          return dictEntries.value.filter(e =>
+            (e.ja || '').toLowerCase().includes(kw) || (e.zh || '').toLowerCase().includes(kw));
+        });
+
+        const fileName = ref('');
+        const dataSource = ref('');        // db = 本地在线产品库 / excel = 手动上传
+        const sourceMark = ref('');        // '' 全部 / pass 仅通过 / fail 仅不通过（来自在线产品打标）
+        const dbSummary = ref({});         // {parents, children, shops, marks}
+        const loading = ref(false);
+        const loadingText = ref('');
+        const exporting = ref(false);
+        const refreshingNames = ref(false);
+        const dragging = ref(false);
+        const error = ref('');
+        const toast = ref('');
+        const headerRow = ref(1);
+        const resolvedCols = ref({});
+        const settings = ref(DEFAULT_SETTINGS());
+
+        // ---- 广告创建（单页: 选品 → 自动出广告）----
+        const adShop = ref('');
+        const adSearch = ref('');
+        const adGranularity = ref('parent');      // parent | child
+        const adBudgetMode = ref('equal');        // equal | weighted
+        const adSingleBudget = ref(100);
+        const adPoolBudget = ref(10000);
+        const adExporting = ref(false);
+        const adSettings = ref({
+          ...DEFAULT_SETTINGS(),
+          campaign_name: '',
+          ad_group_name: '',
+          start_date: (() => {
+            const d = new Date();
+            const p = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+          })(),
+          end_date: '',
+          placement_rest_pct: 0
+        });
+
+        // ---- 设定否定投放（复刻赛狐：左输入 / 右已添加列表）----
+        const adNegKwTab = ref('input');          // input | library（library 暂不可用）
+        const adNegProductTab = ref('input');     // search | input（search 暂不可用）
+        const adNegMatchType = ref('negativeExact');
+        const adNegIllegalMode = ref('space');    // clear | space | none
+        const adNegKeywordInput = ref('');
+        const adNegKeywords = ref([]);            // [{text, match}]
+        const adNegAsinInputText = ref('');
+        const adNegAsins = ref([]);
+        const adIllegalModes = [
+          { value: 'clear', label: '直接清除' },
+          { value: 'space', label: '替换为空格' },
+          { value: 'none', label: '不做处理' }
+        ];
+        const negKeywordCount = computed(() => adNegKeywords.value.length);
+
+        // 赛狐式右侧步骤 + 自动投放四组（每组可单独启用，pred 为亚马逊受控值）
+        const adSteps = ['选择广告类型', '创建广告活动', '创建广告组', '设定投放规则', '设定否定投放'];
+        const adTargetingRows = ref([
+          { key: 'bid_close', pred: 'close-match', enabled: true, label: '紧密匹配', desc: '与您的商品密切相关的搜索词' },
+          { key: 'bid_loose', pred: 'loose-match', enabled: true, label: '宽泛匹配', desc: '与您的商品不太相关的搜索词' },
+          { key: 'bid_substitutes', pred: 'substitutes', enabled: true, label: '同类商品', desc: '与您的商品相似的同类商品' },
+          { key: 'bid_complements', pred: 'complements', enabled: true, label: '关联商品', desc: '与您的商品互补的商品' }
+        ]);
+
+        const fmt = (n) => Number(n || 0).toLocaleString('ja-JP');
+        const showToast = (m) => { toast.value = m; setTimeout(() => (toast.value = ''), 2600); };
+
+        const currentShopData = computed(() => allShopsData.value[selectedShop.value] || null);
+
+        // 自然排序比较（hlx002 < hlx032 < hlx104）
+        const naturalCompare = (a, b) =>
+          String(a || '').localeCompare(String(b || ''), undefined, { numeric: true, sensitivity: 'base' });
+
+        const sortLabel = computed(() =>
+          sortMode.value === 'price_desc' ? '客单价 高→低' : (sortMode.value === 'sku_asc' ? '父 SKU 升序' : '父 SKU 降序'));
+
+        const skuSortIcon = computed(() =>
+          sortMode.value === 'price_desc' ? '' : (sortMode.value === 'sku_asc' ? '▲' : '▼'));
+
+        const toggleSkuSort = () => {
+          sortMode.value = sortMode.value === 'sku_asc' ? 'sku_desc' : 'sku_asc';
+        };
+
+        const filteredProducts = computed(() => {
+          const d = currentShopData.value;
+          if (!d) return [];
+          const kw = skuSearchKeyword.value.trim().toLowerCase();
+          let list = d.products;
+          if (kw) {
+            list = list.filter(p =>
+              (p.parent_sku || '').toLowerCase().includes(kw) ||
+              (p.product_name || '').toLowerCase().includes(kw)
+            );
+          }
+          const sorted = [...list];
+          if (sortMode.value === 'price_desc') {
+            sorted.sort((a, b) => Number(b.avg_price || 0) - Number(a.avg_price || 0));
+          } else {
+            sorted.sort((a, b) => {
+              const res = naturalCompare(a.parent_sku, b.parent_sku);
+              return sortMode.value === 'sku_asc' ? res : -res;
+            });
+          }
+          return sorted;
+        });
+
+        const selectedProducts = computed(() => currentShopData.value
+          ? currentShopData.value.products.filter(p => p.selected) : []);
+
+        const assignedTotal = computed(() => selectedProducts.value
+          .reduce((s, p) => s + Number(p.assigned_budget || 0), 0));
+
+        const isAllFilteredSelected = computed(() =>
+          filteredProducts.value.length > 0 && filteredProducts.value.every(p => p.selected));
+
+        const toggleSelectFiltered = () => {
+          const target = !isAllFilteredSelected.value;
+          filteredProducts.value.forEach(p => { p.selected = target; });
+          recalculateBudgets();
+        };
+
+        const recalculateBudgets = () => {
+          const d = currentShopData.value;
+          if (!d) return;
+          const selected = d.products.filter(p => p.selected);
+          if (!selected.length) return;
+
+          if (budgetMode.value === 'equal') {
+            selected.forEach(p => { p.assigned_budget = Number(singleBudgetInput.value) || 0; });
+          } else {
+            // 客单价加权：按均价占比瓜分总预算池，最低 100 JPY
+            selected.sort((a, b) => b.avg_price - a.avg_price);
+            const sum = selected.reduce((s, p) => s + Number(p.avg_price || 0), 0);
+            selected.forEach(p => {
+              const w = sum > 0 ? Number(p.avg_price) / sum : 1 / selected.length;
+              p.assigned_budget = Math.max(100, Math.round(Number(totalPoolBudgetInput.value) * w));
+            });
+          }
+        };
+
+        const initShop = (shop) => {
+          const d = allShopsData.value[shop];
+          if (!d) return;
+          d.products.forEach(p => { p.selected = true; p.assigned_budget = Number(singleBudgetInput.value) || 100; });
+          recalculateBudgets();
+        };
+
+        const onShopChange = () => {
+          skuSearchKeyword.value = '';
+          initShop(selectedShop.value);
+          showToast(`已切换到店铺：${selectedShop.value}`);
+        };
+
+        const analyzeFile = async (file) => {
+          if (!file) return;
+          error.value = '';
+          loading.value = true;
+          loadingText.value = '正在解析店铺 / 变体 / 价格，并用本地名词库提取品名…';
+          fileName.value = file.name;
+          try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch('/api/adcreator/analyze', { method: 'POST', body: fd });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.detail || '解析失败，请确认是赛狐导出的 Excel 文件');
+
+            allShopsData.value = json.shops || {};
+            imgErrors.value = {};
+            // 记录词库自动生成的品名，用于识别「手动改名」
+            Object.keys(allShopsData.value).forEach(shop => {
+              (allShopsData.value[shop].products || []).forEach(p => {
+                p._shop = shop;
+                p._auto_name = p.product_name;
+              });
+            });
+            shopList.value = Object.keys(allShopsData.value);
+            // 广告创建页跟随最新数据源
+            if (!shopList.value.includes(adShop.value)) {
+              adShop.value = shopList.value[0] || '';
+            }
+            headerRow.value = (json.header_row ?? 0) + 1;
+            resolvedCols.value = json.resolved_columns || {};
+            dataSource.value = 'excel';
+
+            if (!shopList.value.length) {
+              error.value = '未识别到有效商品，请检查文件是否包含 SKU / ASIN / 价格列。';
+              return;
+            }
+            selectedShop.value = shopList.value[0];
+            initShop(selectedShop.value);
+            const total = shopList.value.reduce((s, k) => s + allShopsData.value[k].total_parents, 0);
+            showToast(`解析完成：${shopList.value.length} 个店铺 / ${total} 个父体`);
+          } catch (e) {
+            error.value = e.message || '解析异常';
+            allShopsData.value = {};
+            shopList.value = [];
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const handleFileUpload = (e) => analyzeFile(e.target.files[0]);
+        const onDrop = (e) => {
+          dragging.value = false;
+          const f = e.dataTransfer.files[0];
+          if (f) analyzeFile(f);
+        };
+
+        /* 主数据源: 本项目「在线产品」库（销售 > 在线产品 已采集的父/子体） */
+        const loadFromDb = async () => {
+          error.value = '';
+          loading.value = true;
+          loadingText.value = '正在从本地在线产品库读取店铺 / 变体 / 价格，并用本地名词库提取品名…';
+          try {
+            const qs = sourceMark.value ? `?mark=${encodeURIComponent(sourceMark.value)}` : '';
+            const res = await fetch('/api/adcreator/products' + qs);
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json.detail || '读取在线产品库失败');
+
+            const shops = json.shops || {};
+            allShopsData.value = shops;
+            imgErrors.value = {};
+            Object.keys(shops).forEach(shop => {
+              (shops[shop].products || []).forEach(p => { p._shop = shop; p._auto_name = p.product_name; });
+            });
+            shopList.value = Object.keys(shops);
+            if (!shopList.value.includes(adShop.value)) adShop.value = shopList.value[0] || '';
+            headerRow.value = 0;
+            resolvedCols.value = json.resolved_columns || {};
+            dataSource.value = 'db';
+            dbSummary.value = json.summary || {};
+            fileName.value = `在线产品库 · ${dbSummary.value.parents || 0} 个父体 / ${dbSummary.value.children || 0} 个子体`;
+
+            if (!shopList.value.length) {
+              error.value = sourceMark.value
+                ? '当前筛选下没有商品（该标记下暂无父体），请切回「全部」。'
+                : '本地在线产品库还没有数据，请先在「在线产品」页采集。';
+              return;
+            }
+            // 商品由用户在「添加推广的广告产品」里手工勾选，这里不预选
+            const total = shopList.value.reduce((s, k) => s + (shops[k].total_parents || 0), 0);
+            showToast(`已载入在线产品库：${shopList.value.length} 个店铺 / ${total} 个父体`);
+          } catch (e) {
+            error.value = e.message || '读取在线产品库失败';
+            allShopsData.value = {};
+            shopList.value = [];
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const exportBulkExcel = async () => {
+          const selected = selectedProducts.value;
+          if (!selected.length) return;
+          exporting.value = true;
+          try {
+            const payload = {
+              products: selected.map(p => ({
+                parent_sku: p.parent_sku,
+                product_name: p.product_name,
+                assigned_budget: p.assigned_budget,
+                suggested_budget: p.suggested_budget,
+                children: p.children
+              })),
+              settings: settings.value
+            };
+            const res = await fetch('/api/adcreator/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              throw new Error(j.detail || '生成失败');
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            a.href = url;
+            a.download = `${selectedShop.value || 'shop'}_SP_Bulk_Ads_${today}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showToast(`已导出 ${selected.length} 个广告活动`);
+          } catch (e) {
+            error.value = e.message || '导出异常';
+          } finally {
+            exporting.value = false;
+          }
+        };
+
+        // ---- 广告创建页：商品池 / 活动展开 / 预算 / 导出 ----
+        const adShopData = computed(() => allShopsData.value[adShop.value] || null);
+        const adProducts = computed(() => (adShopData.value && adShopData.value.products) || []);
+
+        const adFiltered = computed(() => {
+          const kw = adSearch.value.trim().toLowerCase();
+          let list = adProducts.value;
+          if (kw) {
+            list = list.filter(p =>
+              String(p.parent_sku || '').toLowerCase().includes(kw) ||
+              String(p.product_name || '').toLowerCase().includes(kw) ||
+              String(p.raw_name || '').toLowerCase().includes(kw) ||
+              (p.parent_asins || []).some(a => String(a).toLowerCase().includes(kw)) ||
+              (p.children || []).some(c =>
+                String(c.asin || '').toLowerCase().includes(kw) ||
+                String(c.msku || '').toLowerCase().includes(kw)));
+          }
+          return [...list].sort((a, b) => naturalCompare(a.parent_sku, b.parent_sku));
+        });
+
+        const adSelected = computed(() => adProducts.value.filter(p => p.ad_selected));
+        const isAllAdSelected = computed(() =>
+          adFiltered.value.length > 0 && adFiltered.value.every(p => p.ad_selected));
+        const adProductCount = computed(() =>
+          adProducts.value.reduce(
+            (s, p) => s + Number(p.child_count || (p.children || []).length || 0), 0));
+
+        /* 子体投放粒度：默认全部子体都投；p._kidOff 记录被取消的子 ASIN */
+        const isKidOn = (p, c) => !(p._kidOff && p._kidOff[c.asin]);
+        const adKids = (p) => (p.children || []).filter(c => isKidOn(p, c));
+        const adKidOnCount = (p) => adKids(p).length;
+        const adSelectedKidCount = computed(() =>
+          adSelected.value.reduce((s, p) => s + adKidOnCount(p), 0));
+
+        const toggleKid = (p, c) => {
+          p._kidOff = p._kidOff || {};
+          if (isKidOn(p, c)) {
+            if (adKidOnCount(p) <= 1) { showToast('每个父体至少要保留 1 个投放子体'); return; }
+            p._kidOff[c.asin] = true;
+          } else {
+            delete p._kidOff[c.asin];
+            if (!p.ad_selected) p.ad_selected = true;     // 勾子体自动带上父体
+          }
+        };
+
+        const toggleAdProduct = (p) => {
+          p.ad_selected = !p.ad_selected;
+          if (p.ad_selected) p._kidsOpen = true;
+        };
+
+        // 按粒度展开为「广告活动」列表（只带被勾选投放的子体）
+        const adCampaigns = computed(() => {
+          const out = [];
+          adSelected.value.forEach(p => {
+            const children = adKids(p);
+            if (!children.length) return;
+            if (adGranularity.value === 'child') {
+              children.forEach(c => {
+                out.push({
+                  parent_sku: c.msku || c.asin,
+                  product_name: p.product_name,
+                  children: [c],
+                  avg_price: Number(c.price) > 0 ? Number(c.price) : Number(p.avg_price || 0)
+                });
+              });
+            } else {
+              out.push({
+                parent_sku: p.parent_sku,
+                product_name: p.product_name,
+                children,
+                avg_price: Number(p.avg_price || 0)
+              });
+            }
+          });
+          return out;
+        });
+
+        // 每个活动的每日预算
+        const adBudgetMap = computed(() => {
+          const map = {};
+          const list = adCampaigns.value;
+          if (!list.length) return map;
+          if (adBudgetMode.value === 'weighted') {
+            const sum = list.reduce((s, c) => s + Number(c.avg_price || 0), 0);
+            list.forEach(c => {
+              const w = sum > 0 ? Number(c.avg_price) / sum : 1 / list.length;
+              map[c.parent_sku] = Math.max(100, Math.round(Number(adPoolBudget.value) * w));
+            });
+          } else {
+            list.forEach(c => { map[c.parent_sku] = Number(adSingleBudget.value) || 0; });
+          }
+          return map;
+        });
+
+        const adTotalBudget = computed(() =>
+          adCampaigns.value.reduce((s, c) => s + Number(adBudgetMap.value[c.parent_sku] || 0), 0));
+
+        // 本地日期（与后端 campaign_name 的 today_str 保持一致）
+        const adToday = () => {
+          const d = new Date();
+          const p = (n) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
+        };
+
+        const adCampaignName = (c) =>
+          `${c.parent_sku}_${c.product_name || '商品'}_自动_${adToday()}`;
+
+        // 否定关键词：英文标点按「非法字符处理方式」清洗
+        const ILLEGAL_KW_CHARS = /[!@#$%^&*()\-_=+\[\]{}|\\/:;",.<>?~`'’“”「」]/g;
+        const sanitizeNegKeyword = (text) => {
+          if (adNegIllegalMode.value === 'clear') return text.replace(ILLEGAL_KW_CHARS, '');
+          if (adNegIllegalMode.value === 'space') {
+            return text.replace(ILLEGAL_KW_CHARS, ' ').replace(/\s+/g, ' ').trim();
+          }
+          return text;
+        };
+
+        const addNegKeywords = () => {
+          const raw = (adNegKeywordInput.value || '').trim();
+          if (!raw) { showToast('请输入否定关键词'); return; }
+          const items = raw
+            .split(/[\n,，、;；]+/)
+            .map((s) => sanitizeNegKeyword(s.trim()))
+            .filter(Boolean);
+          let added = 0;
+          items.forEach((text) => {
+            const exists = adNegKeywords.value.some(
+              (k) => k.text === text && k.match === adNegMatchType.value
+            );
+            if (!exists) {
+              adNegKeywords.value.push({ text, match: adNegMatchType.value });
+              added += 1;
+            }
+          });
+          adNegKeywordInput.value = '';
+          showToast(added ? `已添加 ${added} 个否定关键词` : '关键词均已存在，未重复添加');
+        };
+        const removeNegKeyword = (i) => { adNegKeywords.value.splice(i, 1); };
+        const clearNegKeywords = () => { adNegKeywords.value = []; };
+
+        // 否定商品：支持逗号 / 空格 / 换行批量粘贴
+        const addNegAsins = () => {
+          const raw = (adNegAsinInputText.value || '').trim();
+          if (!raw) { showToast('请输入否定 ASIN'); return; }
+          const parts = raw.split(/[\s,，、;；]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+          let added = 0;
+          const invalid = [];
+          parts.forEach((a) => {
+            if (!/^[A-Z0-9]{10}$/.test(a)) { invalid.push(a); return; }
+            if (!adNegAsins.value.includes(a)) {
+              adNegAsins.value.push(a);
+              added += 1;
+            }
+          });
+          adNegAsinInputText.value = '';
+          let msg = `已添加 ${added} 个 ASIN`;
+          if (invalid.length) msg += ` · ${invalid.length} 个格式不正确：${invalid.slice(0, 3).join('、')}`;
+          showToast(msg);
+        };
+        const removeNegAsin = (a) => {
+          adNegAsins.value = adNegAsins.value.filter((x) => x !== a);
+        };
+        const clearNegAsins = () => { adNegAsins.value = []; };
+
+        const addAdProduct = (p) => { p.ad_selected = true; p._kidsOpen = true; };
+        const removeAdProduct = (p) => { p.ad_selected = false; p._kidsOpen = false; };
+        const clearAdProducts = () => {
+          adProducts.value.forEach(p => {
+            p.ad_selected = false; p._kidsOpen = false; p._kidOff = {};
+          });
+        };
+        const clearKidFilter = (p) => { p._kidOff = {}; };
+        const goAdBlock = (i) => {
+          const el = document.getElementById('ad-block-' + i);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        };
+
+        /* 取消: 清空当前表单与选择（不重新拉数据） */
+        const resetAdForm = () => {
+          adSearch.value = '';
+          adProducts.value.forEach(p => { p.ad_selected = false; p._kidsOpen = false; p._kidOff = {}; });
+          adNegKeywords.value = [];
+          adNegAsins.value = [];
+          adNegKeywordInput.value = '';
+          adNegAsinInputText.value = '';
+          adSettings.value = { ...adSettings.value, campaign_name: '', ad_group_name: '' };
+          showToast('已清空当前广告创建表单');
+        };
+
+        const toggleAdSelectAll = () => {
+          const target = !isAllAdSelected.value;
+          adFiltered.value.forEach(p => {
+            p.ad_selected = target;
+            if (!target) p._kidsOpen = false;
+            if (target) p._kidOff = {};      // 全部添加 = 全部子体都投
+          });
+        };
+
+        const exportAdExcel = async () => {
+          const list = adCampaigns.value;
+          if (!list.length) { showToast('请先勾选要投放的商品'); return; }
+          adExporting.value = true;
+          try {
+            const budgets = adBudgetMap.value;
+            const payload = {
+              products: list.map(c => ({
+                parent_sku: c.parent_sku,
+                product_name: c.product_name,
+                assigned_budget: budgets[c.parent_sku],
+                suggested_budget: budgets[c.parent_sku],
+                children: c.children
+              })),
+              settings: {
+                ...adSettings.value,
+                include_targeting: adSettings.value.include_targeting
+                  && adTargetingRows.value.some(r => r.enabled),
+                targeting_types: adTargetingRows.value.filter(r => r.enabled).map(r => r.pred),
+                negative_keywords: adNegKeywords.value,
+                negative_asins: adNegAsins.value,
+                negative_level: 'campaign'
+              }
+            };
+            const res = await fetch('/api/adcreator/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              throw new Error(j.detail || '生成失败');
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${adShop.value || 'shop'}_SP_Auto_Ads_${adToday()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showToast(`已生成 ${list.length} 个广告活动，开始下载…`);
+          } catch (e) {
+            error.value = e.message || '生成失败';
+            showToast(error.value);
+          } finally {
+            adExporting.value = false;
+          }
+        };
+
+        // ---- 本地纯净名词词库 ----
+        const loadDict = async () => {
+          try {
+            const res = await fetch('/api/adcreator/dictionary');
+            if (!res.ok) return;
+            const d = await res.json();
+            dictEntries.value = d.entries || [];
+            dictStats.value = {
+              count: d.count || 0,
+              blacklist_size: d.blacklist_size || 0,
+              path: d.path || ''
+            };
+          } catch (e) { /* 静默 */ }
+        };
+
+        // 仅刷新条目数（顶部栏常驻显示）
+        const refreshDictCount = async () => {
+          try {
+            const res = await fetch('/api/adcreator/dictionary/stats');
+            if (!res.ok) return;
+            const d = await res.json();
+            dictStats.value = { ...dictStats.value, count: d.total_count || 0 };
+          } catch (e) { /* 静默 */ }
+        };
+
+        const openDict = async () => {
+          dictOpen.value = true;
+          await loadDict();
+        };
+
+        // 导入 AI 清洗后的纯净中日对照 JSON
+        const importDict = async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const fd = new FormData();
+          fd.append('file', file);
+          try {
+            const res = await fetch('/api/adcreator/dictionary/import', { method: 'POST', body: fd });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) { showToast(d.detail || '导入失败'); return; }
+            const purged = d.purged_keys || [];
+            let msg = `导入成功：新增/更新 ${d.imported_count} 条，当前共 ${d.total_count} 条`;
+            if (purged.length) msg += `（已拒绝 ${purged.length} 个非纯名词：${purged.slice(0, 5).join('、')}${purged.length > 5 ? '…' : ''}）`;
+            showToast(msg);
+            await loadDict();
+          } catch (err) {
+            showToast('导入词库失败，请检查是否为规范的 JSON 格式。');
+          } finally {
+            e.target.value = '';   // 允许重复导入同一文件
+          }
+        };
+
+        const reloadDict = async () => {
+          const res = await fetch('/api/adcreator/dictionary/reload', { method: 'POST' });
+          const d = await res.json();
+          await loadDict();
+          showToast(`已从磁盘重载，共 ${d.total_count} 条`);
+        };
+
+        // ---- 一键刷新品名匹配（导入新词库后无需重新上传表格）----
+        //   范围：当前已加载的「全部店铺」商品
+        //   规则：手动改过名的商品保留原值，其余按最新词库覆盖
+        const refreshNameMatching = async () => {
+          const shops = Object.keys(allShopsData.value);
+          if (!shops.length) { showToast('请先载入商品数据再刷新品名'); return; }
+
+          const items = [];
+          shops.forEach(shop => {
+            (allShopsData.value[shop].products || []).forEach(p => {
+              const raw = (p.raw_name || '').trim();
+              if (raw && p.parent_sku) {
+                items.push({ key: itemKey(shop, p), parent_sku: p.parent_sku, raw_name: raw });
+              }
+            });
+          });
+          if (!items.length) { showToast('没有可用于重匹配的原始日文标题'); return; }
+
+          refreshingNames.value = true;
+          try {
+            const res = await fetch('/api/adcreator/dictionary/rematch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items })
+            });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) { showToast(d.detail || '刷新品名失败'); return; }
+
+            const matched = d.matched_names || {};
+            let updated = 0, kept = 0, same = 0, miss = 0;
+            shops.forEach(shop => {
+              (allShopsData.value[shop].products || []).forEach(p => {
+                const next = matched[itemKey(shop, p)];
+                if (next === undefined) return;
+                if (isNameManuallyEdited(p)) { kept += 1; return; }   // 保留手动改名
+                if (p.product_name === next) { same += 1; return; }
+                p.product_name = next;
+                p._auto_name = next;                                   // 同步自动名基线
+                updated += 1;
+              });
+            });
+            miss = d.miss_count || 0;
+
+            await refreshDictCount();
+            let msg = `品名已刷新：更新 ${updated} 个`;
+            if (kept) msg += ` · 保留手动改名 ${kept} 个`;
+            if (same) msg += ` · 无变化 ${same} 个`;
+            if (miss) msg += ` · 未收录 ${miss} 个（沿用兜底名）`;
+            showToast(msg);
+          } catch (err) {
+            showToast('刷新品名失败：' + (err.message || '网络异常'));
+          } finally {
+            refreshingNames.value = false;
+          }
+        };
+
+        const addDictEntry = async () => {
+          const ja = (newEntry.value.ja || '').trim();
+          const zh = (newEntry.value.zh || '').trim();
+          if (!ja || !zh) { showToast('日文词与中文词都不能为空'); return; }
+          const res = await fetch('/api/adcreator/dictionary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ja, zh })
+          });
+          if (!res.ok) { const j = await res.json().catch(() => ({})); showToast(j.detail || '保存失败'); return; }
+          newEntry.value = { ja: '', zh: '' };
+          await loadDict();
+          showToast(`已写入词库：${ja} → ${zh}`);
+        };
+
+        const saveDictEntry = async (e) => {
+          if (!e.zh || !e.zh.trim()) return;
+          await fetch('/api/adcreator/dictionary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ja: e.ja, zh: e.zh.trim() })
+          });
+          await loadDict();
+          showToast(`已更新：${e.ja}`);
+        };
+
+        const deleteDictEntry = async (ja) => {
+          const res = await fetch('/api/adcreator/dictionary?ja=' + encodeURIComponent(ja), { method: 'DELETE' });
+          if (!res.ok) { showToast('删除失败'); return; }
+          await loadDict();
+          showToast(`已删除：${ja}`);
+        };
+
+        loadDict();
+        // 进页面直接从本项目在线产品库载入(不再需要先上传 Excel)
+        loadFromDb();
+
+        return {
+          dataSource, sourceMark, dbSummary, loadFromDb,
+          allShopsData, shopList, selectedShop, currentShopData, filteredProducts,
+          selectedProducts, assignedTotal, isAllFilteredSelected, skuSearchKeyword,
+          settings, budgetMode, singleBudgetInput, totalPoolBudgetInput,
+          sortMode, imgErrors, sortLabel, skuSortIcon, toggleSkuSort,
+          dictOpen, dictSearch, dictEntries, dictStats, dictInput, newEntry, filteredDict,
+          openDict, reloadDict, importDict, refreshDictCount, addDictEntry, saveDictEntry, deleteDictEntry,
+          refreshingNames, refreshNameMatching, isNameManuallyEdited,
+          fileName, loading, loadingText, exporting, dragging, error, toast, headerRow, resolvedCols,
+          fmt, handleFileUpload, onDrop, onShopChange, toggleSelectFiltered, recalculateBudgets, exportBulkExcel,
+          // 广告创建（单页）
+          resetAdForm,
+          adShop, adShopData, adProducts, adFiltered, adSelected, adProductCount,
+          isAllAdSelected, toggleAdSelectAll, adSearch,
+          adGranularity, adSettings, adBudgetMode, adSingleBudget, adPoolBudget,
+          adCampaigns, adTotalBudget, adCampaignName, adExporting, exportAdExcel,
+          adSteps, adTargetingRows, addAdProduct, removeAdProduct, clearAdProducts, goAdBlock,
+          toggleAdProduct, isKidOn, toggleKid, adKidOnCount, adSelectedKidCount, clearKidFilter,
+          adNegKwTab, adNegProductTab, adNegMatchType, adNegIllegalMode, adIllegalModes,
+          adNegKeywordInput, adNegKeywords, negKeywordCount,
+          addNegKeywords, removeNegKeyword, clearNegKeywords,
+          adNegAsinInputText, adNegAsins, addNegAsins, removeNegAsin, clearNegAsins
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

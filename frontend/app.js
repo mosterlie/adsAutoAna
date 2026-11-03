@@ -1185,10 +1185,15 @@ function showView(v) {
   $("productView").style.display = v === "product" ? "" : "none";
   $("onlineView").style.display = v === "online" ? "" : "none";
   $("bulkView").style.display = v === "bulk" ? "" : "none";
+  $("adCreatorView").style.display = v === "adcreator" ? "" : "none";
   $("settingsView").style.display = v === "settings" ? "" : "none";
   if (v === "product" && !pv.loaded) { pv.loaded = true; goProducts(); }
   if (v === "online" && !ol.loaded) { ol.loaded = true; showOnline(); }
   if (v === "bulk" && !bk.loaded) { bk.loaded = true; bkLoad(); }
+  if (v === "adcreator") {
+    const fr = $("adCreatorFrame");                 // 首次进入才加载(避免每次打开首页都拉 CDN)
+    if (fr && !fr.getAttribute("src").startsWith("/static")) fr.src = fr.dataset.src;
+  }
   if (v === "settings") { loadSettings(); }
 }
 
@@ -1464,6 +1469,7 @@ function renderProducts() {
       <th class="col-ops">操作</th>
     </tr></thead><tbody>${rows || ""}</tbody></table>` +
     (rows ? "" : `<div class="empty">没有匹配的产品</div>`) + pagerHtml();
+  hoistPager("pWrap");
 
   bindSortHeaders($("pWrap"), sort1, () => {
     pv.orderField = sort1.field; pv.orderDir = sort1.dir; pv.page = 1; loadProducts();
@@ -1514,6 +1520,80 @@ function renderProducts() {
   // 品名: 本页父 ASIN 逐个解析(已解析过的直接取缓存, 不重复调模型)
   ensurePvLabels(pv.rows.map((r) => r.parent_asin || r.asin).filter(Boolean));
   bindPager();
+}
+
+/* ---------- 来源链接单元格 (父体列表 · 品名之后两列) ----------
+   来源链接1 = 亚马逊商品链接      → 显示去掉协议的 URL, 超出省略
+   来源链接2 = 采购源链接(1688/拼多多) → 显示站点图标 + 主域
+   两者都 target=_blank, 点击在新页签打开; 悬停 title 看完整 URL。 */
+function srcHost(url) {
+  const s = String(url || "");
+  try { return new URL(s).hostname.replace(/^www\./i, ""); }
+  catch (e) { return s.replace(/^https?:\/\//i, "").split("/")[0].replace(/^www\./i, ""); }
+}
+
+function srcText(url) {
+  return String(url || "").replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "");
+}
+
+/* 亚马逊链接的短标签: 有 ASIN 就显示 dp/<ASIN>(链接对应的那个商品), 否则退回 URL */
+function srcAmazonLabel(url) {
+  const m = String(url || "").match(/\/dp\/([A-Za-z0-9]{10})/);
+  return m ? "dp/" + m[1] : srcText(url);
+}
+
+/* 站点主域(与后端 favicon.site_domain 同规则): mobile.yangkeduo.com → yangkeduo.com */
+const TWO_LEVEL = new Set(["com.cn", "net.cn", "org.cn", "gov.cn", "co.jp", "ne.jp",
+  "or.jp", "com.hk", "com.tw", "co.uk", "com.au", "com.sg", "com.my"]);
+
+function srcSiteDomain(url) {
+  const host = srcHost(url);
+  const p = host.split(".");
+  if (p.length >= 3 && TWO_LEVEL.has(p.slice(-2).join("."))) return p.slice(-3).join(".");
+  return p.length >= 2 ? p.slice(-2).join(".") : host;
+}
+
+/* 采购源站点徽标: favicon 取不到时(拼多多等站点不公开图标)用品牌色徽标兜底 */
+const SITE_BADGE = {
+  "1688.com": ["1688", "#ff6a00"],
+  "yangkeduo.com": ["拼", "#e02e24"],
+  "pinduoduo.com": ["拼", "#e02e24"],
+  "taobao.com": ["淘", "#ff5000"],
+  "tb.cn": ["淘", "#ff5000"],
+  "tmall.com": ["猫", "#ff0036"],
+  "jd.com": ["京", "#e1251b"],
+  "amazon.co.jp": ["a", "#232f3e"],
+  "aliexpress.com": ["AE", "#e62e04"],
+};
+
+function siteBadge(url) {
+  const site = srcSiteDomain(url);
+  if (SITE_BADGE[site]) return SITE_BADGE[site];
+  return [(site.charAt(0) || "?").toUpperCase(), "#94a3b8"];
+}
+
+/* 站点图标用本地图片(站点自身 favicon 太糊/取不到时), 值是前端静态目录下的相对路径 */
+const LOCAL_ICON = {
+  "taobao.com": "/static/assets/taobao.png",
+  "tb.cn": "/static/assets/taobao.png",
+};
+
+function srcLinkHtml(url, withIcon) {
+  const u = String(url || "").trim();
+  if (!u) return `<span class="pmeta">-</span>`;
+  let icon = "";
+  if (withIcon) {
+    const [ch, color] = siteBadge(u);
+    const src = LOCAL_ICON[srcSiteDomain(u)] || ("/api/favicon?u=" + encodeURIComponent(u));
+    // 底层是品牌色徽标, 上面叠图标; 取不到图标时 onerror 移除 img 露出徽标
+    icon = `<span class="src-ico-wrap">` +
+      `<i class="src-ico-fb" style="background:${color}">${esc(ch)}</i>` +
+      `<img class="src-ico" src="${esc(src)}" alt=""
+         loading="lazy" onerror="this.remove()"></span>`;
+  }
+  const label = withIcon ? srcSiteDomain(u) : srcAmazonLabel(u);
+  return `<a class="src-link" href="${esc(u)}" target="_blank" rel="noopener"
+    title="${esc(u)}">${icon}<span class="src-txt">${esc(label)}</span></a>`;
 }
 
 /* ---------- Level 2: 某父体的广告活动 (多子 ASIN 合并) ---------- */
@@ -1618,6 +1698,7 @@ function renderCampaigns() {
         total: T2.ad_sales, totalTip: `本页 ${rows.length} 个活动的销售额合计` })}
       <th class="col-ops">操作</th>
     </tr></thead><tbody>${body}</tbody></table>` + (rows.length ? "" : `<div class="empty">该父体暂无关联活动</div>`);
+  hoistPager("pWrap");                       // 二级表没有分页条 → 顺手清掉上一级残留的
   bindSortHeaders($("pWrap"), pv.cSort, () => renderCampaigns());
   $("pWrap").querySelectorAll("tbody tr").forEach((tr) => {
     const c = rows.find((x) => String(x.campaignId) === tr.dataset.cid);
@@ -1781,10 +1862,23 @@ function renderTerms() {
       ${sortableTh(pv.tSort, { cls: "num", label: "搜索热度", en: "Search Freq. Rank", field: "searchFrequencyRank" })}
     </tr></thead><tbody>${body}</tbody></table>` +
     (rows.length ? "" : `<div class="empty">该${PT ? "父体" : "活动"}在此维度下没有数据</div>`);
+  hoistPager("pWrap");                       // 搜索词表没有分页条 → 清掉上一级残留的
   bindSortHeaders($("pWrap"), pv.tSort, () => renderTerms());
   $("pWrap").querySelectorAll(".amz-link").forEach((el) => el.onclick = () => openAmazon(el.dataset.q));
   // 缺译文的搜索词排队自动翻译; 译文到位后重画
   ensureTermList(rows.map((r) => r.query), () => renderTerms(), "drawerTerms");
+}
+
+/* 翻页条挪出滚动容器(#pWrap/#olWrap) → 挂到外层 .p-content 末尾:
+   它就成了页头/表格之外的一行, 固定在视口最底端, 既不会浮在表格最后一行上面,
+   也不占表格的可视高度(表格自己内部滚动)。 */
+function hoistPager(wrapId) {
+  const wrap = $(wrapId);
+  if (!wrap || !wrap.parentElement) return;
+  const host = wrap.parentElement;
+  host.querySelectorAll(":scope > .pager").forEach((el) => el.remove());   // 清掉上一级的旧分页
+  const pg = wrap.querySelector(".pager");
+  if (pg) host.appendChild(pg);
 }
 
 /* ---------- 产品视角分页 ---------- */
@@ -2176,11 +2270,12 @@ bkCfgSync();
    =================================================================== */
 const ol = {
   page: 1, pageSize: 50, total: 0, rows: [],
-  keyword: "", searchField: "asin", filters: { isVariation: ["2"] }, pageType: "child",
+  keyword: "", searchField: "asin", filters: { isVariation: ["1"] }, pageType: "parent",
   orderField: "", orderDir: "desc",
   fields: [], shops: [], filterMeta: [], updated: "", counts: { child: 0, parent: 0, total: 0 },
   visible: null,          // Set(列 key)
   aiLabels: {},           // asin -> AI 品名(本地 Ollama 解析)
+  markCounts: { pass: 0, fail: 0 },   // 打标统计(通过 / 不通过)
   loaded: false,
 };
 
@@ -2191,6 +2286,12 @@ const OL_COLUMNS = [
   { key: "asinSku", label: "ASIN/MSKU", fields: ["asin", "sku"], type: "asinlink" },
   // 品名 = 本地 Ollama 解析标题得到的「这是什么」(≤5 个词), 展示在标题列之前
   { key: "aiTitle", label: "品名", fields: [], type: "ai" },
+  // 打标 = 操作列「通过 / 不通过」按钮写入的人工标记(按父 ASIN), 紧跟品名显示
+  { key: "mark", label: "打标", fields: [], type: "mark" },
+  // 来源链接(店小秘 parents CSV 关联): 1=亚马逊商品链接, 2=采购源链接(带站点图标)
+  // 只在「父体」视图显示, 见 renderOnline() 的 cols 过滤
+  { key: "amazonLink", label: "亚马逊链接", fields: [], type: "amazonlink" },
+  { key: "purchaseLink", label: "采购链接", fields: [], type: "purchaselink" },
   { key: "title", label: "标题", fields: ["title"], type: "title" },
   // 原「分析」列替换为价格列: 父体 = 全部子体售价中位数
   { key: "priceMedian", label: "价格", fields: ["priceMedian"], type: "medianprice" },
@@ -2267,6 +2368,30 @@ function olNum(v, digits) {
   return n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+/* ---------- 品打标: 通过 / 不通过 (按父 ASIN 记, 子体行归到父 ASIN) ---------- */
+function olRowParent(r) {
+  return String((r && (r.parentAsin || r.asin)) || "");
+}
+
+async function toggleMark(r, mark) {
+  const pa = olRowParent(r);
+  if (!pa) return;
+  const next = String(olVal(r._mark) || "") === mark ? "" : mark;   // 再点一次 = 取消
+  try {
+    const d = await api("/api/online/mark", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asin: pa, mark: next }),
+    });
+    if (!d || !("mark" in d)) throw new Error((d && d.detail) || "接口返回异常");
+    r._mark = d.mark || ""; r._mark_at = "";
+    if (d.counts) ol.markCounts = d.counts;
+    toast(next ? (mark === "pass" ? "已标记：通过" : "已标记：不通过") : "已取消标记");
+    loadOnlineProducts();                 // 重新拉本页(打标统计/筛选计数同步刷新)
+  } catch (e) {
+    toast("打标失败：" + ((e && e.message) || e));
+  }
+}
+
 /* 单列渲染 */
 function olCell(col, r) {
   const g = (k) => r[k];
@@ -2285,9 +2410,21 @@ function olCell(col, r) {
         onerror="this.style.visibility='hidden'">`;
     }
     case "asinlink": {
+      // ASIN 文本点击 = 复制(不再是链接, 避免误点跳走), 跳转只走右侧「↗」按钮;
+      // 跳转按钮也挂 data-copy → 点它同时把 ASIN 复制到剪贴板
+      // 按钮图标用 ::before 画, 不写进 DOM 文本 —— 否则会污染 inner_text 与单元格断言
       const a = olVal(g("asin")), s = olVal(g("sku"));
-      return `<div class="ol-asin"><a class="link" href="https://www.amazon.co.jp/dp/${esc(a)}" target="_blank" rel="noopener">${esc(a)}</a></div>
-              <div class="ol-sku" title="${esc(s)}">${esc(String(s).slice(0, 22))}</div>`;
+      const url = a ? `https://www.amazon.co.jp/dp/${a}` : "";
+      return `<div class="ol-asin">
+          <span class="asin-copy" data-copy="${esc(a)}" data-copy-label="ASIN"
+                title="点击复制 ASIN：${esc(a)}">${esc(a)}</span>
+          ${url ? `<a class="ol-jump" href="${esc(url)}" target="_blank" rel="noopener"
+                    data-copy="${esc(a)}" data-copy-label="ASIN"
+                    title="在亚马逊打开 ${esc(a)}（同时复制 ASIN）"
+                    aria-label="在亚马逊打开 ${esc(a)}"></a>` : ""}
+        </div>
+        <div class="ol-sku asin-copy" data-copy="${esc(s)}" data-copy-label="MSKU"
+             title="点击复制 MSKU：${esc(s)}">${esc(String(s).slice(0, 22))}</div>`;
     }
     case "ai": {
       const a = esc(r.asin || "");
@@ -2295,6 +2432,14 @@ function olCell(col, r) {
       return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${a}"
         title="${lab ? esc(lab) : "正在解析品名(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
     }
+    case "amazonlink": {
+      // 店小秘没导出亚马逊链接时, 退回用 ASIN 拼详情页 —— 与点 ASIN/MSKU 跳的是同一个地址
+      const asin = olVal(r.asin) || olVal(r.parentAsin);
+      const url = olVal(r.amazon_url) || (asin ? `https://www.amazon.co.jp/dp/${asin}` : "");
+      return srcLinkHtml(url);
+    }
+    case "purchaselink":
+      return srcLinkHtml(r.purchase_url || "", true);
     case "title":
       return `<div class="ol-title-in" title="${esc(olVal(r.title))}">${olPlain(r.title)}</div>`;
     case "medianprice": {
@@ -2303,10 +2448,21 @@ function olCell(col, r) {
       const n = r._price_child_count || 0;
       return `<span title="该父体下 ${n} 个子体售价的中位数">${olMoney(v)}</span>`;
     }
+    case "mark": {
+      const m = String(olVal(r._mark) || "");
+      if (m === "pass") return `<span class="mark-tag pass" title="已标记：通过${r._mark_at ? " · " + esc(r._mark_at) : ""}">✓ 通过</span>`;
+      if (m === "fail") return `<span class="mark-tag fail" title="已标记：不通过${r._mark_at ? " · " + esc(r._mark_at) : ""}">✕ 不通过</span>`;
+      return `<span class="mark-none">未标记</span>`;
+    }
     case "icons":
       return `<span class="ol-icons">🔍 💬</span>`;
     case "ops":
-      return `<button class="btn btn-mini" data-ops="1">详情</button>
+      // 打标按钮放最前面(绿=通过 / 红=不通过), 后面才是详情/补全评分
+      return `<button class="btn btn-mini btn-mark-pass${olVal(r._mark) === "pass" ? " on" : ""}"
+                      data-mark="pass" data-pa="${esc(olRowParent(r))}" title="标记该品为「通过」(再点一次取消)">通过</button>
+              <button class="btn btn-mini btn-mark-fail${olVal(r._mark) === "fail" ? " on" : ""}"
+                      data-mark="fail" data-pa="${esc(olRowParent(r))}" title="标记该品为「不通过」(再点一次取消)">不通过</button>
+              <button class="btn btn-mini" data-ops="1">详情</button>
               <button class="btn btn-mini" data-fill="${esc(r.asin || "")}" title="从亚马逊商品页抓取星级/评分数/排名">补全评分</button>`;
     case "money":
       return olMoney(col.fields.length ? g(col.fields[0]) : "");
@@ -2386,6 +2542,7 @@ async function loadOnlineMeta() {
   ol.fields = d.fields || []; ol.shops = d.shops || [];
   ol.filterMeta = d.filters || []; ol.total = d.total || 0; ol.updated = d.updated_at || "";
   ol.counts = d.counts || { child: 0, parent: 0, total: ol.total };
+  ol.markCounts = d.mark_counts || { pass: 0, fail: 0 };
   ol.visible = new Set(OL_KEYS);
 }
 
@@ -2418,6 +2575,16 @@ async function loadOnlineProducts() {
   renderOnline();
 }
 
+/* 打标筛选: 全部 / 通过 / 不通过 / 未标记 (这是人工标记, 不是接口字段, 单独一个下拉) */
+function olMarkSelect() {
+  const cur = (ol.filters.mark || [])[0] || "";
+  const mc = ol.markCounts || {};
+  const opts = [["", "打标: 全部"], ["pass", `通过 (${mc.pass || 0})`],
+    ["fail", `不通过 (${mc.fail || 0})`], ["none", "未标记"]];
+  return `<select id="olMark" title="按品打标筛选">` + opts.map(([v, t]) =>
+    `<option value="${v}"${cur === v ? " selected" : ""}>${esc(t)}</option>`).join("") + `</select>`;
+}
+
 function renderOnline() {
   // 重新渲染前停掉上一页的品名轮询(通用轮询表里 key="ol")
   if (AI_POLLS.ol) { clearInterval(AI_POLLS.ol); delete AI_POLLS.ol; }
@@ -2434,8 +2601,8 @@ function renderOnline() {
     `<div class="pline">
       <span class="ptitle">在线产品</span>
       <div class="seg seg-mini" id="olPageType">
-        <button class="seg-btn${ol.pageType === "child" ? " active" : ""}" data-v="child" title="子体: 与原站「子体」接口同一数据源">子体</button>
         <button class="seg-btn${ol.pageType === "parent" ? " active" : ""}" data-v="parent" title="父体: 与原站「父体」接口同一数据源">父体</button>
+        <button class="seg-btn${ol.pageType === "child" ? " active" : ""}" data-v="child" title="子体: 与原站「子体」接口同一数据源">子体</button>
       </div>
       ${sel("olSite", "全部站点", "marketplaceId")}
       ${sel("olShopSel", "全部店铺", "shopId")}
@@ -2444,6 +2611,7 @@ function renderOnline() {
       ${sel("olFulfill", "配送类型", "switchFulfillmentTo")}
       ${sel("olMatch", "配对状态", "match")}
       ${sel("olStrike", "划线价类型", "crawlerStrikethroughType")}
+      ${olMarkSelect()}
       <span class="ol-range" title="本地为快照数据，时间区间仅作显示，不参与过滤">统计区间 ${esc(olRangeText())}</span>
       <select id="olSearchField">
         ${[["asin", "ASIN"], ["sku", "MSKU"], ["title", "标题"], ["parentAsin", "父ASIN"],
@@ -2460,6 +2628,8 @@ function renderOnline() {
     <div class="p-sum">
       <span>在线产品 <b>${ol.total}</b></span>
       <span>子体 <b>${ol.counts.child || 0}</b> · 父体 <b>${ol.counts.parent || 0}</b></span>
+      <span title="人工打标：操作列的「通过 / 不通过」">打标 <b>通过 ${ol.markCounts.pass || 0}</b>
+        · <b>不通过 ${ol.markCounts.fail || 0}</b></span>
       <span>默认列 <b>${OL_COLUMNS.length}</b></span>
       <span>显示 <b>${ol.visible.size}</b> 列</span>
       <span>查询条件 <b>${ol.filterMeta.length}</b> 项</span>
@@ -2481,16 +2651,25 @@ function renderOnline() {
     if (el.value) ol.filters[k] = [el.value]; else delete ol.filters[k];
     ol.page = 1; loadOnlineProducts();
   });
+  if ($("olMark")) $("olMark").onchange = () => {
+    const v = $("olMark").value;
+    if (v) ol.filters.mark = [v]; else delete ol.filters.mark;
+    ol.page = 1; loadOnlineProducts();
+  };
   $("olReset").onclick = () => {
     ol.keyword = ""; ol.filters = {}; ol.searchField = "asin";
-    ol.orderField = ""; olSetPageType("child");
+    ol.orderField = ""; olSetPageType("parent");     // 默认页签 = 父体
     renderOnline(); loadOnlineProducts();
   };
   $("olCrawl").onclick = doOnlineCrawl;
   renderOnlineColPick();
   renderOlStatusPick();
 
-  const cols = OL_COLUMNS.filter((c) => ol.visible.has(c.key));
+  // 来源链接两列只挂在「父体」视图(子体行本可按父ASIN 取到链接, 但列表里不展示)
+  const SRC_LINK_KEYS = new Set(["amazonLink", "purchaseLink"]);
+  const showSrcLink = ol.pageType === "parent";
+  const cols = OL_COLUMNS.filter((c) => ol.visible.has(c.key)
+    && (showSrcLink || !SRC_LINK_KEYS.has(c.key)));
   const HEAD_TIPS = {
     aiTitle: "本地模型解析标题得出的「这是什么」(≤5 个词)",
     priceMedian: "父体价格 = 该父体下全部子体售价的中位数；点击排序",
@@ -2499,17 +2678,24 @@ function renderOnline() {
     const num = olIsNumCol(c);
     const sortable = c.fields.length === 1;
     const tip = HEAD_TIPS[c.key] || (sortable ? "点击排序" : "");
-    return `<th class="${num ? "num" : ""}" data-k="${c.key}"${tip ? ` title="${tip}"` : ""}>${esc(c.label)}
+    // 操作列固定在右侧(横向滚动时始终可见), 与产品视角/搜索词列表一致
+    const thCls = [num ? "num" : "", c.key === "ops" ? "col-ops" : "",
+                   SRC_LINK_KEYS.has(c.key) ? "col-srclink" : ""].filter(Boolean).join(" ");
+    return `<th class="${thCls}" data-k="${c.key}"${tip ? ` title="${tip}"` : ""}>${esc(c.label)}
       ${ol.orderField === c.fields[0] ? (ol.orderDir === "desc" ? "↓" : "↑") : ""}</th>`;
   }).join("");
 
-  const body = ol.rows.map((r, i) => `<tr data-i="${i}" style="cursor:pointer">` + cols.map((c) => {
+  const body = ol.rows.map((r, i) => `<tr data-i="${i}">` + cols.map((c) => {
     const num = olIsNumCol(c);
-    return `<td class="${num ? "num" : ""}${c.key === "title" ? " ol-title-td" : ""}">${olCell(c, r)}</td>`;
+    const tdCls = [num ? "num" : "", c.key === "title" ? "ol-title-td" : "",
+                   c.key === "ops" ? "col-ops" : "",
+                   SRC_LINK_KEYS.has(c.key) ? "col-srclink" : ""].filter(Boolean).join(" ");
+    return `<td class="${tdCls}">${olCell(c, r)}</td>`;
   }).join("") + `</tr>`).join("");
 
   $("olWrap").innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` +
     (ol.rows.length ? "" : `<div class="empty">暂无数据，点击「采集最新」拉取在线产品</div>`) + olPager();
+  hoistPager("olWrap");                      // 分页条挂到表格容器外, 固定在视口最底端
 
   $("olWrap").querySelectorAll("img[data-preview]").forEach((img) => img.onclick = () =>
     openImagePreview(img.dataset.preview, img.dataset.cap, img.dataset.fallback));
@@ -2522,15 +2708,28 @@ function renderOnline() {
     else { ol.orderField = k; ol.orderDir = "desc"; }
     ol.page = 1; loadOnlineProducts();
   });
+  // 行不再整体可点: 详情侧栏只由操作列「详情」按钮打开
+  // 行内可交互元素统一用 closest 判定, 避免点到嵌套 span 时取不到 dataset
   $("olWrap").querySelectorAll("tbody tr").forEach((tr) => tr.onclick = (e) => {
-    const fill = e.target.dataset && e.target.dataset.fill;
-    if (fill) { e.stopPropagation(); fillMetrics(fill, e.target); return; }
-    if (e.target.dataset.ops) {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const cp = t.closest("[data-copy]");
+    if (cp) {
       e.stopPropagation();
-      openOlDetail(ol.rows[+tr.dataset.i]);
+      copyText(cp.dataset.copy, (cp.dataset.copyLabel || "") + " ");
+      cp.classList.add("copied");
+      setTimeout(() => cp.classList.remove("copied"), 1200);
       return;
     }
-    openOlDetail(ol.rows[+tr.dataset.i]);
+    const fill = t.closest("[data-fill]");
+    if (fill) { e.stopPropagation(); fillMetrics(fill.dataset.fill, fill); return; }
+    const mark = t.closest("[data-mark]");
+    if (mark) { e.stopPropagation(); toggleMark(ol.rows[+tr.dataset.i], mark.dataset.mark); return; }
+    if (t.closest("[data-ops]")) {
+      e.stopPropagation();
+      openOlDetail(ol.rows[+tr.dataset.i]);
+    }
+    // 其余空白处点击: 什么都不做(不再打开详情)
   });
   // 父体: 拉取「品名」AI 标签(本地 Ollama, 后台生成 + 轮询回填)
   if (ol.pageType === "parent") {
@@ -3027,7 +3226,11 @@ async function renderTermsPage(asin) {
   const cn = d.counts || {};
   const pa = d.parent_asin || asin;
   const lm = await loadTermLabels(pa);      // 打标结果(详情页打的, 这里只读展示)
-  const dim = isStandalone() ? (new URLSearchParams(location.search).get("dim") || "sp:keyword") : "sp:keyword";
+  const dimWant = isStandalone()
+    ? (new URLSearchParams(location.search).get("dim") || TERM_DEFAULT_SCOPE)
+    : TERM_DEFAULT_SCOPE;
+  // 该父体一条搜索词都没有时自动回退「全部」, 否则点进来是一张空表(与内嵌视图口径一致)
+  const dim = applyTermScope(cn, dimWant);
 
   // 该父体的两个进度: 素材拉取 / 人工打标(后端依据本地仓库与 term_labels 现算)
   const sts = d.status || {};

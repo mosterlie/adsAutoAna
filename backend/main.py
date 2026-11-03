@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles      # noqa: E402
 import config                                     # noqa: E402
 from backend import amazon_store                  # noqa: E402
 from backend import database as db                # noqa: E402
+from backend.ad_creator_api import router as ad_creator_router  # noqa: E402
 from backend.api import router                    # noqa: E402
 
 FRONTEND_DIR = os.path.join(config.BASE_DIR, "frontend")
@@ -30,9 +31,23 @@ app.add_middleware(
 
 db.init_db()
 app.include_router(router)
+app.include_router(ad_creator_router)      # 广告创建(自 autoAds 平移)
 
 if os.path.isdir(FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+    class NoCacheStatic(StaticFiles):
+        """前端资源每次都回源校验
+
+        StaticFiles 默认不发 Cache-Control, 浏览器会按启发式缓存 app.js,
+        改完前端刷新看不到新代码(这在本地工具里很容易踩)。这里强制 no-cache:
+        仍带 ETag/Last-Modified, 未变时 304, 开销可忽略。
+        """
+
+        async def get_response(self, path, scope):
+            resp = await super().get_response(path, scope)
+            resp.headers["Cache-Control"] = "no-cache"
+            return resp
+
+    app.mount("/static", NoCacheStatic(directory=FRONTEND_DIR), name="static")
 
 
 def _asset_version() -> str:

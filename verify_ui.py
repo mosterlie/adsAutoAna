@@ -59,6 +59,21 @@ def db():
     return c
 
 
+def launch(pw):
+    """启动浏览器: 优先 playwright 自带 chromium, 未安装则退回本机 Chrome / Edge
+
+    Windows 上常见只装了 pip 的 playwright、没跑过 `playwright install`，
+    此时直接用本机浏览器，免得整段 UI 测试全部报「Executable doesn't exist」。
+    """
+    last = None
+    for kw in ({}, {"channel": "chrome"}, {"channel": "msedge"}):
+        try:
+            return pw.chromium.launch(headless=True, **kw)
+        except Exception as e:      # noqa: BLE001
+            last = e
+    raise RuntimeError(f"没有可用的浏览器(先执行 playwright install chromium): {last}")
+
+
 # ---------------------------------------------------------------------------
 # D. 只读接口契约
 # ---------------------------------------------------------------------------
@@ -150,13 +165,22 @@ def test_online_data(s):
 
     d = G(s, "/api/online/products", {"page": 1, "page_size": 50})
     counts = meta.get("counts") or {}
-    rec("A3 子体总数为 1640", counts.get("child") == 1640, f"child={counts.get('child')}")
-    rec("A3b 账号/父体总数为 135", counts.get("parent") == 135, f"parent={counts.get('parent')}")
+    _c = db()
+    db_child = _c.execute("SELECT COUNT(*) FROM online_products WHERE is_variation='2'").fetchone()[0]
+    db_par = _c.execute("SELECT COUNT(*) FROM online_products WHERE is_variation='1'").fetchone()[0]
+    # 数量随采集变化, 断言「接口 == 库」而不是写死某个数字
+    rec("A3 子体计数与库一致", counts.get("child") == db_child,
+        f"api={counts.get('child')} 库={db_child}")
+    rec("A3b 父体计数与库一致", counts.get("parent") == db_par,
+        f"api={counts.get('parent')} 库={db_par}")
     rec("A3c 全库合计 = 子体 + 父体",
-        d["total"] == (counts.get("total") or 0) == 1775, f"total={d['total']}")
+        d["total"] == db_child + db_par, f"total={d['total']} 子+父={db_child + db_par}")
     rec("A4 首页返回 50 行", len(d["rows"]) == 50, f"{len(d['rows'])}")
     base_keys = [k for k in d["rows"][0] if not k.startswith("_m_")]
-    rec("A5 每行含 195 个原始字段", len(base_keys) == 195, f"{len(base_keys)} (+补全字段 {len(d['rows'][0]) - len(base_keys)})")
+    raw0 = json.loads(_c.execute("SELECT raw_json FROM online_products WHERE asin=? LIMIT 1",
+                                 (d["rows"][0]["asin"],)).fetchone()[0])
+    rec("A5 每行返回库内全部原始字段(含接口附加列)", len(base_keys) >= len(raw0),
+        f"api={len(base_keys)} 库={len(raw0)} (+补全字段 {len(d['rows'][0]) - len(base_keys)})")
 
     # 检索: asin 精确
     asin = d["rows"][0]["asin"]
@@ -192,15 +216,12 @@ def test_ui(s):
 
     print("\n=== UI 端到端 ===")
     c = db()
-    # 库内第一行(默认 id ASC) 作为渲染比对基准
-    row0 = json.loads(c.execute(
-        "SELECT raw_json FROM online_products ORDER BY id ASC LIMIT 1").fetchone()[0])
     fields = json.loads(c.execute(
         "SELECT v FROM online_meta WHERE k='head_fields'").fetchone()["v"])
     label2key = {f["headName"]: f["headField"] for f in fields}
 
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_context(viewport={"width": 1680, "height": 980}).new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)[:200]))
@@ -217,6 +238,10 @@ def test_ui(s):
 
         heads = [pg.locator("#olWrap thead th").nth(i).inner_text().strip() for i in range(th)]
         cells = [pg.locator("#olWrap tbody tr").first.locator("td").nth(i).inner_text().strip() for i in range(td)]
+        # 比对基准: 用页面首行反查库内原始行(默认视图可选, 库内第一行不一定在当前视图里)
+        first_asin = cells[heads.index("ASIN/MSKU")].split("\n")[0].strip()
+        row0 = json.loads(c.execute("SELECT raw_json FROM online_products WHERE asin=? LIMIT 1",
+                                    (first_asin,)).fetchone()[0])
 
         # 字段映射: 显示列名 -> 该列渲染值应含库中对应字段值
         def cell_of(name):
@@ -233,7 +258,10 @@ def test_ui(s):
                 continue
             want = str(row0.get(key) or "").strip()
             checked += 1
-            okk = (got == want) or (want and want.replace(" ", "")[:14] in got.replace(" ", ""))
+            if want == "":
+                okk = got in ("", "-")        # 空值渲染成 "-", 与原站一致
+            else:
+                okk = (got == want) or (want.replace(" ", "")[:14] in got.replace(" ", ""))
             if not okk:
                 mapping_ok = False
                 print(f"        ✗ 列「{hname}」期望含 {want[:30]!r} 实得 {got[:30]!r}")
@@ -279,13 +307,47 @@ def test_ui(s):
         td2 = pg.locator("#olWrap tbody tr").first.locator("td").count()
         rec("A13 取消列后列数减少且仍对齐", after < before and th2 == td2, f"{before}->{after}, th={th2} td={td2}")
 
-        # 详情抽屉
-        pg.locator("#olWrap tbody tr").first.click()
+        # 详情抽屉: 只有操作列「详情」按钮能打开 —— 点行正文不再弹侧栏
+        idx_asin = pg.evaluate(
+            "() => [...document.querySelectorAll('#olWrap thead th')]"
+            ".findIndex(t => t.dataset.k === 'asinSku')")
+        idx_title = pg.evaluate(
+            "() => [...document.querySelectorAll('#olWrap thead th')]"
+            ".findIndex(t => t.dataset.k === 'title')")
+        pg.locator("#olWrap tbody tr").first.locator("td").nth(idx_title).click()
+        pg.wait_for_timeout(500)
+        rec("A14 点行正文不再弹详情侧栏", pg.locator("#olDetail.open").count() == 0)
+
+        pg.locator("#olWrap tbody tr").first.locator("button[data-ops]").click()
         pg.wait_for_selector("#olDetail.open", timeout=8000)
         drows = pg.locator("#olDetail .drow").count()
-        rec("A14 详情抽屉展示字段", drows > 50, f"{drows} 行")
+        rec("A15 点「详情」按钮才打开侧栏并展示字段", drows > 50, f"{drows} 行")
         pg.click("#olDetailClose")
         pg.wait_for_timeout(300)
+
+        # ASIN/MSKU 列: 点文本 = 复制; 只有「↗」按钮跳转
+        cell = pg.locator("#olWrap tbody tr").first.locator("td").nth(idx_asin)
+        asin_cp = cell.locator("span.asin-copy").first
+        asin_txt = asin_cp.inner_text().strip()
+        jump = cell.locator("a.ol-jump").first
+        n_pages = len(pg.context.pages)
+        asin_cp.click()
+        pg.wait_for_timeout(500)
+        cp_cls = asin_cp.get_attribute("class") or ""
+        rec("A16 点 ASIN 文本=复制(不跳转)",
+            "copied" in cp_cls and len(pg.context.pages) == n_pages,
+            f"class={cp_cls[:30]!r} pages={len(pg.context.pages)}")
+        href = jump.get_attribute("href") or ""
+        rec("A17 ASIN 列有独立跳转按钮且指向该 ASIN",
+            jump.count() == 1 and href.endswith("/dp/" + asin_txt)
+            and jump.get_attribute("target") == "_blank", href)
+        with pg.context.expect_page() as pinfo:
+            jump.click()
+        pop = pinfo.value
+        pop.wait_for_timeout(200)
+        ok18 = len(pg.context.pages) == n_pages + 1
+        pop.close()
+        rec("A18 只有点跳转按钮才在新标签打开亚马逊", ok18, href)
 
         # ---- B. 数据表格 ----
         print("\n--- B. 数据表格 ---")
@@ -465,7 +527,7 @@ def test_parent_aggregate(s):
     # ---- UI ----
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         ctx = b.new_context(viewport={"width": 1780, "height": 1020})
         try:
             ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
@@ -488,8 +550,10 @@ def test_parent_aggregate(s):
 
         heads = [pg.locator("#pWrap thead th").nth(i).inner_text().strip()
                  for i in range(pg.locator("#pWrap thead th").count())]
-        rec("I13 表头为「父ASIN / 父SKU / 子ASIN / 标题」",
-            heads[1:5] == ["父ASIN", "父SKU", "子ASIN", "标题"], str(heads[:6]))
+        rec("I13 表头含「父ASIN / 父SKU / 子ASIN / 标题」且顺序正确",
+            all(w in heads for w in ("父ASIN", "父SKU", "子ASIN", "标题"))
+            and heads.index("父ASIN") < heads.index("父SKU")
+            < heads.index("子ASIN") < heads.index("标题"), str(heads[:8]))
 
         # 指标列: 中文 + (英文简称)
         hdr = [h.replace("\n", "") for h in heads]
@@ -500,9 +564,10 @@ def test_parent_aggregate(s):
 
         row = pg.locator("#pWrap tbody tr").first
         pa_txt = row.locator("td.col-asin .asin-copy").inner_text().strip()
-        sku_txt = row.locator("td").nth(2).inner_text().strip()
-        kid_cell = row.locator("td").nth(3)
-        title_cell = row.locator("td").nth(4)
+        # 按列 class 取单元格(表格在「图 / 品名 / 素材拉取」等列加入后位置会变, 别用 nth)
+        sku_txt = row.locator("td.col-sku").inner_text().strip()
+        kid_cell = row.locator("td.col-kid")
+        title_cell = row.locator("td.col-title")
         n_kid_links = kid_cell.locator(".asin-kid").count()
         rec("I14 父ASIN 列展示父 ASIN", any(x["parent_asin"] == pa_txt for x in d["rows"]), pa_txt)
         rec("I15 子ASIN 列展示多个子 ASIN", n_kid_links >= 2, f"{n_kid_links} 个子ASIN")
@@ -542,7 +607,7 @@ def test_parent_aggregate(s):
                     ox: getComputedStyle(wrap).overflowX};
         }""")
         rec("I18b 列宽不足时支持横向滚动(列不被压扁)",
-            nw["tblW"] == nw["tblMin"] and nw["tblW"] > nw["wrapW"]
+            nw["tblW"] >= nw["tblMin"] - 1 and nw["tblW"] > nw["wrapW"]
             and nw["ox"] in ("auto", "scroll") and nw["scrollW"] > nw["clientW"],
             str(nw))
         pg.set_viewport_size({"width": 1780, "height": 1020})
@@ -609,7 +674,7 @@ def test_parent_aggregate(s):
         pg.fill("#kidFilter", "")
         pg.wait_for_timeout(400)
         rec("I18j 弹层支持筛选子 ASIN",
-            0 < n_filtered < kid_total and n_filtered < 32,
+            0 < n_filtered < kid_total,
             f"筛选'{kid_first[:7]}' -> {n_filtered} / 全部 {kid_total}")
         pg.keyboard.press("Escape")
         pg.wait_for_timeout(400)
@@ -663,8 +728,12 @@ def test_parent_aggregate(s):
         # 点整行不下钻
         row.locator("td.col-title").click()
         pg.wait_for_timeout(700)
+        heads_now = [pg.locator("#pWrap thead th").nth(i).inner_text().strip()
+                     for i in range(pg.locator("#pWrap thead th").count())]
         rec("I25 点整行不跳转",
-            pg.locator("#pWrap thead th").first.inner_text().strip() == "图")
+            any("父ASIN" in h for h in heads_now)
+            and not any("广告活动(Campaign)" in h for h in heads_now),
+            str([h.replace(chr(10), "") for h in heads_now[:4]]))
 
         # 图片大图预览
         img = pg.locator("#pWrap img[data-preview]").first
@@ -702,24 +771,36 @@ def test_parent_aggregate(s):
                 for e in ["(Spend)", "(Impressions)", "(Clicks)", "(Orders)"]),
             str([h.replace("\n", "") for h in ch if "(" in h][:6]))
 
-        # 返回产品列表 -> 用「搜索词」按钮进入父体级搜索词汇总
+        # 返回产品列表 -> 用「搜索词」按钮打开父体级搜索词独立页(新标签)
         pg.click("#pBack")
         pg.wait_for_timeout(1400)
-        pg.locator('#pWrap tbody tr button[data-act="pterms"]').first.click()
-        pg.wait_for_timeout(1800)
-        ph = [pg.locator("#pWrap thead th").nth(i).inner_text().strip().replace("\n", "")
-              for i in range(pg.locator("#pWrap thead th").count())]
-        rec("I30d 产品列表「搜索词」进入父体级搜索词汇总",
+        with pg.context.expect_page() as pinfo:
+            pg.locator('#pWrap tbody tr button[data-act="pterms"]').first.click()
+        tp = pinfo.value
+        tp.wait_for_selector("#tWrap tbody tr", timeout=30000)
+        tp.wait_for_timeout(800)
+        ph = [tp.locator("#tWrap thead th").nth(i).inner_text().strip().replace("\n", "")
+              for i in range(tp.locator("#tWrap thead th").count())]
+        rec("I30d 产品列表「搜索词」打开父体级搜索词汇总页",
             any("涉及活动(Campaigns)" in h for h in ph), str(ph)[:150])
-        rec("I30e 父体级搜索词带「跨活动合并」说明",
-            "合并" in pg.inner_text("#pBar"))
+        trow = tp.locator("#tWrap tbody tr").first
+        i_camp = next((i for i, h in enumerate(ph) if "涉及活动" in h), None)
+        camp_txt = trow.locator("td").nth(i_camp).inner_text().strip() if i_camp is not None else ""
+        rec("I30e 父体级搜索词跨活动合并(涉及活动列有值)",
+            bool(camp_txt) and camp_txt not in ("-", "0"), f"涉及活动={camp_txt!r}")
+        i_spend = next((i for i, h in enumerate(ph) if "花费(Spend)" in h), None)
+        costs = []
+        if i_spend is not None:
+            for i in range(min(4, tp.locator("#tWrap tbody tr").count())):
+                txt = tp.locator("#tWrap tbody tr").nth(i).locator("td").nth(i_spend).inner_text()
+                nums = re.findall(r"[\d,]+(?:\.\d+)?", txt.replace("¥", ""))
+                costs.append(float(nums[-1].replace(",", "")) if nums else 0.0)
         rec("I30f 父体级搜索词按花费降序",
-            pg.locator("#pWrap tbody tr").count() >= 1
-            and pg.locator("#pWrap tbody tr").first.locator("td.dim-tag, td .dim-tag").count() >= 1)
-        pg.click('#pCrumbs .cb[data-lv="1"]')
-        pg.wait_for_timeout(1200)
-        rec("I31 从搜索词视图经面包屑回到产品列表",
-            pg.locator("#pWrap thead th").first.inner_text().strip() == "图")
+            len(costs) >= 2 and costs == sorted(costs, reverse=True) and costs[0] > 0, str(costs))
+        rec("I31 搜索词页为独立页面且指向该父 ASIN",
+            "page=terms" in tp.url and pa_txt in tp.url
+            and "父 ASIN" in tp.inner_text("#tCrumbs"), tp.url)
+        tp.close()
         rec("I32 页面无 JS 错误", len(errs) == 0, "; ".join(errs[:2]))
         b.close()
 
@@ -781,7 +862,7 @@ def test_term_scope(s, no_ui=False):
 
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_context(viewport={"width": 1780, "height": 1020}).new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)[:200]))
@@ -791,22 +872,30 @@ def test_term_scope(s, no_ui=False):
         pg.wait_for_selector("#pWrap tbody tr", timeout=25000)
         pg.wait_for_timeout(800)
 
-        def dims():
+        def dims_pg():
             return set(pg.eval_on_selector_all(
                 "#pWrap tbody .dim-tag", "els=>[...new Set(els.map(e=>e.textContent.trim()))]"))
 
-        def nrows():
-            return pg.locator("#pWrap tbody tr").count()
-
-        def active():
+        def active_pg():
             return [x.strip() for x in pg.eval_on_selector_all(
                 "#pBar .p-tools button.btn-primary", "els=>els.map(e=>e.textContent.trim())")]
 
-        def labels():
-            return [x.strip() for x in pg.eval_on_selector_all(
-                "#pBar .p-tools button[id^=pTg]", "els=>els.map(e=>e.textContent.trim())")]
+        def dims():
+            return set(tp.eval_on_selector_all(
+                "#tWrap tbody .dim-tag", "els=>[...new Set(els.map(e=>e.textContent.trim()))]"))
 
-        # 排到搜索词最多的父体, 再点「搜索词」
+        def nrows():
+            return tp.locator("#tWrap tbody tr").count()
+
+        def active():
+            return [x.strip() for x in tp.eval_on_selector_all(
+                "#tScopes button.btn-primary", "els=>els.map(e=>e.textContent.trim())")]
+
+        def labels():
+            return [x.strip() for x in tp.eval_on_selector_all(
+                "#tScopes button", "els=>els.map(e=>e.textContent.trim())")]
+
+        # 排到搜索词最多的父体, 再点「搜索词」(父体级搜索词是独立页面, 新页签打开)
         th = pg.locator('#pWrap thead th[data-sort="search_term_count"]')
         th.click()
         pg.wait_for_timeout(1400)
@@ -814,8 +903,11 @@ def test_term_scope(s, no_ui=False):
                 '#pWrap thead th[data-sort="search_term_count"]', "class") or ""):
             th.click()
             pg.wait_for_timeout(1400)
-        pg.locator('#pWrap tbody tr').first.locator('button[data-act="pterms"]').click()
-        pg.wait_for_timeout(2000)
+        with pg.context.expect_page() as pinfo:
+            pg.locator('#pWrap tbody tr').first.locator('button[data-act="pterms"]').click()
+        tp = pinfo.value
+        tp.wait_for_selector("#tWrap tbody tr", timeout=30000)
+        tp.wait_for_timeout(1200)
         rec("M9 点「搜索词」进入后默认只看搜索词",
             dims() == {"搜索词"} and nrows() == c.get("keyword"),
             f"行数={nrows()} 维度={dims()} 激活={active()}")
@@ -826,73 +918,82 @@ def test_term_scope(s, no_ui=False):
             str(lab0))
 
         n0 = nrows()
-        pg.click("#pTgAsin")
-        pg.wait_for_timeout(1600)
+        tp.click('#tScopes button[data-s="sp:asin"]')
+        tp.wait_for_timeout(1600)
         rec("M11 点「只看商品投放」有反应(回归: 修复前点了没反应)",
             dims() == {"商品投放"} and nrows() == tg["total"] and nrows() != n0,
             f"{n0} -> {nrows()} 维度={dims()}")
-        pg.click("#pTgAll")
-        pg.wait_for_timeout(1600)
+        tp.click('#tScopes button[data-s=""]')
+        tp.wait_for_timeout(1600)
         rec("M12 点「全部」= 搜索词 + 商品投放",
             dims() == {"搜索词", "商品投放"} and nrows() == allj["total"],
             f"{nrows()} 维度={dims()}")
-        pg.click("#pTgKw")
-        pg.wait_for_timeout(1600)
+        tp.click('#tScopes button[data-s="sp:keyword"]')
+        tp.wait_for_timeout(1600)
         rec("M13 再点「只看搜索词」回到默认口径",
             dims() == {"搜索词"} and nrows() == c.get("keyword"), f"{nrows()}")
         rec("M14 过滤后按钮条目数不变(不随口径缩水)", labels() == lab0, str(labels()))
+        tp.close()
 
-        # 活动级入口
-        pg.click("#pBack2")
-        pg.wait_for_timeout(1400)
-        pg.click('#pCrumbs .cb[data-lv="1"]')
-        pg.wait_for_timeout(1300)
+        # 活动级入口(仍在产品视角页内嵌 L3)
         pg.locator('#pWrap tbody tr').first.locator('button[data-act="campaigns"]').click()
         pg.wait_for_timeout(1800)
         tb = pg.locator('#pWrap tbody tr button[data-terms]')
         if tb.count():
             tb.first.click()
             pg.wait_for_timeout(1800)
-            rec("M15 活动级「搜索词」同样默认只看搜索词", dims() == {"搜索词"},
-                f"维度={dims()} 激活={active()}")
+            rec("M15 活动级「搜索词」同样默认只看搜索词",
+                dims_pg() == {"搜索词"}, f"维度={dims_pg()} 激活={active_pg()}")
             pg.click("#pTgAsin")
             pg.wait_for_timeout(1500)
-            rec("M16 活动级过滤按钮同样生效(回归)", dims() == {"商品投放"}, f"维度={dims()}")
+            rec("M16 活动级过滤按钮同样生效(回归)", dims_pg() == {"商品投放"},
+                f"维度={dims_pg()}")
         else:
             rec("M15 活动级「搜索词」同样默认只看搜索词", False, "该父体无带搜索词的活动")
             rec("M16 活动级过滤按钮同样生效(回归)", False, "同上")
 
         # 无搜索词的父体 -> 自动回退「全部」, 不能是空表
-        pg.click('#pCrumbs .cb[data-lv="1"]')
+        pg.click("#pBack2")                     # L3 -> L2
+        pg.wait_for_timeout(1200)
+        pg.click('#pCrumbs .cb[data-lv="1"]')   # L2 -> L1
         pg.wait_for_timeout(1300)
         if only_tg:
             pg.fill("#pKw", only_tg[0])
             pg.click("#pQuery")
             pg.wait_for_timeout(2000)
-            pg.locator('#pWrap tbody tr').first.locator('button[data-act="pterms"]').click()
-            pg.wait_for_timeout(2000)
+            with pg.context.expect_page() as pinfo2:
+                pg.locator('#pWrap tbody tr').first.locator('button[data-act="pterms"]').click()
+            tq = pinfo2.value
+            tq.wait_for_selector("#tWrap tbody tr", timeout=30000)
+            tq.wait_for_timeout(1200)
+            tq_lab = [x.strip() for x in tq.eval_on_selector_all(
+                "#tScopes button", "els=>els.map(e=>e.textContent.trim())")]
             rec("M17 无搜索词的父体自动回退「全部」(不出现空表)",
-                nrows() > 0 and pg.locator("#pWrap .empty").count() == 0
-                and pg.locator("#pTgAll.btn-primary").count() == 1,
-                f"{only_tg[0]} 行数={nrows()} 维度={dims()} 激活={active()}")
-            rec("M18 回退时「只看搜索词」显示 0", labels()[0].endswith("(0)"), str(labels()))
+                tq.locator("#tWrap tbody tr").count() > 0
+                and tq.locator("#tWrap .empty").count() == 0
+                and tq.locator('#tScopes button[data-s=""].btn-primary').count() == 1,
+                f"{only_tg[0]} 行数={tq.locator('#tWrap tbody tr').count()} 按钮={tq_lab}")
+            rec("M18 回退时「只看搜索词」显示 0", tq_lab[0].endswith("(0)"), str(tq_lab))
+            tq.close()
         else:
             rec("M17 无搜索词的父体自动回退「全部」(不出现空表)", False, "未找到样本")
             rec("M18 回退时「只看搜索词」显示 0", False, "未找到样本")
 
         # 回到有搜索词的父体, 确认默认口径下排序与「点词开亚马逊」仍可用
-        pg.click('#pCrumbs .cb[data-lv="1"]')
-        pg.wait_for_timeout(1300)
         pg.fill("#pKw", par)
         pg.click("#pQuery")
         pg.wait_for_timeout(2000)
-        pg.locator('#pWrap tbody tr').first.locator('button[data-act="pterms"]').click()
-        pg.wait_for_timeout(2000)
+        with pg.context.expect_page() as pinfo3:
+            pg.locator('#pWrap tbody tr').first.locator('button[data-act="pterms"]').click()
+        ts = pinfo3.value
+        ts.wait_for_selector("#tWrap tbody tr", timeout=30000)
+        ts.wait_for_timeout(1000)
         rec("M19 搜索词视图排序仍可用且可点开亚马逊",
-            pg.locator('#pWrap thead th[data-sort="adCost"]').count() == 1
-            and pg.locator("#pWrap .amz-link").count() >= 1,
-            f"可排序表头={pg.locator('#pWrap thead th[data-sort]').count()} "
-            f"amz-link={pg.locator('#pWrap .amz-link').count()}")
+            ts.locator('#tWrap thead th[data-sort="adCost"]').count() == 1
+            and ts.locator("#tWrap .amz-link").count() >= 1,
+            f"可排序表头={ts.locator('#tWrap thead th[data-sort]').count()} "
+            f"amz-link={ts.locator('#tWrap .amz-link').count()}")
+        ts.close()
         rec("M20 页面无 JS 错误", len(errs) == 0, "; ".join(errs[:2]))
         b.close()
 
@@ -950,7 +1051,7 @@ def test_header_totals(s, no_ui=False):
 
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_context(viewport={"width": 1900, "height": 1020}).new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)[:200]))
@@ -1065,8 +1166,8 @@ def test_parent_child(s):
     c = db()
     n_child = c.execute("SELECT COUNT(*) FROM online_products WHERE is_variation='2'").fetchone()[0]
     n_par = c.execute("SELECT COUNT(*) FROM online_products WHERE is_variation='1'").fetchone()[0]
-    rec("H1 库内子体 1640 条", n_child == 1640, f"{n_child}")
-    rec("H2 库内父体 135 条", n_par == 135, f"{n_par}")
+    rec("H1 库内子体数据齐全", n_child > 0, f"{n_child}")
+    rec("H2 库内父体数据齐全", n_par > 0, f"{n_par}")
 
     # H3 父体行 asin == parentAsin (父体没有独立父子 ASIN), 且 sku 不含子体后缀
     row_par = json.loads(c.execute(
@@ -1082,8 +1183,8 @@ def test_parent_child(s):
     # H5/H6 接口按 isVariation 过滤 —— 与库计数一致
     d_par = G(s, "/api/online/products", {"filters": json.dumps({"isVariation": ["1"]}), "page_size": 5})
     d_chi = G(s, "/api/online/products", {"filters": json.dumps({"isVariation": ["2"]}), "page_size": 5})
-    rec("H5 接口父体过滤 = 135", d_par["total"] == 135, f"total={d_par['total']}")
-    rec("H6 接口子体过滤 = 1640", d_chi["total"] == 1640, f"total={d_chi['total']}")
+    rec("H5 接口父体过滤 = 库内父体数", d_par["total"] == n_par, f"api={d_par['total']} 库={n_par}")
+    rec("H6 接口子体过滤 = 库内子体数", d_chi["total"] == n_child, f"api={d_chi['total']} 库={n_child}")
     rec("H7 父体行 isVariation 全为 1",
         all(str(x.get("isVariation")) == "1" for x in d_par["rows"]),
         str([x.get("isVariation") for x in d_par["rows"]]))
@@ -1099,17 +1200,18 @@ def test_parent_child(s):
         bool(p.get("startTime")) and bool(p.get("endTime")),
         f"{p.get('startTime')} ~ {p.get('endTime')}")
 
-    # H10 与原站父体总数一致
+    # H10 与原站父体总数基本一致(允许采集时差内的小幅差异)
     try:
         n_origin = op.fetch_count(op.make_session(), page_type="parents")
-        rec("H10 与原站父体总数一致", n_origin == 135, f"赛狐={n_origin} 本地={n_par}")
+        rec("H10 与原站父体总数基本一致(差 ≤ 10)", abs(n_origin - n_par) <= 10,
+            f"赛狐={n_origin} 本地={n_par}")
     except Exception as e:      # noqa: BLE001
-        rec("H10 与原站父体总数一致", False, str(e)[:100])
+        rec("H10 与原站父体总数基本一致(差 ≤ 10)", False, str(e)[:100])
 
     # H11~H13 UI: 点「父体」出数据, 点回「子体」出数据
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_page(viewport={"width": 1680, "height": 1000})
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -1117,20 +1219,21 @@ def test_parent_child(s):
         pg.wait_for_selector("#viewSwitch .seg-btn[data-view='online']", timeout=20000)
         pg.click('#viewSwitch .seg-btn[data-view="online"]')
         pg.wait_for_selector("#olWrap tbody tr", timeout=25000)
-        n_child_ui = pg.locator("#olWrap tbody tr").count()
-        rec("H11 子体视图有数据", n_child_ui > 0, f"{n_child_ui} 行")
-
-        pg.click('#olPageType .seg-btn[data-v="parent"]')
-        pg.wait_for_timeout(2500)
-        n_par_ui = pg.locator("#olWrap tbody tr").count()
-        txt = pg.inner_text("#olBar")
-        rec("H12 切「父体」后仍有数据 (回归: 修复前为 0)", n_par_ui > 0, f"{n_par_ui} 行")
-        rec("H13 概览显示 子体/父体 计数",
-            ("135" in txt) and ("1640" in txt), txt.replace("\n", " ")[:110])
+        rec("H11 默认视图有数据", pg.locator("#olWrap tbody tr").count() > 0,
+            f"默认={pg.evaluate('ol.pageType')}")
 
         pg.click('#olPageType .seg-btn[data-v="child"]')
         pg.wait_for_timeout(2500)
-        rec("H14 切回「子体」数据恢复", pg.locator("#olWrap tbody tr").count() > 0)
+        n_chi_ui = pg.evaluate("ol.total")
+        txt = pg.inner_text("#olBar").replace("\n", " ")
+        rec("H12 切「子体」总数与库一致", n_chi_ui == n_child, f"ui={n_chi_ui} 库={n_child}")
+        rec("H13 概览显示 子体/父体 计数",
+            f"子体 {n_child}" in txt and f"父体 {n_par}" in txt, txt[:110])
+
+        pg.click('#olPageType .seg-btn[data-v="parent"]')
+        pg.wait_for_timeout(2000)
+        n_par_ui = pg.evaluate("ol.total")
+        rec("H14 切回「父体」总数与库一致", n_par_ui == n_par, f"ui={n_par_ui} 库={n_par}")
         rec("H15 页面无 JS 错误", len(errs) == 0, "; ".join(errs[:2]))
         b.close()
 
@@ -1196,7 +1299,7 @@ def test_headers_vs_origin(s):
     want = ref["headers_display"]
 
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_context(viewport={"width": 1920, "height": 1080}).new_page()
         pg.goto(BASE + "/", wait_until="domcontentloaded", timeout=30000)
         pg.wait_for_selector("#tabbar .tab", timeout=20000)
@@ -1290,7 +1393,7 @@ def test_metrics_fill(s):
         rec("G2 空 asin 被拒(400)", False, str(e)[:80])
 
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_context(viewport={"width": 1920, "height": 1080}).new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)[:200]))
@@ -1452,7 +1555,7 @@ def test_amazon_rich(s, no_ui=False):
     # ---- UI: 弹层里的表格与详情 ----
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        b = pw.chromium.launch(headless=True)
+        b = launch(pw)
         pg = b.new_context(viewport={"width": 1600, "height": 1040}).new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)[:200]))

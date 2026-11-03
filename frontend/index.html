@@ -7,33 +7,26 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<!-- 顶层导航 (一级菜单已去掉, 只保留品牌与登录态) -->
+<!-- 顶层导航: 品牌 + 一级菜单(数据表格/产品视角/在线产品/配置管理) + 同步数据 + 登录态 -->
 <header class="topbar topbar-slim">
-  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span>
-    <span class="logo-sub">广告管理</span></div>
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top" id="viewSwitch">
+    <button class="seg-btn active" data-view="table">数据表格</button>
+    <button class="seg-btn" data-view="product">产品视角</button>
+    <button class="seg-btn" data-view="online">在线产品</button>
+    <button class="seg-btn" data-view="adcreator">广告创建</button>
+    <button class="seg-btn" data-view="bulk">批量建广告</button>
+    <button class="seg-btn" data-view="settings">配置管理</button>
+  </div>
+  <button class="btn btn-sync" id="btnCrawl">同步数据</button>
   <div class="topbar-right">
+    <span id="lastUpdated" class="muted">数据未同步</span>
     <span id="clock" class="clock">--:--:--</span>
     <button class="btn btn-ghost" id="btnAiConfig" title="配置品名解析使用本地 Ollama 还是 workbuddy">配置</button>
     <button class="btn btn-ghost" id="btnSyncCookie" title="从调试 Chrome 同步登录态">同步登录态</button>
   </div>
 </header>
 
-<!-- 二级页头 -->
-<div class="subhead">
-  <div class="subhead-left">
-    <div class="seg" id="viewSwitch">
-      <button class="seg-btn active" data-view="table">数据表格</button>
-      <button class="seg-btn" data-view="product">产品视角</button>
-      <button class="seg-btn" data-view="online">在线产品</button>
-      <button class="seg-btn" data-view="bulk">批量建广告</button>
-      <button class="seg-btn" data-view="settings">配置管理</button>
-    </div>
-    <button class="btn btn-primary" id="btnCrawl">同步数据</button>
-  </div>
-  <div class="subhead-right">
-    <span id="lastUpdated" class="muted">数据未同步</span>
-  </div>
-</div>
 
 <!-- ================= 表格视角 ================= -->
 <div id="tableView">
@@ -245,6 +238,12 @@
       <button class="btn btn-primary" id="bkGenerate">生成 Bulk Excel</button>
     </div>
   </div>
+</div>
+
+<!-- ================= 广告创建 (自 autoAds 平移, 独立页面内嵌) ================= -->
+<div id="adCreatorView" style="display:none">
+  <iframe id="adCreatorFrame" title="广告创建" src="about:blank"
+          data-src="/static/ad-creator.html"></iframe>
 </div>
 
 <!-- ================= 配置管理: 模型底座等 ================= -->

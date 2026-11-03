@@ -174,6 +174,30 @@ CREATE TABLE IF NOT EXISTS online_meta (
     updated_at   TEXT
 );
 
+-- 父 ASIN 的来源链接: 由店小秘导出的 parents_*.csv 关联进来
+--   来源链接1 = 亚马逊链接(amazon_url)   来源链接2 = 采购源链接(purchase_url, 1688/拼多多…)
+-- 一个父 ASIN 一行, 重复导入覆盖更新
+CREATE TABLE IF NOT EXISTS parent_links (
+    parent_asin  TEXT PRIMARY KEY,
+    parent_sku   TEXT,
+    parent_title TEXT,
+    source       TEXT,            -- CSV「来源」列: 亚马逊(日本) / 1688 / 拼多多 …
+    amazon_url   TEXT,            -- 来源链接1: 亚马逊商品链接
+    purchase_url TEXT,            -- 来源链接2: 采购源链接
+    product_id   TEXT,            -- 店小秘父产品ID
+    edit_url     TEXT,            -- 店小秘编辑链接
+    csv_file     TEXT,            -- 来源文件名, 便于追溯
+    updated_at   TEXT
+);
+
+-- 品打标: 人工「通过 / 不通过」标记, 按父 ASIN 一行
+--   在线产品列表「操作」列点按钮写入, 「品名」后面显示, 并可按它筛选
+CREATE TABLE IF NOT EXISTS product_marks (
+    parent_asin TEXT PRIMARY KEY,
+    mark        TEXT NOT NULL,        -- pass = 通过 / fail = 不通过
+    updated_at  TEXT
+);
+
 -- 应用级设置 (键值对, 值为 JSON): 目前用于「品名解析走本地 Ollama 还是 workbuddy」
 CREATE TABLE IF NOT EXISTS app_settings (
     k            TEXT PRIMARY KEY,
@@ -1042,6 +1066,92 @@ def get_online_counts() -> Dict[str, int]:
             "total": get_online_count()}
 
 
+# ---- 父 ASIN 来源链接 (店小秘 parents_*.csv 关联) ----
+def save_parent_links(rows: List[Dict[str, Any]], csv_file: str = "") -> int:
+    """按父 ASIN 覆盖写入来源链接, 返回写入条数"""
+    ts = now()
+    n = 0
+    with _LOCK, get_conn() as conn:
+        for r in rows or []:
+            pa = str(r.get("parent_asin") or "").strip()
+            if not pa:
+                continue
+            conn.execute(
+                """INSERT INTO parent_links(parent_asin, parent_sku, parent_title, source,
+                                            amazon_url, purchase_url, product_id, edit_url,
+                                            csv_file, updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(parent_asin) DO UPDATE SET
+                     parent_sku=excluded.parent_sku, parent_title=excluded.parent_title,
+                     source=excluded.source, amazon_url=excluded.amazon_url,
+                     purchase_url=excluded.purchase_url, product_id=excluded.product_id,
+                     edit_url=excluded.edit_url, csv_file=excluded.csv_file,
+                     updated_at=excluded.updated_at""",
+                (pa, r.get("parent_sku") or "", r.get("parent_title") or "",
+                 r.get("source") or "", r.get("amazon_url") or "",
+                 r.get("purchase_url") or "", r.get("product_id") or "",
+                 r.get("edit_url") or "", csv_file, ts))
+            n += 1
+    return n
+
+
+def get_parent_link(asin: str) -> Dict[str, Any]:
+    """单个父 ASIN 的来源链接 (没有返回 {})"""
+    a = str(asin or "").strip()
+    if not a:
+        return {}
+    with get_conn() as conn:
+        # 传进来的可能是子 ASIN, 先归到父 ASIN
+        parent = _asin_parent_map(conn).get(a, a)
+        row = conn.execute("SELECT * FROM parent_links WHERE parent_asin=?",
+                           (parent,)).fetchone()
+        if not row and parent != a:
+            row = conn.execute("SELECT * FROM parent_links WHERE parent_asin=?",
+                               (a,)).fetchone()
+    return dict(row) if row else {}
+
+
+def known_parent_asins() -> set:
+    """库里已有的父/商品 ASIN 集合 (在线产品 + 广告产品 + 父子映射), 用于导入时核对匹配"""
+    with get_conn() as conn:
+        c2p = _asin_parent_map(conn)
+        out = {str(x) for x in list(c2p.values()) + list(c2p.keys()) if x}
+        out |= {str(r[0]) for r in conn.execute(
+            "SELECT asin FROM online_products WHERE asin IS NOT NULL AND asin<>''")}
+        out |= {str(r[0]) for r in conn.execute(
+            "SELECT DISTINCT json_extract(raw_json,'$.asin') FROM ad_records "
+            "WHERE tab='product'") if r[0]}
+    return out
+
+
+def get_parent_links(asins: List[str]) -> Dict[str, Dict[str, Any]]:
+    """批量取: 父 ASIN -> 来源链接 (供列表/详情一次性带出)"""
+    keys = sorted({str(a or "").strip() for a in (asins or []) if a})
+    if not keys:
+        return {}
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM parent_links WHERE parent_asin IN (" +
+            ",".join("?" * len(keys)) + ")", keys).fetchall()
+    return {r["parent_asin"]: dict(r) for r in rows}
+
+
+def list_parent_links(keyword: str = "") -> List[Dict[str, Any]]:
+    """全部来源链接 (可按父ASIN/父SKU/标题模糊过滤)"""
+    kw = str(keyword or "").strip()
+    with get_conn() as conn:
+        if kw:
+            like = f"%{kw}%"
+            rows = conn.execute(
+                "SELECT * FROM parent_links WHERE parent_asin LIKE ? OR parent_sku LIKE ? "
+                "OR parent_title LIKE ? ORDER BY parent_sku",
+                (like, like, like)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM parent_links ORDER BY parent_sku").fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_asin_parent_map() -> Dict[str, str]:
     """子 ASIN -> 父 ASIN 映射 (来自在线产品的变体关系)
 
@@ -1514,18 +1624,91 @@ def _child_price_median_map(parent_asins: List[str]) -> Dict[str, Dict[str, Any]
             for p, v in buckets.items()}
 
 
+# ---------------------------------------------------------------------------
+# 品打标 (通过 / 不通过): 人工标记, 按父 ASIN 一行
+# ---------------------------------------------------------------------------
+PRODUCT_MARK_LABELS = {"pass": "通过", "fail": "不通过"}
+PRODUCT_MARKS = ("pass", "fail")
+
+
+def save_product_mark(parent_asin: str, mark: str = "") -> Dict[str, Any]:
+    """设置/取消某个品(父 ASIN)的打标; mark 传 "" 表示取消
+
+    返回 {parent_asin, mark, label, counts}, counts 供筛选框显示总数。
+    """
+    a = str(parent_asin or "").strip()
+    if not a:
+        raise ValueError("缺少父 ASIN")
+    m = str(mark or "").strip().lower()
+    if m not in ("",) + PRODUCT_MARKS:
+        raise ValueError("mark 只能是 pass / fail / 空(取消)")
+    with _LOCK, get_conn() as conn:
+        if m:
+            conn.execute(
+                """INSERT INTO product_marks(parent_asin, mark, updated_at) VALUES(?,?,?)
+                   ON CONFLICT(parent_asin) DO UPDATE SET
+                     mark=excluded.mark, updated_at=excluded.updated_at""",
+                (a, m, now()))
+        else:
+            conn.execute("DELETE FROM product_marks WHERE parent_asin=?", (a,))
+    return {"parent_asin": a, "mark": m, "label": PRODUCT_MARK_LABELS.get(m, ""),
+            "counts": get_product_mark_counts()}
+
+
+def get_product_marks(asins: List[str]) -> Dict[str, Dict[str, Any]]:
+    """批量: 父 ASIN -> {mark, updated_at} (没打标的查不到)"""
+    keys = sorted({str(a or "").strip() for a in (asins or []) if a})
+    if not keys:
+        return {}
+    out: Dict[str, Dict[str, Any]] = {}
+    with get_conn() as conn:
+        for i in range(0, len(keys), 400):
+            chunk = keys[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            for r in conn.execute(
+                    f"SELECT parent_asin, mark, updated_at FROM product_marks "
+                    f"WHERE parent_asin IN ({ph})", chunk):
+                out[r["parent_asin"]] = {"mark": r["mark"], "updated_at": r["updated_at"]}
+    return out
+
+
+def get_product_mark_counts() -> Dict[str, int]:
+    """各标记的条数 (筛选框 / 统计用)"""
+    out: Dict[str, int] = {m: 0 for m in PRODUCT_MARKS}
+    with get_conn() as conn:
+        for r in conn.execute("SELECT mark, COUNT(*) n FROM product_marks GROUP BY mark"):
+            if r["mark"] in out:
+                out[r["mark"]] = r["n"]
+    return out
+
+
 def get_online_products(page: int = 1, page_size: int = 50, keyword: str = "",
                         search_field: str = "", filters: Optional[Dict[str, List[str]]] = None,
                         order_field: str = "", order_dir: str = "desc") -> Dict[str, Any]:
     """在线产品查询: 支持按任意字段过滤 / 关键词(指定字段或整行) / 排序 / 分页"""
     where, args = [], []
     for k, vals in (filters or {}).items():
+        if k == "mark":                     # 打标不是 raw_json 字段, 单独处理(见下)
+            continue
         vals = [v for v in (vals or []) if v not in (None, "")]
         if not vals or not is_safe_field(k):
             continue
         ph = ",".join("?" * len(vals))
         where.append(f"CAST(json_extract(raw_json,'$.{k}') AS TEXT) IN ({ph})")
         args += [str(v) for v in vals]
+    # 打标筛选: 子体行按它所属的父 ASIN 归属; none = 未打标
+    mark_flt = [v for v in ((filters or {}).get("mark") or []) if v]
+    if mark_flt:
+        pk = "COALESCE(NULLIF(json_extract(raw_json,'$.parentAsin'),''), asin)"
+        parts = []
+        wants = [m for m in mark_flt if m in PRODUCT_MARKS]
+        if wants:
+            parts.append(f"{pk} IN (SELECT parent_asin FROM product_marks "
+                         f"WHERE mark IN ({','.join('?' * len(wants))}))")
+            args += wants
+        if "none" in mark_flt or not wants:
+            parts.append(f"{pk} NOT IN (SELECT parent_asin FROM product_marks)")
+        where.append("(" + " OR ".join(parts) + ")")
     if keyword:
         if search_field and is_safe_field(search_field):
             where.append(f"CAST(json_extract(raw_json,'$.{search_field}') AS TEXT) LIKE ?")
@@ -1584,6 +1767,13 @@ def get_online_products(page: int = 1, page_size: int = 50, keyword: str = "",
         d["_m_bsr_big"] = m.get("bsr_big")
         d["_m_bsr_big_cat"] = m.get("bsr_big_cat")
         d["_m_fetched_at"] = m.get("fetched_at")
+
+    # 合并「品打标」(通过 / 不通过): 子体行取父 ASIN 的标记
+    pm = get_product_marks([str(d.get("parentAsin") or d.get("asin") or "") for d in data])
+    for d in data:
+        hit = pm.get(str(d.get("parentAsin") or d.get("asin") or "")) or {}
+        d["_mark"] = hit.get("mark") or ""
+        d["_mark_at"] = hit.get("updated_at") or ""
     return {"total": total, "page": page, "page_size": page_size, "rows": data}
 
 

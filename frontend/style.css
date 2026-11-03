@@ -10,27 +10,29 @@ body{font:13px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",Arial,sans-seri
   color:var(--txt);background:var(--bg)}
 a{color:inherit;text-decoration:none}
 
-/* 顶栏 (一级菜单已去掉) */
+/* 顶栏: 品牌 + 一级菜单(数据表格/产品视角/在线产品/配置管理) + 同步数据 + 登录态 */
 .topbar{height:46px;background:linear-gradient(90deg,#2b5fd0,#3a72e8);display:flex;
-  align-items:center;padding:0 14px;color:#fff;gap:18px}
-.topbar-slim{height:42px}
-.topbar-slim .logo-sub{font-weight:400;font-size:12.5px;opacity:.85;margin-left:6px;
-  padding-left:10px;border-left:1px solid rgba(255,255,255,.35)}
-.logo{display:flex;align-items:center;gap:7px;font-weight:700;font-size:15px}
+  align-items:center;padding:0 14px;color:#fff;gap:14px}
+.topbar-slim{height:46px}
+.logo{display:flex;align-items:center;gap:7px;font-weight:700;font-size:15px;flex:0 0 auto}
 .logo-mark{width:22px;height:22px;border-radius:5px;background:#fff;color:#2b5fd0;
   display:flex;align-items:center;justify-content:center;font-size:13px}
 .topnav{display:flex;gap:16px;flex:1;font-size:13px;opacity:.95}
 .topnav a{padding:4px 2px;cursor:pointer;border-bottom:2px solid transparent}
 .topnav a.active,.topnav a:hover{border-bottom-color:#fff;font-weight:600}
 .topbar-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.topbar-right .muted{color:rgba(255,255,255,.82);font-size:12px}
 .clock{font-size:12px;opacity:.9}
-
-/* 页头 */
-.subhead{height:48px;background:#fff;border-bottom:1px solid var(--bd);display:flex;
-  align-items:center;justify-content:space-between;padding:0 16px}
-.subhead-left{display:flex;align-items:center;gap:12px}
+/* 顶栏一级菜单: 深色底上的分段控件(未选透明, 选中白底蓝字) */
+.seg-top{border-color:rgba(255,255,255,.42);flex:0 0 auto}
+.seg-top .seg-btn{height:27px;background:transparent;color:#eaf1ff}
+.seg-top .seg-btn+.seg-btn{border-left-color:rgba(255,255,255,.32)}
+.seg-top .seg-btn:hover{background:rgba(255,255,255,.16);color:#fff}
+.seg-top .seg-btn.active{background:#fff;color:var(--blue);font-weight:600}
+/* 顶栏「同步数据」: 白底蓝字, 与深色底形成对比 */
+.btn-sync{background:#fff;border-color:#fff;color:var(--blue);font-weight:600;flex:0 0 auto}
+.btn-sync:hover{background:#eef4ff;border-color:#eef4ff;color:var(--blue-d)}
 .page-title{font-size:15px;font-weight:600}
-.subhead-right .muted{color:var(--muted);font-size:12px}
 
 /* 页签 */
 .tabbar{background:#fff;border-bottom:1px solid var(--bd);display:flex;padding:0 8px;gap:2px}
@@ -127,11 +129,31 @@ td.name{font-weight:500;color:#1f2d3d}
 .badge.pause{background:#fff5e6;color:var(--orange)}
 .empty{padding:46px;text-align:center;color:var(--muted)}
 
-/* 分页 */
+/* 分页: 固定(吸)在最底端 —— 表格在内部滚动, 翻页条始终可见, 一屏多显示几行数据 */
 .pager{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--txt-2);font-size:12px;
-  border-top:1px solid var(--bd);flex-wrap:wrap}
+  border-top:1px solid var(--bd);flex-wrap:wrap;flex:0 0 auto;
+  position:sticky;bottom:0;left:0;z-index:6;background:#fff;
+  box-shadow:0 -6px 10px -8px rgba(0,0,0,.18)}
 .pager .jump{width:52px}
 #pagerTotal{margin-right:auto}
+
+/* 广告创建: 内嵌独立页面(autoAds 平移), 铺满顶栏以下的区域 */
+#adCreatorView{height:calc(100vh - 46px);overflow:hidden}
+#adCreatorView iframe{display:block;width:100%;height:100%;border:0;background:#f1f5f9}
+
+/* 三个列表页铺满「顶栏以下」: 高度由 flex 分配(不再用 calc(100vh - 固定值) 猜),
+   表格占满剩余空间并在内部滚动, 翻页条贴在最低端 */
+#tableView,#onlineView,#productView{display:flex;flex-direction:column;
+  height:calc(100vh - 46px);overflow:hidden}
+#tableView>.tabbar,#tableView>.panel,
+#onlineView>.p-bar,#productView>.crumbs,#productView>.p-bar{flex:0 0 auto}
+#onlineView>.p-content,#productView>.p-content{flex:1;min-height:0;display:flex;
+  flex-direction:column;margin-bottom:0}
+#onlineView .p-wrap,#productView .p-wrap{flex:1;min-height:0;max-height:none}
+#tableView>.main{flex:1;min-height:0;align-items:stretch;padding-bottom:0}
+#tableView .content{display:flex;flex-direction:column;min-height:0}
+#tableView .table-wrap{flex:1;min-height:0;max-height:none}
+#tableView .sidebar{max-height:100%;overflow:auto}
 
 /* 列菜单 */
 .col-menu{position:relative}
@@ -310,17 +332,55 @@ td.name{font-weight:500;color:#1f2d3d}
 #pWrap .col-ops{width:132px}
 #pWrap table.tbl-products .p-title-cell{max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pWrap .cell-ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 来源链接(在线产品·父体): 胶囊样式, 列宽固定 → 文本超出省略, 悬停看完整 URL */
+.src-link{display:inline-flex;align-items:center;gap:4px;max-width:100%;
+  padding:1px 6px;border:1px solid var(--bd);border-radius:6px;background:#fff;
+  color:#2b6cb0;font-size:11.5px;line-height:16px;text-decoration:none;
+  overflow:hidden;vertical-align:middle}
+.src-link:hover{border-color:#2b6cb0;background:#eef4fb}
+.src-ico-wrap{position:relative;width:12px;height:12px;flex:0 0 12px}
+.src-ico-fb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-style:normal;font-weight:700;color:#fff;line-height:12px;
+  border-radius:2px;overflow:hidden;text-align:center}
+.src-ico{position:absolute;inset:0;width:12px;height:12px;border-radius:2px;
+  object-fit:contain;background:#fff}
+.src-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* 在线产品列表: 来源链接两列(父体视图) */
+#olWrap th.col-srclink,#olWrap td.col-srclink{width:140px;max-width:140px;
+  white-space:nowrap;overflow:hidden}
 #pWrap .nowrap-ellip{overflow:hidden;text-overflow:ellipsis}
 /* 指标列: 数值过宽时就地裁掉, 绝不溢出到隔壁列 */
 #pWrap table.tbl-products td.num{overflow:hidden;text-overflow:ellipsis}
 /* 操作列固定在右侧 (横向滚动时始终可见) —— 产品视角 + 搜索词列表页 共用 */
 #pWrap th.col-ops,#pWrap td.col-ops,
-#tWrap th.col-ops,#tWrap td.col-ops{position:sticky;right:0;background:#fff;z-index:3;
+#tWrap th.col-ops,#tWrap td.col-ops,
+#olWrap th.col-ops,#olWrap td.col-ops{position:sticky;right:0;background:#fff;z-index:3;
   border-left:1px solid var(--bd);box-shadow:-4px 0 6px -4px rgba(0,0,0,.10)}
-#pWrap thead th.col-ops,#tWrap thead th.col-ops{background:#f6f7f9;z-index:5}
-#pWrap tbody tr:hover td.col-ops,#tWrap tbody tr:hover td.col-ops{background:#f8faff}
+#pWrap thead th.col-ops,#tWrap thead th.col-ops,#olWrap thead th.col-ops{background:#f6f7f9;z-index:5}
+#pWrap tbody tr:hover td.col-ops,#tWrap tbody tr:hover td.col-ops,
+#olWrap tbody tr:hover td.col-ops{background:#f8faff}
 #pWrap td.col-ops .ops-btns{display:flex;gap:6px}
 #pWrap td.col-ops .btn{white-space:nowrap}
+/* 在线产品: 操作列(通过 / 不通过 / 详情 / 补全评分) */
+#olWrap .col-ops{width:276px}
+#olWrap td.col-ops .btn{white-space:nowrap}
+#olWrap td.col-ops .btn + .btn{margin-left:6px}
+
+/* 品打标(通过 / 不通过): 品名后面那一列 + 操作列按钮(绿=通过, 红=不通过)
+   未选: 浅底描边; 已选(该行就是这个标记): 实心底 + 外发光, 再点一次取消 */
+.mark-tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11.5px;
+  line-height:16px;border:1px solid transparent;white-space:nowrap}
+.mark-tag.pass{background:#e8f7ee;color:#17803d;border-color:#b7e4c7}
+.mark-tag.fail{background:#fdecec;color:#c53030;border-color:#f5c2c2}
+.mark-none{color:#94a3b8;font-size:11.5px}
+#olWrap td.col-ops .btn-mark-pass{background:#e8f7ee;border-color:#7fd19b;color:#17803d}
+#olWrap td.col-ops .btn-mark-pass:hover{background:#d5f0e0;border-color:#17803d}
+#olWrap td.col-ops .btn-mark-pass.on{background:#17803d;border-color:#17803d;color:#fff;
+  box-shadow:0 0 0 2px rgba(23,128,61,.22)}
+#olWrap td.col-ops .btn-mark-fail{background:#fdecec;border-color:#f0a9a9;color:#c53030}
+#olWrap td.col-ops .btn-mark-fail:hover{background:#fbdede;border-color:#c53030}
+#olWrap td.col-ops .btn-mark-fail.on{background:#c53030;border-color:#c53030;color:#fff;
+  box-shadow:0 0 0 2px rgba(197,48,48,.22)}
 
 /* 搜索词列表页: 列宽
    注意: table-layout:fixed 下每列都显式给宽度, 容器比表宽时多出的空间
@@ -484,8 +544,19 @@ td.name{font-weight:500;color:#1f2d3d}
 .p-bar .pline select{height:28px;border:1px solid var(--bd-d);border-radius:4px;background:#fff;
   color:var(--txt);font-size:12px;padding:0 6px;max-width:180px}
 .p-bar .pline input[type=text]{min-width:220px}
-.ol-asin{font-size:12px;line-height:1.35}
+.ol-asin{font-size:12px;line-height:1.35;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.ol-asin .asin-copy{overflow:hidden;text-overflow:ellipsis}
+/* ASIN 跳转按钮: 图标用 ::before 画(不写进 DOM 文本, 避免污染 innerText)
+   尺寸放大到 24×22 常显 —— 只有它负责跳转, 点后同时复制 ASIN */
+.ol-jump{flex:0 0 24px;width:24px;height:22px;padding:0;border:1px solid var(--bd-d);border-radius:4px;
+  background:#fff;color:var(--blue);cursor:pointer;display:inline-flex;align-items:center;
+  justify-content:center;line-height:1;text-decoration:none;transition:.15s}
+.ol-jump::before{content:"↗";font-size:14px;font-weight:700;line-height:1}
+.ol-jump:hover{background:#eef3ff;border-color:var(--blue);color:var(--blue-d);
+  box-shadow:0 0 0 2px rgba(43,108,176,.15)}
 .ol-sku{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+.ol-sku.asin-copy{font-weight:400;max-width:160px}
+.ol-sku.asin-copy:not(.copied):hover,.ol-asin .asin-copy:not(.copied):hover{color:var(--blue);border-bottom-color:var(--blue)}
 .ol-icons{color:var(--muted);letter-spacing:2px;font-size:11px}
 /* 标题列: 调窄 + 超出省略(不再换行撑高行) */
 .ol-title-td{max-width:230px}
@@ -518,7 +589,6 @@ td.name{font-weight:500;color:#1f2d3d}
    搜索词列表页 / 搜索词详情页 (独立页面 & 独立页签)
    =================================================================== */
 body.standalone .topbar,
-body.standalone .subhead,
 body.standalone .tabbar,
 body.standalone #tableView,
 body.standalone #productView,
