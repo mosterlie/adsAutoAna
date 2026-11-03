@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>广告创建 · 亚马逊 SP 批量广告（复刻赛狐）</title>
+  <title>广告管理 · 亚马逊广告自动化</title>
   <!-- 依赖本地化(原 autoAds 走 CDN, 平移到内网/离线环境会白屏) -->
   <script src="/static/vendor/tailwind.js"></script>
   <script src="/static/vendor/vue.global.prod.js"></script>
@@ -18,8 +18,267 @@
 <body class="bg-slate-100 text-slate-800 min-h-screen antialiased">
   <div id="app" v-cloak class="mx-auto max-w-none px-0 py-0">
 
-    <!-- ==================== 广告创建: 直接进入「创建广告活动」表单 ==================== -->
-    <div class="bg-[#EEEEF6] min-h-screen flex flex-col">
+    <!-- ==================== 广告管理: 列表视图（默认首页） ==================== -->
+    <div v-if="adView === 'list'" class="bg-[#EEEEF6] min-h-screen flex flex-col">
+
+      <!-- 顶栏 -->
+      <div class="flex items-center justify-between px-4 h-12 bg-white border-b border-[#E4E6EB] select-none">
+        <div class="flex items-center gap-2">
+          <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
+          <h2 class="text-[14px] font-medium text-[#0F0F0F]">广告活动列表</h2>
+          <span class="text-[12px] text-[#8A8F99]">共 {{ recTotal }} 条</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <input v-model="recKeyword" @keyup.enter="loadRecords" placeholder="活动名称 / 编号 / 父SKU / 店铺"
+                 class="h-[28px] w-64 border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+          <button @click="loadRecords"
+                  class="h-[28px] px-3 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white hover:bg-[#F5F7FA]">查询</button>
+          <button @click="openCreateView"
+                  class="h-[28px] px-4 bg-[#2969FF] hover:bg-[#1f57d6] text-white text-[12px] rounded-[4px]">+ 创建广告</button>
+        </div>
+      </div>
+
+      <!-- 记录表格 -->
+      <div class="px-3 py-3">
+        <div class="bg-white rounded-[6px] flex flex-col" style="height: calc(100vh - 92px)">
+          <div class="px-4 py-2.5 border-b border-[#E4E6EB] flex items-center gap-3 text-[12px]">
+            <span class="text-[#8A8F99]">已选 {{ recSelectedIds.length }} 条</span>
+            <div class="flex-1"></div>
+            <button @click="toggleRecAll"
+                    class="h-[28px] px-3 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA]">
+              {{ recAllChecked ? '取消全选' : '全选本页' }}
+            </button>
+            <select v-model="exportMode"
+                    class="h-[28px] border border-[#DADCE0] rounded-[4px] px-1 text-[12px] bg-white"
+                    title="Create＝新建活动；Update＝按亚马逊真实 ID 更新已有活动">
+              <option value="auto">自动（有真实 ID 则 Update）</option>
+              <option value="create">仅新建（Create）</option>
+              <option value="update">仅更新（Update）</option>
+            </select>
+            <button @click="exportRecords()" :disabled="recBusy || !recSelectedIds.length"
+                    class="h-[28px] px-4 bg-[#2969FF] hover:bg-[#1f57d6] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-[4px]">
+              {{ recBusy ? '处理中…' : '批量导出' }}
+            </button>
+            <button @click="deleteRecords" :disabled="recBusy || !recSelectedIds.length"
+                    class="h-[28px] px-3 border border-[#F54242] text-[#F54242] rounded-[4px] bg-white hover:bg-[#FFF5F5] disabled:opacity-50">
+              删除选中
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10">
+                <tr>
+                  <th class="w-9 px-3 py-2"><input type="checkbox" :checked="recAllChecked" @change="toggleRecAll" /></th>
+                  <th class="px-3 py-2 font-medium">广告活动编号</th>
+                  <th class="px-3 py-2 font-medium">广告活动名称</th>
+                  <th class="px-3 py-2 font-medium">店铺</th>
+                  <th class="px-3 py-2 font-medium">父 SKU</th>
+                  <th class="px-3 py-2 font-medium text-right">子体</th>
+                  <th class="px-3 py-2 font-medium text-right">日预算</th>
+                  <th class="px-3 py-2 font-medium">状态</th>
+                  <th class="px-3 py-2 font-medium">创建/更新时间</th>
+                  <th class="px-3 py-2 font-medium text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in recRows" :key="r.id" class="border-t border-slate-100 hover:bg-slate-50">
+                  <td class="px-3 py-2"><input type="checkbox" :checked="!!recSel[r.id]" @change="toggleRec(r)" /></td>
+                  <td class="px-3 py-2 font-mono text-[11px] text-slate-700 whitespace-nowrap">{{ r.campaign_code || '-' }}</td>
+                  <td class="px-3 py-2 text-slate-700 max-w-[240px] truncate" :title="r.campaign_name">{{ r.campaign_name }}</td>
+                  <td class="px-3 py-2 text-slate-500">{{ r.shop_name || '-' }}</td>
+                  <td class="px-3 py-2 font-mono text-[11px]">{{ r.parent_sku }}</td>
+                  <td class="px-3 py-2 text-right">{{ r.child_count }}</td>
+                  <td class="px-3 py-2 text-right">¥{{ fmt(r.budget) }}</td>
+                  <td class="px-3 py-2 whitespace-nowrap"
+                      :class="r.status === 'exported' ? 'text-emerald-600'
+                              : (r.status === 'modified' ? 'text-[#E6A23C]' : 'text-slate-400')">
+                    {{ r.status === 'exported' ? '已导出' : (r.status === 'modified' ? '已修改' : '未导出') }}
+                  </td>
+                  <td class="px-3 py-2 text-slate-500 whitespace-nowrap">
+                    {{ r.updated_at || r.created_at }}
+                    <span v-if="r.amazon_campaign_id" class="ml-1 text-[10px] text-emerald-600"
+                          :title="'亚马逊活动 ID：' + r.amazon_campaign_id">ID✓</span>
+                  </td>
+                  <td class="px-3 py-2 text-center whitespace-nowrap">
+                    <button @click="openEdit(r)" class="text-[#2969FF] hover:underline mr-2">修改</button>
+                    <button @click="exportRecords([r.id])" class="text-[#2969FF] hover:underline mr-2">导出</button>
+                    <button @click="deleteOneRecord(r)" class="text-slate-400 hover:text-[#F54242]">删除</button>
+                  </td>
+                </tr>
+                <tr v-if="!recRows.length">
+                  <td colspan="10" class="px-3 py-16 text-center"
+                      :class="recError ? 'text-[#F54242]' : 'text-slate-400'">
+                    {{ recLoading ? '加载中…' : (recError || '暂无广告活动，点右上角「+ 创建广告」开始') }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 修改记录弹窗 ==================== -->
+    <div v-if="editOpen" class="fixed inset-0 bg-black/40 z-[110] flex items-center justify-center p-4"
+         @click.self="editOpen = false">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
+        <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">修改广告活动</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">
+              {{ editForm.campaign_code }} · 父 SKU {{ editForm.parent_sku }} · {{ editForm.shop_name }}
+            </p>
+          </div>
+          <button @click="editOpen = false"
+                  class="text-slate-400 hover:text-slate-600 text-lg leading-none px-2">×</button>
+        </div>
+
+        <div class="p-5 overflow-y-auto grid grid-cols-2 gap-x-5 gap-y-3 text-[12px] text-[#0F0F0F]">
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">活动名称</span>
+            <input v-model="editForm.campaign_name" class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">广告组名称</span>
+            <input v-model="editForm.ad_group_name" class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">每日预算</span>
+            <input v-model.number="editForm.budget" type="number" min="1" step="0.01"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">广告组默认竞价</span>
+            <input v-model.number="editForm.default_bid" type="number" min="0.01" step="0.01"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">紧密匹配</span>
+            <input v-model.number="editForm.bids['close-match']" type="number" min="0.01" step="0.01"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">宽泛匹配</span>
+            <input v-model.number="editForm.bids['loose-match']" type="number" min="0.01" step="0.01"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">同类商品</span>
+            <input v-model.number="editForm.bids['substitutes']" type="number" min="0.01" step="0.01"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">关联商品</span>
+            <input v-model.number="editForm.bids['complements']" type="number" min="0.01" step="0.01"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">状态</span>
+            <select v-model="editForm.state"
+                    class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 bg-white outline-none focus:border-[#2969FF]">
+              <option value="enabled">启用</option>
+              <option value="paused">暂停</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">开始日期</span>
+            <input v-model="editForm.start_date" placeholder="2026-11-03"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="col-span-2 flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">亚马逊活动名</span>
+            <input v-model="editForm.amazon_campaign_name"
+                   placeholder="亚马逊后台上的活动名称，如 特殊活动_abc002"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+            <button type="button" @click="fetchAmazonIds" :disabled="editFetching"
+                    class="h-8 px-3 bg-[#2969FF] hover:bg-[#1f57d6] disabled:opacity-50 text-white rounded-[4px] whitespace-nowrap">
+              {{ editFetching ? '拉取中…' : '从赛狐拉取 ID' }}
+            </button>
+          </label>
+          <p v-if="editIdSummary" class="col-span-2 -mt-1 text-[11px] text-emerald-600">
+            {{ editIdSummary }}
+          </p>
+          <p v-if="editIdError" class="col-span-2 -mt-1 text-[11px] text-rose-600">
+            {{ editIdError }}
+          </p>
+          <div v-if="editCampaignOptions.length > 1" class="col-span-2 flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">匹配活动</span>
+            <select v-model.number="editSelectedCampaign" @change="pickCampaign"
+                    class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 bg-white outline-none focus:border-[#2969FF]">
+              <option v-for="(c, i) in editCampaignOptions" :key="i" :value="i">
+                {{ (c.campaign && c.campaign.name) || '-' }} · {{ (c.campaign && c.campaign.campaign_id) || '-' }}
+              </option>
+            </select>
+          </div>
+
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">亚马逊活动 ID</span>
+            <input v-model="editForm.amazon_campaign_id" placeholder="导入更新时必填"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="w-[92px] shrink-0 text-right text-[#5A5F6B]">亚马逊广告组 ID</span>
+            <input v-model="editForm.amazon_ad_group_id" placeholder="可选"
+                   class="h-8 flex-1 border border-[#DADCE0] rounded-[4px] px-2 outline-none focus:border-[#2969FF]" />
+          </label>
+
+          <div v-if="editForm.amazon_ids"
+               class="col-span-2 rounded-[4px] border border-slate-200 bg-[#F7F8FA] px-2 py-1.5 text-[11px] leading-5 text-[#5A5F6B] max-h-44 overflow-auto">
+            <div class="font-medium text-[#1F2328]">已拉取的真实 ID</div>
+            <div>活动：<span class="font-mono">{{ (editForm.amazon_ids.campaign && editForm.amazon_ids.campaign.campaign_id) || '-' }}</span></div>
+            <div>广告组：
+              <template v-if="(editForm.amazon_ids.ad_groups || []).length">
+                <span v-for="g in editForm.amazon_ids.ad_groups" :key="g.ad_group_id" class="mr-2 font-mono">{{ g.ad_group_id }}</span>
+              </template>
+              <span v-else class="text-[#8A8F99]">无</span>
+            </div>
+            <div>投放：
+              <template v-if="(editForm.amazon_ids.targets || []).length">
+                <span v-for="t in editForm.amazon_ids.targets" :key="t.target_id" class="mr-2 font-mono">{{ t.target_id }}</span>
+              </template>
+              <span v-else class="text-[#8A8F99]">无</span>
+            </div>
+            <div>否定关键词：
+              <template v-if="(editForm.amazon_ids.neg_keywords || []).length">
+                <span v-for="n in editForm.amazon_ids.neg_keywords" :key="n.ne_target_id" class="mr-2 font-mono">{{ n.ne_target_id }}</span>
+              </template>
+              <span v-else class="text-[#8A8F99]">无</span>
+            </div>
+            <div>否定商品：
+              <template v-if="(editForm.amazon_ids.neg_products || []).length">
+                <span v-for="n in editForm.amazon_ids.neg_products" :key="n.ne_target_id" class="mr-2 font-mono">{{ n.ne_target_id }}</span>
+              </template>
+              <span v-else class="text-[#8A8F99]">无</span>
+            </div>
+            <div>广告：
+              <template v-if="(editForm.amazon_ids.products || []).length">
+                <span v-for="p in editForm.amazon_ids.products" :key="p.ad_id" class="mr-2 font-mono">{{ p.ad_id }}</span>
+              </template>
+              <span v-else class="text-[#8A8F99]">无</span>
+            </div>
+          </div>
+
+          <p class="col-span-2 text-[11px] text-[#8A8F99] leading-5 border-t border-slate-100 pt-2">
+            只改预算/竞价/状态/名称时，勾选「仅更新（Update）」导出即可导入亚马逊更新已有活动；
+            填了真实「亚马逊活动 ID」后自动模式也会走 Update。未填 ID 时导出为 Create（新建活动）。
+            投放竞价与否定词只对 Create 生效。
+          </p>
+        </div>
+
+        <div class="px-5 py-3 border-t border-slate-200 flex justify-end gap-2 text-[12px]">
+          <button @click="editOpen = false"
+                  class="h-8 px-4 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA]">取消</button>
+          <button @click="saveEdit" :disabled="editSaving"
+                  class="h-8 px-4 bg-[#2969FF] hover:bg-[#1f57d6] disabled:opacity-50 text-white rounded-[4px]">
+            {{ editSaving ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 广告管理: 创建广告活动（表单） ==================== -->
+    <div v-show="adView === 'create'" class="bg-[#EEEEF6] min-h-screen flex flex-col">
 
       <!-- 工具条: 只保留数据/词库相关操作(原一级菜单、二级 tab 已移除) -->
       <div class="flex items-center gap-2 px-3 h-11 bg-white border-b border-[#E4E6EB] text-[12px] text-[#0F0F0F] select-none">
@@ -100,13 +359,26 @@
               </div>
             </div>
 
-            <!-- 广告组合（原为店铺广告组合下拉，改为手工输入） -->
+            <!-- 广告组合：与赛狐 ad-create 页一致，按当前店铺实时拉取 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组合</div>
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">广告组合</div>
               <div class="flex items-center gap-3">
-                <input v-model="adSettings.portfolio_id" placeholder="无广告组合"
-                       class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
-                <span class="text-[11px] text-[#B4B8C2]">手动填写组合名称（留空＝不归入任何广告组合）</span>
+                <select v-model="adSettings.portfolio_id"
+                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="">无广告组合</option>
+                  <option v-for="p in adPortfolios" :key="p.portfolio_id" :value="p.portfolio_id">
+                    {{ p.portfolio_name || p.portfolio_id }}
+                  </option>
+                </select>
+                <span class="text-[11px] text-[#B4B8C2]">
+                  <template v-if="adPortfolioLoading">加载中…</template>
+                  <template v-else-if="adPortfolioNote" class="text-[#E6A23C]">{{ adPortfolioNote }}</template>
+                  <template v-else-if="adPortfolios.length">按店铺从赛狐获取 · 留空＝不归入任何广告组合</template>
+                  <template v-else>当前店铺无广告组合 · 留空＝不归入任何广告组合</template>
+                </span>
+                <button type="button" @click="loadAdPortfolios(true)"
+                        class="h-8 px-2 border border-[#DADCE0] rounded-[4px] text-[12px] bg-white hover:bg-[#F5F7FA]"
+                        title="重新从赛狐拉取广告组合">刷新</button>
               </div>
             </div>
 
@@ -828,9 +1100,13 @@
       <div class="sticky bottom-0 h-14 bg-white border-t border-[#E4E6EB] flex items-center justify-center gap-3 z-20">
         <button @click="resetAdForm"
                 class="h-8 px-5 border border-[#DADCE0] rounded-[4px] text-[12px] text-[#0F0F0F] bg-white hover:bg-[#F5F7FA]">取消</button>
-        <button @click="exportAdExcel" :disabled="!adCampaigns.length || adExporting"
+        <button @click="createRecords" :disabled="!adCampaigns.length || adExporting"
                 class="h-8 px-5 bg-[#2969FF] hover:bg-[#1f57d6] disabled:opacity-50 disabled:cursor-not-allowed text-white text-[12px] rounded-[4px]">
-          {{ adExporting ? '生成中…' : '创建' }}
+          {{ adExporting ? '创建中…' : '创建' }}
+        </button>
+        <button @click="backToList"
+                class="h-8 px-4 border border-[#DADCE0] rounded-[4px] text-[12px] text-[#0F0F0F] bg-white hover:bg-[#F5F7FA]">
+          返回列表
         </button>
         <span class="absolute right-4 text-[12px] text-[#8A8F99]">
           已选 {{ adSelected.length }} 个父体 · {{ adSelectedKidCount }} 个子体 · 将生成 {{ adCampaigns.length }} 个活动 · 合计 ¥{{ fmt(adTotalBudget) }}
@@ -972,6 +1248,11 @@
         const headerRow = ref(1);
         const resolvedCols = ref({});
         const settings = ref(DEFAULT_SETTINGS());
+
+        // ---- 广告组合下拉（对齐赛狐 ad-create: 按店铺实时取）----
+        const adPortfolios = ref([]);
+        const adPortfolioLoading = ref(false);
+        const adPortfolioNote = ref('');
 
         // ---- 广告创建（单页: 选品 → 自动出广告）----
         const adShop = ref('');
@@ -1776,13 +2057,118 @@
           if (!target) fillBidsFromSuggest();
         };
 
-        const exportAdExcel = async () => {
+        // ---- 广告管理：列表视图(list) / 创建表单(create) ----
+        const adView = ref('list');
+        // ---- 广告活动记录：创建入库 → 修改 → 勾选批量导出 ----
+        const exportMode = ref('auto');     // auto | create | update
+        const recRows = ref([]);
+        const recTotal = ref(0);
+        const recKeyword = ref('');
+        const recSel = ref({});
+        const recLoading = ref(false);
+        const recBusy = ref(false);
+        const recError = ref('');       // 列表接口失败时给提示，避免误以为"记录没了"
+
+        const recSelectedIds = computed(() =>
+          Object.keys(recSel.value).filter(k => recSel.value[k]).map(Number));
+        const recAllChecked = computed(() =>
+          recRows.value.length > 0 && recRows.value.every(r => recSel.value[r.id]));
+
+        const loadRecords = async () => {
+          recLoading.value = true;
+          recError.value = '';
+          try {
+            const q = new URLSearchParams({
+              keyword: recKeyword.value || '', page: '1', page_size: '100'
+            });
+            const res = await fetch('/api/adcreator/records?' + q.toString());
+            if (!res.ok) {
+              recError.value = `记录加载失败（HTTP ${res.status}），点「查询」重试`;
+              return;
+            }
+            const d = await res.json();
+            recRows.value = d.rows || [];
+            recTotal.value = d.total || 0;
+            const alive = new Set(recRows.value.map(r => r.id));
+            const next = {};
+            Object.keys(recSel.value).forEach(k => {
+              if (alive.has(Number(k)) && recSel.value[k]) next[k] = true;
+            });
+            recSel.value = next;
+          } catch (e) {
+            // 后端刚重启/未就绪时这里会失败；明确提示，别让人以为记录丢了
+            recError.value = `记录加载失败：${e.message || '服务未就绪'}，点「查询」重试`;
+          } finally { recLoading.value = false; }
+        };
+
+        // 广告组合：按当前店铺拉取（赛狐 getAllPortfolioDataProductRight）
+        const loadAdPortfolios = async (refresh) => {
+          const shop = adShop.value || '';
+          if (!shop) { adPortfolios.value = []; return; }
+          adPortfolioLoading.value = true;
+          try {
+            const q = new URLSearchParams({ shop });
+            if (refresh) q.set('refresh', '1');
+            const res = await fetch('/api/adcreator/portfolios?' + q.toString());
+            const d = await res.json().catch(() => ({}));
+            adPortfolios.value = d.rows || [];
+            adPortfolioNote.value = d.note || '';   // 回退本地库时的提示
+            // 换店铺后原选项可能不存在 → 清空，避免导出时带着无效组合 ID
+            const cur = adSettings.value.portfolio_id;
+            if (cur && !adPortfolios.value.some(p => p.portfolio_id === cur)) {
+              adSettings.value.portfolio_id = '';
+            }
+          } catch (e) {
+            adPortfolios.value = [];
+          } finally {
+            adPortfolioLoading.value = false;
+          }
+        };
+
+        // 列表视图 <-> 创建表单
+        const openCreateView = async () => {
+          adView.value = 'create';
+          if (!shopList.value.length) await loadFromDb();
+          await loadAdPortfolios();
+        };
+        const backToList = async () => { adView.value = 'list'; await loadRecords(); };
+
+        // 创建视图里切店铺 → 重新拉广告组合（列表页不需要，省一次请求）
+        watch(adShop, () => { if (adView.value === 'create') loadAdPortfolios(); });
+
+        const toggleRecAll = () => {
+          const target = !recAllChecked.value;
+          const next = {};
+          if (target) recRows.value.forEach(r => { next[r.id] = true; });
+          recSel.value = next;
+        };
+
+        const toggleRec = (r) => {
+          const next = { ...recSel.value };
+          if (next[r.id]) delete next[r.id]; else next[r.id] = true;
+          recSel.value = next;
+        };
+
+        const downloadBlob = (blob, name) => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        };
+
+        // 「创建」: 只生成记录入库, 不再直接下载文件
+        const createRecords = async () => {
           const list = adCampaigns.value;
           if (!list.length) { showToast('请先勾选要投放的商品'); return; }
           adExporting.value = true;
           try {
             const budgets = adBudgetMap.value;
             const payload = {
+              shop_name: adShop.value || '',
               products: list.map(c => ({
                 parent_sku: c.parent_sku,
                 product_name: c.product_name,
@@ -1800,30 +2186,227 @@
                 negative_level: 'campaign'
               }
             };
-            const res = await fetch('/api/adcreator/generate', {
+            const res = await fetch('/api/adcreator/records', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
-            if (!res.ok) {
-              const j = await res.json().catch(() => ({}));
-              throw new Error(j.detail || '生成失败');
-            }
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${adShop.value || 'shop'}_SP_Auto_Ads_${adToday()}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            showToast(`已生成 ${list.length} 个广告活动，开始下载…`);
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.detail || '创建失败');
+            showToast(`已生成 ${j.saved || 0} 个广告活动记录`);
+            adView.value = 'list';          // 创建完成 → 回列表
+            await loadRecords();
           } catch (e) {
-            error.value = e.message || '生成失败';
+            error.value = e.message || '创建失败';
             showToast(error.value);
           } finally {
             adExporting.value = false;
+          }
+        };
+
+        // ---- 修改记录 ----
+        const emptyEdit = () => ({
+          id: 0, campaign_code: '', parent_sku: '', shop_name: '',
+          campaign_name: '', ad_group_name: '', budget: 0, default_bid: 0,
+          bids: { 'close-match': 0, 'loose-match': 0, substitutes: 0, complements: 0 },
+          state: 'enabled', start_date: '',
+          amazon_campaign_name: '', amazon_campaign_id: '', amazon_ad_group_id: '',
+          amazon_ids: null
+        });
+        const editOpen = ref(false);
+        const editSaving = ref(false);
+        const editFetching = ref(false);
+        const editIdSummary = ref('');
+        const editIdError = ref('');
+        const editCampaignOptions = ref([]);
+        const editSelectedCampaign = ref(0);
+        const editOriginalState = ref('');
+        const editForm = ref(emptyEdit());
+
+        // 从赛狐按活动名拉取亚马逊真实 ID（活动/广告组/投放/否定词/否定商品/广告）
+        const applyCampaignIds = (node) => {
+          const f = editForm.value;
+          if (!node) return;
+          editIdError.value = '';
+          f.amazon_ids = { ...node, found: true };
+          f.amazon_campaign_id = (node.campaign && node.campaign.campaign_id) || '';
+          f.amazon_ad_group_id = (node.ad_groups && node.ad_groups[0]
+            && node.ad_groups[0].ad_group_id) || '';
+          if (node.campaign && node.campaign.name) {
+            f.amazon_campaign_name = node.campaign.name;
+          }
+          editIdSummary.value = '已获取：活动 ' + (f.amazon_campaign_id || '-')
+            + ' · 广告组 ' + ((node.ad_groups || []).length)
+            + ' · 投放 ' + ((node.targets || []).length)
+            + ' · 否定词 ' + ((node.neg_keywords || []).length)
+            + ' · 否定商品 ' + ((node.neg_products || []).length)
+            + ' · 广告 ' + ((node.products || []).length)
+            + '（保存后生效）';
+        };
+
+        const fetchAmazonIds = async () => {
+          const f = editForm.value;
+          const name = (f.amazon_campaign_name || f.campaign_name || '').trim();
+          if (!name) { showToast('请先填亚马逊活动名'); return; }
+          editFetching.value = true;
+          editCampaignOptions.value = [];
+          editSelectedCampaign.value = 0;
+          editIdError.value = '';
+          editIdSummary.value = '';
+          try {
+            const q = new URLSearchParams({
+              campaign_name: name,
+              shop: f.shop_name || adShop.value || ''
+            });
+            const res = await fetch('/api/adcreator/amazon-ids?' + q.toString());
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok || !d.found) throw new Error(d.detail || d.reason || '未找到该活动');
+            // 兼容旧版后端：没有 campaigns 时把整个响应当作唯一活动
+            const list = (d.campaigns && d.campaigns.length) ? d.campaigns : [d];
+            editCampaignOptions.value = list;
+            editSelectedCampaign.value = 0;
+            applyCampaignIds(list[0]);
+            showToast(list.length > 1
+              ? `匹配到 ${list.length} 个活动，请选择要回填的那个`
+              : '已拉取真实 ID');
+          } catch (e) {
+            editIdError.value = e.message || '拉取失败';
+            showToast(editIdError.value);
+          } finally {
+            editFetching.value = false;
+          }
+        };
+
+        const pickCampaign = () => {
+          const node = editCampaignOptions.value[editSelectedCampaign.value];
+          applyCampaignIds(node);
+        };
+
+        const openEdit = async (r) => {
+          editForm.value = emptyEdit();
+          editCampaignOptions.value = [];
+          editSelectedCampaign.value = 0;
+          editIdError.value = '';
+          editIdSummary.value = '';
+          editOpen.value = true;
+          try {
+            const res = await fetch('/api/adcreator/records/' + r.id);
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(d.detail || '读取失败');
+            const sd = String(d.start_date || '');
+            editForm.value = {
+              ...d,
+              state: d.state || 'enabled',
+              start_date: sd.length === 8
+                ? `${sd.slice(0, 4)}-${sd.slice(4, 6)}-${sd.slice(6, 8)}` : sd,
+              bids: { ...emptyEdit().bids, ...(d.bids || {}) }
+            };
+            const ids = d.amazon_ids || {};
+            editForm.value.amazon_campaign_name =
+              (ids.campaign && ids.campaign.name) || d.campaign_name || '';
+            editOriginalState.value = editForm.value.state;
+            editIdSummary.value = ids.found
+              ? ('已获取：活动 ' + ((ids.campaign && ids.campaign.campaign_id) || '-')
+                 + ' · 广告组 ' + ((ids.ad_groups || []).length)
+                 + ' · 投放 ' + ((ids.targets || []).length)
+                 + ' · 否定词 ' + ((ids.neg_keywords || []).length)
+                 + ' · 否定商品 ' + ((ids.neg_products || []).length))
+              : '';
+          } catch (e) {
+            showToast(e.message || '读取失败');
+            editOpen.value = false;
+          }
+        };
+
+        const saveEdit = async () => {
+          const f = editForm.value;
+          editSaving.value = true;
+          try {
+            const payload = {
+              campaign_name: f.campaign_name,
+              ad_group_name: f.ad_group_name,
+              budget: f.budget,
+              default_bid: f.default_bid,
+              bid_close: f.bids['close-match'],
+              bid_loose: f.bids['loose-match'],
+              bid_substitutes: f.bids['substitutes'],
+              bid_complements: f.bids['complements'],
+              start_date: f.start_date,
+              amazon_campaign_id: f.amazon_campaign_id || '',
+              amazon_ad_group_id: f.amazon_ad_group_id || ''
+            };
+            // 只有用户真的改了状态才提交，否则 Update 导出不会写状态列
+            if (f.state !== editOriginalState.value) payload.state = f.state;
+            if (f.amazon_ids && f.amazon_ids.found) payload.amazon_ids = f.amazon_ids;
+            const res = await fetch('/api/adcreator/records/' + f.id, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(d.detail || '保存失败');
+            showToast('已保存修改');
+            editOpen.value = false;
+            await loadRecords();
+          } catch (e) {
+            showToast(e.message || '保存失败');
+          } finally {
+            editSaving.value = false;
+          }
+        };
+
+        // 批量导出: 不传 ids 时导出勾选项
+        const exportRecords = async (ids) => {
+          const list = Array.isArray(ids) && ids.length ? ids : recSelectedIds.value;
+          if (!list.length) { showToast('请先勾选要导出的记录'); return; }
+          recBusy.value = true;
+          try {
+            const res = await fetch('/api/adcreator/records/export', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: list, mode: exportMode.value })
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              throw new Error(j.detail || '导出失败');
+            }
+            const blob = await res.blob();
+            const cd = res.headers.get('Content-Disposition') || '';
+            const m = cd.match(/filename="?([^";]+)"?/);
+            downloadBlob(blob, m ? m[1] : `ad_creations_${adToday()}.xlsx`);
+            showToast(`已导出 ${list.length} 条记录`);
+            await loadRecords();
+          } catch (e) {
+            showToast(e.message || '导出失败');
+          } finally {
+            recBusy.value = false;
+          }
+        };
+
+        const deleteOneRecord = async (r) => {
+          if (!window.confirm(`确定删除「${r.campaign_name || r.campaign_code}」这条记录？`)) return;
+          try {
+            await fetch('/api/adcreator/records?ids=' + r.id);
+            showToast('已删除');
+            await loadRecords();
+          } catch (e) {
+            showToast('删除失败');
+          }
+        };
+
+        const deleteRecords = async () => {
+          const list = recSelectedIds.value;
+          if (!list.length) { showToast('请先勾选要删除的记录'); return; }
+          if (!window.confirm(`确定删除选中的 ${list.length} 条记录？`)) return;
+          recBusy.value = true;
+          try {
+            const res = await fetch('/api/adcreator/records?ids=' + list.join(','));
+            if (res.ok) showToast('已删除');
+            await loadRecords();
+          } catch (e) {
+            showToast('删除失败');
+          } finally {
+            recBusy.value = false;
           }
         };
 
@@ -1976,8 +2559,8 @@
         };
 
         loadDict();
-        // 进页面直接从本项目在线产品库载入(不再需要先上传 Excel)
-        loadFromDb();
+        loadRecords();          // 首页=广告活动列表, 先拉记录
+        // 商品数据改为进「创建广告」时再载入(openCreateView), 列表页首屏更快
 
         return {
           dataSource, sourceMark, dbSummary, loadFromDb,
@@ -1995,7 +2578,15 @@
           adShop, adShopData, adProducts, adFiltered, adSelected, adProductCount,
           isAllAdSelected, toggleAdSelectAll, adSearch,
           adGranularity, adSettings, adBudgetMode, adSingleBudget, adPoolBudget,
-          adCampaigns, adTotalBudget, adCampaignName, adExporting, exportAdExcel, bidExample,
+          adCampaigns, adTotalBudget, adCampaignName, adExporting, createRecords, bidExample,
+          adView, openCreateView, backToList,
+          adPortfolios, adPortfolioLoading, adPortfolioNote, loadAdPortfolios,
+          recRows, recTotal, recKeyword, recSel, recSelectedIds, recAllChecked,
+          recLoading, recBusy, recError, loadRecords, toggleRecAll, toggleRec,
+          exportRecords, deleteRecords, deleteOneRecord,
+          exportMode, editOpen, editSaving, editForm, openEdit, saveEdit,
+          editFetching, editIdSummary, editIdError, fetchAmazonIds,
+          editCampaignOptions, editSelectedCampaign, pickCampaign,
           adSteps, adTargetingRows, addAdProduct, removeAdProduct, clearAdProducts, goAdBlock,
           toggleAdProduct, isKidOn, toggleKid, adKidOnCount, adSelectedKidCount, clearKidFilter,
           adInputMode, adAsinInput, adPage, adPageCount, adPageRows, adFlatRows, adAddedRows,

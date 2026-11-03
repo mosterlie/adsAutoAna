@@ -13,6 +13,7 @@
 import hashlib
 import os
 import threading
+import time
 import urllib.parse
 import urllib.request
 from typing import Dict, Optional, Tuple
@@ -86,6 +87,37 @@ def _save_disk(site: str, data: bytes, ctype: str) -> None:
             f.write(data)
     except Exception:                           # noqa: BLE001
         pass
+    _neg_clear(site)
+
+
+#: 取不到图标的站点也落盘记一笔(冷却 _NEG_TTL 秒), 免得每次重启都去白等 4×6s 超时
+_NEG_TTL = 7 * 24 * 3600
+
+
+def _neg_path(site: str) -> str:
+    return _cache_base(site) + ".none"
+
+
+def _neg_hit(site: str) -> bool:
+    p = _neg_path(site)
+    try:
+        return os.path.exists(p) and (time.time() - os.path.getmtime(p)) < _NEG_TTL
+    except Exception:                           # noqa: BLE001
+        return False
+
+
+def _neg_save(site: str) -> None:
+    try:
+        open(_neg_path(site), "w").close()
+    except Exception:                           # noqa: BLE001
+        pass
+
+
+def _neg_clear(site: str) -> None:
+    try:
+        os.remove(_neg_path(site))
+    except Exception:                           # noqa: BLE001
+        pass
 
 
 def _fetch(u: str) -> Optional[Tuple[bytes, str]]:
@@ -138,11 +170,14 @@ def get(page_url: str) -> Optional[Tuple[bytes, str]]:
             return _MEM[site]
     hit = _load_disk(site)
     if hit is None:
-        for u in candidates(page_url):
-            hit = _fetch(u)
-            if hit:
-                _save_disk(site, hit[0], hit[1])
-                break
+        if not _neg_hit(site):
+            for u in candidates(page_url):
+                hit = _fetch(u)
+                if hit:
+                    _save_disk(site, hit[0], hit[1])
+                    break
+            else:
+                _neg_save(site)
     with _LOCK:
         _MEM[site] = hit
     return hit

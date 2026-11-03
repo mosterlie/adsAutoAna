@@ -125,6 +125,26 @@ def products(mark: str = "", shops: str = "", base_budget: float = 100.0,
     }
 
 
+@router.get("/portfolios")
+def ad_portfolios(shop: str = "", shop_id: str = "", refresh: int = 0) -> Dict[str, Any]:
+    """广告组合下拉（对齐赛狐 ad-create 页的取数方式）
+
+    按店铺走赛狐 ``/api/portfolio/getAllPortfolioDataProductRight.json``；
+    取不到时回退本地 ad_portfolios 表，``source`` 标明来源。
+    """
+    from backend.ad_creator import portfolios as pf
+
+    sid = (shop_id or "").strip() or resolve_shop_id(shop)
+    if not sid:
+        return {"rows": [], "source": "empty", "note": "未选择店铺", "shopId": ""}
+    cookies = load_cookies() or {}
+    try:
+        out = pf.get_portfolios(cookies, sid, shop_name=shop, force=bool(refresh))
+    except Exception as exc:            # noqa: BLE001 - 不让下拉拖垮页面
+        raise HTTPException(400, _friendly(str(exc))) from exc
+    return {**out, "shopId": sid}
+
+
 @router.post("/analyze")
 async def analyze_file(file: UploadFile = File(...)) -> Dict[str, Any]:
     """兼容入口：上传赛狐导出的 Excel（与原 autoAds 行为一致）"""
@@ -160,6 +180,120 @@ def generate_file(payload: ExportRequest) -> StreamingResponse:
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=amazon_bulk_ads.xlsx"},
     )
+
+
+# ---------------------------------------------------------------------------
+# 广告活动记录：创建入库存起来，需要时再（批量）导出
+# ---------------------------------------------------------------------------
+class RecordCreateRequest(BaseModel):
+    products: List[Dict[str, Any]] = []
+    settings: Dict[str, Any] = {}
+    shop_name: str = ""
+
+
+class RecordExportRequest(BaseModel):
+    ids: List[int] = []
+    mode: str = "auto"             # create | update | auto
+
+
+class RecordUpdateRequest(BaseModel):
+    """「修改」弹窗提交的字段（只提交改动的项）。"""
+    campaign_name: Optional[str] = None
+    ad_group_name: Optional[str] = None
+    budget: Optional[float] = None
+    default_bid: Optional[float] = None
+    bid_close: Optional[float] = None
+    bid_loose: Optional[float] = None
+    bid_substitutes: Optional[float] = None
+    bid_complements: Optional[float] = None
+    state: Optional[str] = None
+    start_date: Optional[str] = None
+    amazon_campaign_id: Optional[str] = None
+    amazon_ad_group_id: Optional[str] = None
+    amazon_ids: Optional[Dict[str, Any]] = None      # 赛狐一键回填的完整 ID 结构
+
+
+@router.post("/records")
+def create_records(payload: RecordCreateRequest) -> Dict[str, Any]:
+    """生成 Bulk 行数据并入库（不再直接下载文件）。"""
+    from backend.ad_creator import records as rec
+
+    try:
+        return rec.create_records(payload.products, payload.settings, payload.shop_name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:        # noqa: BLE001
+        raise HTTPException(500, f"创建失败：{str(exc)[:200]}") from exc
+
+
+@router.get("/records")
+def list_records(keyword: str = "", page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+    from backend.ad_creator import records as rec
+
+    return rec.list_records(keyword=keyword, page=page, page_size=page_size)
+
+
+@router.get("/amazon-ids")
+def amazon_ids(campaign_name: str, shop: str = "", shop_id: str = "") -> Dict[str, Any]:
+    """按广告活动名从赛狐拉取亚马逊真实 ID（活动/广告组/投放/否定/广告）。"""
+    from backend.ad_creator import amazon_ids as aid
+
+    sid = (shop_id or "").strip() or resolve_shop_id(shop)
+    if not sid:
+        raise HTTPException(400, "未选择店铺，无法查询赛狐数据")
+    try:
+        return aid.lookup(campaign_name, [int(sid)])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:            # noqa: BLE001
+        raise HTTPException(500, f"查询失败：{str(exc)[:200]}") from exc
+
+
+@router.get("/records/{rid}")
+def get_record(rid: int) -> Dict[str, Any]:
+    from backend.ad_creator import records as rec
+
+    try:
+        return rec.get_record(rid)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.patch("/records/{rid}")
+def update_record(rid: int, payload: RecordUpdateRequest) -> Dict[str, Any]:
+    """修改单条记录（名称/预算/竞价/状态/亚马逊真实 ID）。"""
+    from backend.ad_creator import records as rec
+
+    fields = payload.model_dump(exclude_none=True) if hasattr(payload, "model_dump") \
+        else payload.dict(exclude_none=True)
+    try:
+        return rec.update_record(rid, fields)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/records/export")
+def export_records(payload: RecordExportRequest) -> StreamingResponse:
+    """勾选多条记录 → 合并导出一个 Bulk xlsx（create / update / auto）。"""
+    from backend.ad_creator import records as rec
+
+    try:
+        buffer, fname, _count = rec.export_records(payload.ids, payload.mode)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.delete("/records")
+def delete_records(ids: str = Query("")) -> Dict[str, Any]:
+    from backend.ad_creator import records as rec
+
+    id_list = [int(x) for x in re.split(r"[,，\s]+", ids or "") if x.strip().isdigit()]
+    return {"deleted": rec.delete_records(id_list)}
 
 
 # ---------------------------------------------------------------------------

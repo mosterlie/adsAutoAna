@@ -72,7 +72,8 @@ TAB_DEFS: Dict[str, Dict[str, Any]] = {
         "list": "multiple/neTarget/getAllNeTargetData",
         "aggregate": None,
         "keys": ["id"],
-        "scopes": [{"adType": "sp", "neType": nt} for nt in ("keyword", "product")],
+        # neType 的合法值实测只有 keyword / target（否定商品用 target，不是 product）
+        "scopes": [{"adType": "sp", "neType": nt} for nt in ("keyword", "target")],
     },
     "placement": {
         "label": "广告位",
@@ -106,7 +107,7 @@ def scope_str(scope: Optional[Dict[str, Any]]) -> str:
     例:
         {"adType": "sp"}                                          -> "sp"
         {"adType": "sp", "neType": "keyword"}                     -> "sp:keyword"  (否定关键词)
-        {"adType": "sp", "neType": "product"}                     -> "sp:product"  (否定商品)
+        {"adType": "sp", "neType": "target"}                      -> "sp:target"   (否定商品)
         {"adType": "sp", "searchQueryType": "searchKeyword"}      -> "sp:keyword"  (搜索词)
         {"adType": "sp", "searchQueryType": "searchAsin"}         -> "sp:asin"     (ASIN)
         {"types": ["sp"]}                                         -> "sp"

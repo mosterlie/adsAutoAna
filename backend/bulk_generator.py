@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import datetime
 import io
+import re
 from typing import Any, Dict, List
 
 from openpyxl import Workbook
@@ -112,6 +113,46 @@ def _txt(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+#: 自定编号规则（与广告创建页一致）：CA_父sku_YYYYMMDDHHMM / GR_父sku_YYYYMMDDHHMM
+ID_PATTERN = re.compile(r"^(?:CA|GR)_[0-9A-Za-z._-]+_\d{12}$")
+
+
+def _id_token(value: Any) -> str:
+    raw = _txt(value)
+    out = re.sub(r"[^0-9A-Za-z._-]+", "_", raw).strip("_")
+    return out or "sku"
+
+
+def _is_valid_entity_id(value: str) -> bool:
+    return bool(value) and (value.isdigit() or bool(ID_PATTERN.match(value)))
+
+
+def _resolve_portfolio(value: Any) -> str:
+    """广告组合 → 真实 Portfolio ID（14 位数字）。
+
+    该列填名称或缩写编号会被亚马逊判 ``EntityID does not exist.``，
+    所以这里先按名称查本地组合表，查不到直接抛错，别等到上传后才报。
+    """
+    raw = _txt(value)
+    if not raw:
+        return ""
+    if raw.isdigit() and len(raw) >= 10:
+        return raw
+    try:
+        from backend import database as _db
+
+        for p in _db.get_portfolios() or []:
+            pid = _txt(p.get("portfolio_id"))
+            if pid and raw in {pid, _txt(p.get("portfolio_name"))}:
+                return pid
+    except Exception:                           # noqa: BLE001
+        pass
+    raise ValueError(
+        f"广告组合「{raw}」不是有效的亚马逊广告组合：请填后台广告组合的 ID"
+        "（14 位数字）或完整组合名称；留空表示不归入任何广告组合"
+    )
+
+
 def generate_bulk_excel(products: List[Dict[str, Any]],
                         settings: Dict[str, Any]) -> io.BytesIO:
     """按亚马逊官方格式组装 Sponsored Products 批量操作表格。
@@ -147,10 +188,13 @@ def generate_bulk_excel(products: List[Dict[str, Any]],
     }
     include_targeting = bool(settings.get("include_targeting", True))
     include_placement = bool(settings.get("include_placement", True))
-    # 编号列: True=用父 SKU 作为表内引用键(实盘验证过的写法); False=留空交给亚马逊分配
+    # 编号列（v11）: 默认按规则生成
+    #   广告活动编号 = CA_父sku_YYYYMMDDHHMM   广告组编号 = GR_父sku_YYYYMMDDHHMM
+    #   同一批导出共用一个时间戳；fill_ids=False 退回留空由亚马逊分配。
     fill_ids = bool(settings.get("fill_ids", True))
+    id_stamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
     suffix = _txt(settings.get("campaign_suffix")) or "自动"
-    portfolio_id = _txt(settings.get("portfolio_id"))
+    portfolio_id = _resolve_portfolio(settings.get("portfolio_id"))
 
     for item in products or []:
         parent_sku = _txt(item.get("parent_sku"))
@@ -165,8 +209,8 @@ def generate_bulk_excel(products: List[Dict[str, Any]],
             100.0)
         budget = max(1.0, round(budget, 2))
 
-        campaign_id = parent_sku if fill_ids else ""
-        ad_group_id = f"{parent_sku}_ag" if fill_ids else ""
+        campaign_id = f"CA_{_id_token(parent_sku)}_{id_stamp}" if fill_ids else ""
+        ad_group_id = f"GR_{_id_token(parent_sku)}_{id_stamp}" if fill_ids else ""
         campaign_name = f"{parent_sku}_{prod_name}_{suffix}_{today_str}"
         ad_group_name = campaign_name
 
@@ -341,6 +385,16 @@ def _validate_rows(rows: List[Dict[str, Any]]) -> None:
                     f"{AUTO_TARGETING}，当前 {expr!r}")
             if _txt(r.get("关键词文本")) or _txt(r.get("匹配类型")):
                 problems.append(f"{where} 投放行的「关键词文本」「匹配类型」必须留空")
+
+    # 编号列：CA_/GR_ 规则编号，或亚马逊分配的纯数字 ID（其余会被判 EntityID does not exist.）
+    for col in ("广告活动编号", "广告组编号"):
+        vals = {_txt(r.get(col)) for r in rows} - {""}
+        bad = sorted(v for v in vals if not _is_valid_entity_id(v))
+        if bad:
+            problems.append(
+                f"「{col}」必须符合编号规则 CA_父sku_YYYYMMDDHHMM / "
+                f"GR_父sku_YYYYMMDDHHMM（或纯数字 ID、留空），发现：{bad[:5]}"
+            )
 
     if problems:
         head = problems[:12]

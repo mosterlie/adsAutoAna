@@ -76,6 +76,26 @@ CREATE TABLE IF NOT EXISTS ad_portfolios (
     updated_at    TEXT
 );
 
+CREATE TABLE IF NOT EXISTS ad_creation_records (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_name     TEXT,
+    parent_sku    TEXT,
+    product_name  TEXT,
+    campaign_name TEXT,
+    campaign_code TEXT,
+    ad_group_code TEXT,
+    budget        REAL,
+    child_count   INTEGER,
+    children_json TEXT,
+    settings_json TEXT,
+    rows_json     TEXT NOT NULL,
+    status        TEXT DEFAULT 'created',
+    created_at    TEXT,
+    exported_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_creation_created ON ad_creation_records(created_at);
+CREATE INDEX IF NOT EXISTS idx_creation_code ON ad_creation_records(campaign_code);
+
 CREATE TABLE IF NOT EXISTS ad_records (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     tab          TEXT NOT NULL,
@@ -412,6 +432,14 @@ _MIGRATIONS = [
     ("online_products", "is_variation", "TEXT"),
     ("online_products", "parent_asin", "TEXT"),
     ("amz_product_metrics", "price", "TEXT"),
+    # 广告活动记录：回填亚马逊真实 ID 后可按 Update 导出（导入亚马逊即更新已有活动）
+    ("ad_creation_records", "amazon_campaign_id", "TEXT"),
+    ("ad_creation_records", "amazon_ad_group_id", "TEXT"),
+    ("ad_creation_records", "updated_at", "TEXT"),
+    # 从赛狐一键回填的全部真实 ID（campaign/group/target/否定关键词/否定商品/广告）
+    ("ad_creation_records", "amazon_ids_json", "TEXT"),
+    # 用户是否显式改过状态：没改过时 Update 导出不写状态列，避免把已暂停的活动重新启用
+    ("ad_creation_records", "state_dirty", "INTEGER DEFAULT 0"),
 ]
 
 

@@ -1576,18 +1576,23 @@ const LOCAL_ICON = {
   "tb.cn": "/static/assets/taobao.png",
 };
 
+/* 确定没有公开 favicon 的站点: 不再请求 /api/favicon, 直接用品牌色徽标兜底
+   (否则每次渲染都会在控制台刷 404) */
+const NO_FAVICON = new Set(["yangkeduo.com", "pinduoduo.com", "mobile.yangkeduo.com"]);
+
 function srcLinkHtml(url, withIcon) {
   const u = String(url || "").trim();
   if (!u) return `<span class="pmeta">-</span>`;
   let icon = "";
   if (withIcon) {
+    const site = srcSiteDomain(u);
     const [ch, color] = siteBadge(u);
-    const src = LOCAL_ICON[srcSiteDomain(u)] || ("/api/favicon?u=" + encodeURIComponent(u));
+    const src = LOCAL_ICON[site] || (!NO_FAVICON.has(site) && ("/api/favicon?u=" + encodeURIComponent(u)));
     // 底层是品牌色徽标, 上面叠图标; 取不到图标时 onerror 移除 img 露出徽标
     icon = `<span class="src-ico-wrap">` +
       `<i class="src-ico-fb" style="background:${color}">${esc(ch)}</i>` +
-      `<img class="src-ico" src="${esc(src)}" alt=""
-         loading="lazy" onerror="this.remove()"></span>`;
+      (src ? `<img class="src-ico" src="${esc(src)}" alt=""
+         loading="lazy" onerror="this.remove()">` : "") + `</span>`;
   }
   const label = withIcon ? srcSiteDomain(u) : srcAmazonLabel(u);
   return `<a class="src-link" href="${esc(u)}" target="_blank" rel="noopener"

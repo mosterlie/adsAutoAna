@@ -7,14 +7,14 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<!-- 顶层导航: 品牌 + 一级菜单(数据表格/产品视角/在线产品/广告创建/批量建广告) + 同步数据 + 配置 + 登录态 -->
+<!-- 顶层导航: 品牌 + 一级菜单(数据表格/产品视角/在线产品/广告管理/批量建广告) + 同步数据 + 配置 + 登录态 -->
 <header class="topbar topbar-slim">
   <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
   <div class="seg seg-top" id="viewSwitch">
     <button class="seg-btn active" data-view="table">数据表格</button>
     <button class="seg-btn" data-view="product">产品视角</button>
     <button class="seg-btn" data-view="online">在线产品</button>
-    <button class="seg-btn" data-view="adcreator">广告创建</button>
+    <button class="seg-btn" data-view="adcreator">广告管理</button>
     <button class="seg-btn" data-view="bulk">批量建广告</button>
   </div>
   <div class="topbar-right">
@@ -213,8 +213,8 @@
         <div class="bk-group-title">输出内容</div>
         <label class="bk-chk"><input type="checkbox" id="bkTargeting" checked>生成 4 组自动投放行</label>
         <label class="bk-chk"><input type="checkbox" id="bkPlacement" checked>生成广告位加成行</label>
-        <label class="bk-chk" title="勾选 = 用父 SKU 填「广告活动编号/广告组编号」作为表内引用键（实盘验证过的写法）；不勾 = 留空由亚马逊分配。若上传报编号无效，取消勾选重试。">
-          <input type="checkbox" id="bkFillIds" checked>编号列填父 SKU</label>
+        <label class="bk-chk" title="勾选（默认）：广告活动编号 = CA_父sku_年月日时分，广告组编号 = GR_父sku_年月日时分，如 CA_abc002_202611032153。不勾：两列留空，交给亚马逊分配，父子行靠名称关联。">
+          <input type="checkbox" id="bkFillIds" checked>编号列按 CA_/GR_ 规则生成</label>
       </div>
     </div>
   </div>
@@ -240,9 +240,9 @@
   </div>
 </div>
 
-<!-- ================= 广告创建 (自 autoAds 平移, 独立页面内嵌) ================= -->
+<!-- ================= 广告管理 (广告活动列表 + 创建广告, 独立页面内嵌) ================= -->
 <div id="adCreatorView" style="display:none">
-  <iframe id="adCreatorFrame" title="广告创建" src="about:blank"
+  <iframe id="adCreatorFrame" title="广告管理" src="about:blank"
           data-src="/static/ad-creator.html"></iframe>
 </div>
 

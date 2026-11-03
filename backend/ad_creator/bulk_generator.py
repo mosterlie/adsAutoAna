@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import datetime
 import io
+import re
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -164,10 +165,60 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def generate_bulk_excel(
+#: 自定编号规则：CA_父sku_YYYYMMDDHHMM / GR_父sku_YYYYMMDDHHMM
+ID_PATTERN = re.compile(r"^(?:CA|GR)_[0-9A-Za-z._-]+_\d{12}$")
+
+
+def _id_token(value: Any) -> str:
+    """父 SKU → 编号片段：空格/中文/特殊字符统一换成 ``_``，保持编号可读。"""
+    raw = str(value or "").strip()
+    out = re.sub(r"[^0-9A-Za-z._-]+", "_", raw).strip("_")
+    return out or "sku"
+
+
+def _is_valid_entity_id(value: str) -> bool:
+    """合法编号：亚马逊分配的纯数字，或本引擎的 CA_/GR_ 规则编号。"""
+    return bool(value) and (value.isdigit() or bool(ID_PATTERN.match(value)))
+
+
+def _resolve_portfolio(value: Any) -> str:
+    """广告组合 → 真实 Portfolio ID。
+
+    Bulk 表的「广告组合编号」列要的是亚马逊后台的 Portfolio ID（14 位数字）。
+    表单里手填的组合名称 / 缩写编号（如 ``232``）会被判
+    ``EntityID does not exist.``（v10 事故点二），因此这里统一解析：
+        纯数字且 ≥10 位 → 直接当 ID
+        否则按名称或 ID 去本地组合表里找
+        找不到 → 抛错，让用户在上传前就知道填错了
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw.isdigit() and len(raw) >= 10:
+        return raw
+    try:
+        from backend import database as _db
+
+        for p in _db.get_portfolios() or []:
+            pid = str(p.get("portfolio_id") or "").strip()
+            if pid and raw in {pid, str(p.get("portfolio_name") or "").strip()}:
+                return pid
+    except Exception:                           # noqa: BLE001
+        pass
+    raise ValueError(
+        f"广告组合「{raw}」不是有效的亚马逊广告组合：请填后台广告组合的 ID"
+        "（14 位数字）或完整组合名称；留空表示不归入任何广告组合"
+    )
+
+
+def build_rows(
     products: List[Dict[str, Any]], settings: Dict[str, Any]
-) -> io.BytesIO:
-    """按亚马逊官方格式组装 Sponsored Products 批量操作表格。"""
+) -> List[Dict[str, Any]]:
+    """按亚马逊官方格式组装 Sponsored Products 批量操作行。
+
+    只产出行数据、不落文件：调用方既可以直接打包下载，也可以先存库
+    （「广告活动记录」），需要时再批量导出成 xlsx。
+    """
     rows: List[Dict[str, Any]] = []
     today_str = datetime.datetime.now().strftime("%Y%m%d")
 
@@ -201,7 +252,13 @@ def generate_bulk_excel(
     ]
     include_placement = bool(settings.get("include_placement", True))
 
-    portfolio_id = settings.get("portfolio_id", "") or ""
+    # 编号列（v11）:
+    #   广告活动编号 = CA_父sku_YYYYMMDDHHMM   例 CA_abc002_202611032153
+    #   广告组编号   = GR_父sku_YYYYMMDDHHMM   例 GR_abc002_202611032153
+    #   同一批导出共用一个时间戳；fill_ids=False 可退回留空由亚马逊分配。
+    fill_ids = bool(settings.get("fill_ids", True))
+    id_stamp = datetime.datetime.now().strftime("%Y%m%d%H%M")
+    portfolio_id = _resolve_portfolio(settings.get("portfolio_id", "") or "")
 
     # 否定投放：keywords = [{text, match}] 或 ["词1", ...]；asins = ["B0...", ...]
     neg_keywords = settings.get("negative_keywords") or []
@@ -235,13 +292,15 @@ def generate_bulk_excel(
         if not children:
             continue
 
-        campaign_id = parent_sku
+        # 编号：CA_父sku_时间 / GR_父sku_时间（与名称列一起决定父子行关联）
+        sku_key = _id_token(parent_sku)
+        campaign_id = f"CA_{sku_key}_{id_stamp}" if fill_ids else ""
         campaign_name = (
             f"{campaign_name_custom}_{parent_sku}"
             if campaign_name_custom
             else f"{parent_sku}_{prod_name}_自动_{today_str}"
         )
-        ad_group_id = f"{parent_sku}_ag"
+        ad_group_id = f"GR_{sku_key}_{id_stamp}" if fill_ids else ""
         ad_group_name = (
             f"{ad_group_name_custom}_{parent_sku}"
             if ad_group_name_custom
@@ -289,12 +348,14 @@ def generate_bulk_excel(
                 "实体层级": entity_neg_kw,
                 "操作": "Create",
                 "广告活动编号": campaign_id,
+                "广告活动名称": campaign_name,
                 "状态": "enabled",
                 "关键词文本": kw_text,
                 "匹配类型": kw_match,
             }
             if neg_level == "ad_group":
                 neg_kw_row["广告组编号"] = ad_group_id
+                neg_kw_row["广告组名称"] = ad_group_name
             rows.append(neg_kw_row)
 
         for asin in neg_asins:
@@ -306,11 +367,13 @@ def generate_bulk_excel(
                 "实体层级": entity_neg_pt,
                 "操作": "Create",
                 "广告活动编号": campaign_id,
+                "广告活动名称": campaign_name,
                 "状态": "enabled",
                 TARGETING_EXPR_COLUMN: f'asin="{asin_clean}"',
             }
             if neg_level == "ad_group":
                 neg_pt_row["广告组编号"] = ad_group_id
+                neg_pt_row["广告组名称"] = ad_group_name
             rows.append(neg_pt_row)
 
         # 3 & 4. Bidding Adjustment - 搜索顶部 / 商品页面
@@ -330,6 +393,7 @@ def generate_bulk_excel(
                         "实体层级": "Bidding Adjustment",
                         "操作": "Create",
                         "广告活动编号": campaign_id,
+                        "广告活动名称": campaign_name,
                         "竞价方案": bidding_strategy,
                         "广告位": placement,
                         "百分比": pct,
@@ -344,6 +408,7 @@ def generate_bulk_excel(
                 "操作": "Create",
                 "广告活动编号": campaign_id,
                 "广告组编号": ad_group_id,
+                "广告活动名称": campaign_name,
                 "广告组名称": ad_group_name,
                 "状态": "enabled",
                 "广告组默认竞价": default_bid,
@@ -359,6 +424,8 @@ def generate_bulk_excel(
                     "操作": "Create",
                     "广告活动编号": campaign_id,
                     "广告组编号": ad_group_id,
+                    "广告活动名称": campaign_name,
+                    "广告组名称": ad_group_name,
                     "SKU": child.get("msku", ""),
                     "ASIN": child.get("asin", ""),
                     "状态": "enabled",
@@ -381,25 +448,41 @@ def generate_bulk_excel(
                         "操作": "Create",
                         "广告活动编号": campaign_id,
                         "广告组编号": ad_group_id,
+                        "广告活动名称": campaign_name,
+                        "广告组名称": ad_group_name,
                         "状态": "enabled",
                         "竞价": targeting_bids[pred],
                         TARGETING_EXPR_COLUMN: pred,
                     }
                 )
 
-    output_df = pd.DataFrame(rows)
+    _validate_output(_rows_frame(rows))
+    return rows
+
+
+def _rows_frame(rows: List[Dict[str, Any]]) -> "pd.DataFrame":
+    """按官方列顺序整理成 DataFrame（缺的列补空）。"""
+    df = pd.DataFrame(rows)
     for col in BULK_COLUMNS:
-        if col not in output_df.columns:
-            output_df[col] = None
-    output_df = output_df[BULK_COLUMNS]
+        if col not in df.columns:
+            df[col] = None
+    return df[BULK_COLUMNS]
 
-    _validate_output(output_df)
 
+def rows_to_excel(rows: List[Dict[str, Any]]) -> io.BytesIO:
+    """行数据 → xlsx 字节流（导出/批量导出共用）。"""
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        output_df.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+        _rows_frame(rows).to_excel(writer, sheet_name=SHEET_NAME, index=False)
     buffer.seek(0)
     return buffer
+
+
+def generate_bulk_excel(
+    products: List[Dict[str, Any]], settings: Dict[str, Any]
+) -> io.BytesIO:
+    """一次性生成并打包成 xlsx（保留给直接下载的调用方）。"""
+    return rows_to_excel(build_rows(products, settings))
 
 
 def _validate_output(df: "pd.DataFrame") -> None:
@@ -536,6 +619,31 @@ def _validate_output(df: "pd.DataFrame") -> None:
             problems.append(
                 f"非法投放类型：{bad_tt}（应为 {TARGETING_TYPE_AUTO} 或 {TARGETING_TYPE_MANUAL}）"
             )
+
+    # 5) 编号列只能是亚马逊分配的纯数字 ID；自造 key / 缩写编号会被判
+    #    ``EntityID does not exist.``（v10 实盘事故的直接报错）
+    id_columns = ("广告活动编号", "广告组编号", "广告组合编号",
+                  "广告编号", "关键词编号", "商品投放 ID")
+    for col in id_columns:
+        if col not in df.columns:
+            continue
+        vals = df[col].dropna().astype(str).str.strip()
+        vals = vals[vals != ""]
+        if vals.empty:
+            continue
+        if col == "广告组合编号":
+            bad = sorted({v for v in vals if not (v.isdigit() and len(v) >= 10)})
+            if bad:
+                problems.append(
+                    f"「{col}」必须是后台广告组合 ID（14 位数字），发现：{bad[:5]}"
+                )
+        else:
+            bad = sorted({v for v in vals if not _is_valid_entity_id(v)})
+            if bad:
+                problems.append(
+                    f"「{col}」必须符合编号规则 CA_父sku_YYYYMMDDHHMM / GR_父sku_YYYYMMDDHHMM"
+                    f"（或纯数字 ID、留空），发现：{bad[:5]}"
+                )
 
     if problems:
         raise ValueError("生成的 Bulk 表格未通过亚马逊规范自检：\n  - " + "\n  - ".join(problems))
