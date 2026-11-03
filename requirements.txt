@@ -3,5 +3,8 @@ uvicorn[standard]>=0.27
 requests>=2.31
 # 批量建广告: 生成亚马逊 Bulk Operations Excel
 openpyxl>=3.1
+# 广告创建(ad_creator): 解析上传表 / 生成 Bulk Excel
+pandas>=2.2.2
+numpy>=2.0
 # 仅用于「从调试 Chrome 同步登录 Cookie」(可选)
 playwright>=1.40

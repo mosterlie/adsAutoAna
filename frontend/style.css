@@ -30,8 +30,8 @@ a{color:inherit;text-decoration:none}
 .seg-top .seg-btn:hover{background:rgba(255,255,255,.16);color:#fff}
 .seg-top .seg-btn.active{background:#fff;color:var(--blue);font-weight:600}
 /* 顶栏「同步数据」: 白底蓝字, 与深色底形成对比 */
-.btn-sync{background:#fff;border-color:#fff;color:var(--blue);font-weight:600;flex:0 0 auto}
-.btn-sync:hover{background:#eef4ff;border-color:#eef4ff;color:var(--blue-d)}
+/* 顶栏弱化文字(最近同步): 蓝底上用白色, 灰字看不清 */
+.topbar-right .muted{color:rgba(255,255,255,.82);font-size:12px}
 .page-title{font-size:15px;font-weight:600}
 
 /* 页签 */
@@ -850,8 +850,10 @@ body.standalone{background:var(--bg)}
   background:rgba(255,255,255,.92)}
 
 /* ---------- 配置弹窗 (品名解析用哪家模型) ---------- */
-.cfg-card{width:min(680px,96vw)}
-.cfg-body{display:flex;flex-direction:column;gap:12px}
+.cfg-card{width:min(820px,94vw)}
+.cfg-body{display:flex;flex-direction:column;gap:14px}
+.cfg-group .st-title{margin-top:0}
+.cfg-group .cfg-group{background:#fff}
 .cfg-row{display:flex;align-items:center;gap:10px}
 .cfg-lab{width:88px;flex:0 0 88px;color:var(--txt-2);font-size:12.5px}
 .cfg-row input[type=text],.cfg-row input[type=password]{flex:1;min-width:0;height:30px;padding:0 8px;

@@ -91,7 +91,7 @@ async function boot() {
 }
 
 function tick() {
-  $("clock").textContent = new Date().toLocaleString("zh-CN", { hour12: false });
+  $("clock").textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
 }
 
 function renderTabs() {
@@ -1186,7 +1186,6 @@ function showView(v) {
   $("onlineView").style.display = v === "online" ? "" : "none";
   $("bulkView").style.display = v === "bulk" ? "" : "none";
   $("adCreatorView").style.display = v === "adcreator" ? "" : "none";
-  $("settingsView").style.display = v === "settings" ? "" : "none";
   if (v === "product" && !pv.loaded) { pv.loaded = true; goProducts(); }
   if (v === "online" && !ol.loaded) { ol.loaded = true; showOnline(); }
   if (v === "bulk" && !bk.loaded) { bk.loaded = true; bkLoad(); }
@@ -1194,7 +1193,6 @@ function showView(v) {
     const fr = $("adCreatorFrame");                 // 首次进入才加载(避免每次打开首页都拉 CDN)
     if (fr && !fr.getAttribute("src").startsWith("/static")) fr.src = fr.dataset.src;
   }
-  if (v === "settings") { loadSettings(); }
 }
 
 function renderCrumbs() {
@@ -4208,6 +4206,7 @@ function paintCfgStatus(d) {
 async function openAiConfig() {
   $("cfgModal").classList.add("open");
   $("cfgTestOut").textContent = "";
+  loadSettings();                       // 「相关性判断 · 底座模型」分区随弹窗一起加载
   try {
     const d = await api("/api/settings/ai");
     const c = d.config || {};
