@@ -60,28 +60,11 @@
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>店铺</div>
               <div class="flex items-center gap-3">
                 <select v-model="adShop"
-                        class="h-8 w-[160px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="">请选择</option>
                   <option v-for="shop in shopList" :key="shop" :value="shop">{{ shop }}</option>
-                  <option v-if="!shopList.length" value="">请先载入数据</option>
                 </select>
                 <span v-if="adShopData" class="text-[12px] text-[#8A8F99]">{{ adShopData.total_parents }} 个父体 · {{ adProductCount }} 个子体 SKU</span>
-              </div>
-            </div>
-
-            <!-- 选品范围（在线产品打标）-->
-            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">选品范围</div>
-              <div class="flex items-center gap-3">
-                <select v-model="sourceMark" @change="loadFromDb()"
-                        title="按「在线产品」页的打标筛选候选商品，再手工勾选要投放的"
-                        class="h-8 w-[160px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
-                  <option value="">全部品</option>
-                  <option value="pass">仅打标「通过」</option>
-                  <option value="fail">仅打标「不通过」</option>
-                </select>
-                <span class="text-[11px] text-[#B4B8C2]">
-                  打标来源：在线产品 › 操作列 通过 / 不通过（通过 {{ (dbSummary.marks || {}).pass || 0 }} · 不通过 {{ (dbSummary.marks || {}).fail || 0 }}）
-                </span>
               </div>
             </div>
 
@@ -90,17 +73,18 @@
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告活动名称</div>
               <div class="flex items-center gap-3">
                 <input v-model="adSettings.campaign_name" placeholder="示例：节假日收藏夹"
-                       class="h-8 w-[474px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                       class="h-8 w-[490px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
                 <span class="text-[11px] text-[#B4B8C2]">留空则自动命名：父SKU_品名_自动_日期</span>
               </div>
             </div>
 
-            <!-- 广告组合 -->
+            <!-- 广告组合（原为店铺广告组合下拉，改为手工输入） -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>广告组合</div>
               <div class="flex items-center gap-3">
                 <input v-model="adSettings.portfolio_id" placeholder="无广告组合"
-                       class="h-8 w-[160px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                       class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <span class="text-[11px] text-[#B4B8C2]">手动填写组合名称（留空＝不归入任何广告组合）</span>
               </div>
             </div>
 
@@ -108,10 +92,11 @@
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>开始/结束日期</div>
               <div class="flex items-center gap-2.5">
-                <input type="date" v-model="adSettings.start_date"
-                       class="h-8 w-[200px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
-                <input type="date" v-model="adSettings.end_date"
-                       class="h-8 w-[200px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <input type="date" v-model="adSettings.start_date" title="开始日期"
+                       class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <input type="date" v-model="adSettings.end_date" title="结束日期（留空＝无结束日期）"
+                       class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                <span class="text-[11px] text-[#B4B8C2]">不填结束日期＝无结束日期</span>
               </div>
             </div>
 
@@ -122,9 +107,9 @@
                 <div class="flex items-center h-8 border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
                   <span class="px-2 text-[12px] text-[#606266] bg-[#F5F7FA] h-full flex items-center border-r border-[#E4E6EB]">JPY</span>
                   <input v-if="adBudgetMode === 'equal'" type="number" min="0" v-model.number="adSingleBudget"
-                         class="h-full w-[124px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                         class="h-full w-[140px] px-2 text-[12px] outline-none" placeholder="请输入" />
                   <input v-else type="number" min="0" v-model.number="adPoolBudget"
-                         class="h-full w-[124px] px-2 text-[12px] outline-none" placeholder="请输入" />
+                         class="h-full w-[140px] px-2 text-[12px] outline-none" placeholder="请输入" />
                 </div>
                 <div class="flex items-center gap-3 text-[12px] text-[#606266]">
                   <label class="inline-flex items-center gap-1 cursor-pointer">
@@ -142,21 +127,17 @@
             <!-- 定向策略 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8"><span class="text-[#F54242] mr-0.5">*</span>定向策略</div>
-              <div class="flex-1 space-y-3 pt-1">
-                <label class="flex items-start gap-2 cursor-pointer">
-                  <input type="radio" checked disabled class="mt-0.5 accent-[#2969FF]" />
-                  <span>
-                    <span class="block leading-5">自动投放</span>
-                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊将自动分析您的广告产品，并找到相关的关键词和产品进行投放</span>
-                  </span>
-                </label>
-                <label class="flex items-start gap-2 cursor-not-allowed opacity-50">
-                  <input type="radio" disabled class="mt-0.5" />
-                  <span>
-                    <span class="block leading-5">手动投放</span>
-                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊根据您选择的关键词或产品进行投放（当前版本仅支持自动投放）</span>
-                  </span>
-                </label>
+              <div class="flex-1 min-w-0 pt-0.5">
+                <select v-model="adSettings.targeting_type"
+                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="auto">自动投放</option>
+                  <option value="manual" disabled>手动投放（当前版本暂不支持）</option>
+                </select>
+                <p class="mt-1.5 text-[12px] text-[#8A8F99] leading-5">
+                  {{ adSettings.targeting_type === 'manual'
+                     ? '亚马逊根据您选择的关键词或产品进行投放'
+                     : '亚马逊将自动分析您的广告产品，并找到相关的关键词和产品进行投放' }}
+                </p>
               </div>
             </div>
 
@@ -182,66 +163,121 @@
             <!-- 站点 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8">站点</div>
-              <div class="flex-1 space-y-3 pt-1">
-                <label class="flex items-start gap-2 cursor-pointer">
-                  <input type="radio" checked disabled class="mt-0.5 accent-[#2969FF]" />
-                  <span>
-                    <span class="block leading-5">亚马逊及其他网站</span>
-                    <span class="block text-[12px] text-[#8A8F99] leading-5">广告将在亚马逊站内展示，包括亚马逊网站和亚马逊企业购平台，同时也会在亚马逊站外的精选网站和应用程序中展示。</span>
-                  </span>
-                </label>
-                <label class="flex items-start gap-2 cursor-not-allowed opacity-50">
-                  <input type="radio" disabled class="mt-0.5" />
-                  <span>
-                    <span class="block leading-5">亚马逊企业购</span>
-                    <span class="block text-[12px] text-[#8A8F99] leading-5">采用 B2B 方案来提升销售额，并独家触达亚马逊企业购平台上的企业采购客户。</span>
-                  </span>
-                </label>
+              <div class="flex-1 min-w-0 pt-0.5">
+                <select v-model="adSettings.campaign_site"
+                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="all">亚马逊及其他网站</option>
+                  <option value="business">亚马逊企业购</option>
+                </select>
+                <p class="mt-1.5 text-[12px] text-[#8A8F99] leading-5">
+                  {{ adSettings.campaign_site === 'business'
+                     ? '采用 B2B 方案来提升销售额，并独家触达亚马逊企业购平台上的企业采购客户。'
+                     : '广告将在亚马逊站内展示，包括亚马逊网站和亚马逊企业购平台，同时也会在亚马逊站外的精选网站和应用程序中展示。' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- 亚马逊站外广告目标 -->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">亚马逊站外广告目标</div>
+              <div class="flex-1 min-w-0 pt-0.5">
+                <select v-model="adSettings.off_amazon_goal"
+                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="maximize_reach">扩大亚马逊站外的受众触达</option>
+                  <option value="minimize_spend">仅触达亚马逊受众</option>
+                </select>
+                <p class="mt-1.5 text-[12px] text-[#8A8F99] leading-5">
+                  {{ adSettings.off_amazon_goal === 'minimize_spend'
+                     ? '仅在亚马逊自有自营资产上的广告位投放广告。'
+                     : '允许在亚马逊站内及站外的广告位投放广告，此设置可能会增加亚马逊站外的展示量和销售机会。' }}
+                </p>
               </div>
             </div>
 
             <!-- 根据广告位调整竞价 -->
             <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
               <div class="w-[132px] shrink-0 text-right pr-2 leading-8">根据广告位调整竞价</div>
-              <div class="flex-1 space-y-4 pt-1">
-                <div class="flex items-center gap-2">
-                  <span class="w-[104px] text-right text-[12px]">搜索结果顶部（首页）</span>
-                  <input type="number" min="0" max="900" v-model.number="adSettings.placement_top_pct" placeholder="请输入"
-                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                  <span class="text-[12px]">%</span>
-                  <span class="text-[12px] text-[#B4B8C2]">示例：对于此广告位，1 美元竞价将保持 1.00 不变</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-[104px] text-right text-[12px]">搜索结果其余位置</span>
-                  <input type="number" min="0" max="900" v-model.number="adSettings.placement_rest_pct" placeholder="请输入"
-                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                  <span class="text-[12px]">%</span>
-                  <span class="text-[12px] text-[#B4B8C2]">示例：对于此广告位，1 美元竞价将保持 1.00 不变</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-[104px] text-right text-[12px]">商品详情页</span>
-                  <input type="number" min="0" max="900" v-model.number="adSettings.placement_product_pct" placeholder="请输入"
-                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
-                  <span class="text-[12px]">%</span>
-                  <span class="text-[12px] text-[#B4B8C2]">示例：对于此广告位，1 美元竞价将保持 1.00 不变</span>
-                </div>
-                <div class="flex items-center gap-2 opacity-50">
-                  <span class="w-[104px] text-right text-[12px]">亚马逊企业购</span>
-                  <input type="number" disabled placeholder="请输入"
-                         class="h-6 w-[107px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right bg-[#F5F7FA]" />
-                  <span class="text-[12px]">%</span>
-                  <span class="text-[12px] text-[#B4B8C2]">平均而言，与整体广告活动效果相比，广告主在亚马逊企业购站内的广告投资回报率最高出 2 到 3 倍。</span>
-                </div>
+              <div class="flex-1 min-w-0">
+                <table class="w-full max-w-[760px] border-collapse text-[12px]">
+                  <thead>
+                    <tr class="text-[#8A8F99]">
+                      <th class="text-left font-normal py-1.5 w-[180px]">广告位</th>
+                      <th class="text-left font-normal py-1.5 w-[150px]">竞价调整比例</th>
+                      <th class="text-left font-normal py-1.5">竞价示例</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-t border-[#EEF0F3]">
+                      <td class="py-2">搜索结果顶部（首页）</td>
+                      <td class="py-2">
+                        <div class="flex items-center gap-1">
+                          <input type="number" min="0" max="900" v-model.number="adSettings.placement_top_pct" placeholder="请输入"
+                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                          <span>%</span>
+                        </div>
+                      </td>
+                      <td class="py-2 text-[#B4B8C2]">{{ bidExample(adSettings.placement_top_pct) }}</td>
+                    </tr>
+                    <tr class="border-t border-[#EEF0F3]">
+                      <td class="py-2">搜索结果其余位置</td>
+                      <td class="py-2">
+                        <div class="flex items-center gap-1">
+                          <input type="number" min="0" max="900" v-model.number="adSettings.placement_rest_pct" placeholder="请输入"
+                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                          <span>%</span>
+                        </div>
+                      </td>
+                      <td class="py-2 text-[#B4B8C2]">{{ bidExample(adSettings.placement_rest_pct) }}</td>
+                    </tr>
+                    <tr class="border-t border-[#EEF0F3]">
+                      <td class="py-2">商品详情页</td>
+                      <td class="py-2">
+                        <div class="flex items-center gap-1">
+                          <input type="number" min="0" max="900" v-model.number="adSettings.placement_product_pct" placeholder="请输入"
+                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                          <span>%</span>
+                        </div>
+                      </td>
+                      <td class="py-2 text-[#B4B8C2]">{{ bidExample(adSettings.placement_product_pct) }}</td>
+                    </tr>
+                    <tr class="border-t border-[#EEF0F3] text-[#B4B8C2]">
+                      <td class="py-2">亚马逊企业购</td>
+                      <td class="py-2">
+                        <div class="flex items-center gap-1">
+                          <input type="number" disabled placeholder="请输入"
+                                 class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right bg-[#F5F7FA]" />
+                          <span>%</span>
+                        </div>
+                      </td>
+                      <td class="py-2">平均而言，与整体广告活动效果相比，广告主在亚马逊企业购站内的广告投资回报率要高出 2 到 3 倍。</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            <!-- AMC 自定义受众定价 -->
-            <div class="flex items-center mb-2 text-[12px] text-[#0F0F0F]">
-              <div class="w-[132px] shrink-0 text-right pr-2">AMC自定义受众定价</div>
-              <label class="relative inline-flex items-center cursor-not-allowed opacity-40">
-                <input type="checkbox" disabled class="sr-only peer" />
-                <span class="w-8 h-4 bg-[#DADCE0] rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></span>
-              </label>
+            <!-- AMC 自定义受众定价（原为接口拉取人群包，改为手工输入） -->
+            <div class="flex items-start text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">AMC自定义受众定价</div>
+              <div class="flex-1 min-w-0 pt-1">
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" v-model="adSettings.amc_enabled" class="sr-only peer" />
+                  <span class="relative w-8 h-4 bg-[#DADCE0] rounded-full peer-checked:bg-[#2969FF] transition-colors
+                               after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full
+                               after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></span>
+                </label>
+                <div v-if="adSettings.amc_enabled" class="mt-2 flex items-center gap-2">
+                  <span>对</span>
+                  <input v-model="adSettings.amc_audience" placeholder="受众名称（手工输入）"
+                         class="h-7 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                  <span>提价</span>
+                  <div class="flex items-center gap-1">
+                    <input type="number" min="0" v-model.number="adSettings.amc_bid_pct" placeholder="请输入"
+                           class="h-7 w-[110px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] text-right outline-none focus:border-[#2969FF]" />
+                    <span>%</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -252,6 +288,23 @@
             <div class="flex items-center gap-1.5 mb-5">
               <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
               <h2 class="text-[14px] font-medium text-[#0F0F0F]">创建广告组</h2>
+            </div>
+
+            <!-- 选品范围（本地在线产品打标，选品用，不属于广告活动表单）-->
+            <div class="flex items-start mb-[18px] text-[12px] text-[#0F0F0F]">
+              <div class="w-[132px] shrink-0 text-right pr-2 leading-8">选品范围</div>
+              <div class="flex items-center gap-3">
+                <select v-model="sourceMark" @change="loadFromDb()"
+                        title="按「在线产品」页的打标筛选候选商品，再手工勾选要投放的"
+                        class="h-8 w-[240px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                  <option value="">全部品</option>
+                  <option value="pass">仅打标「通过」</option>
+                  <option value="fail">仅打标「不通过」</option>
+                </select>
+                <span class="text-[11px] text-[#B4B8C2]">
+                  打标来源：在线产品 › 操作列 通过 / 不通过（通过 {{ (dbSummary.marks || {}).pass || 0 }} · 不通过 {{ (dbSummary.marks || {}).fail || 0 }}）
+                </span>
+              </div>
             </div>
 
             <!-- 广告组名称 -->
@@ -767,6 +820,12 @@
         const adSettings = ref({
           ...DEFAULT_SETTINGS(),
           campaign_name: '',
+          targeting_type: 'auto',
+          campaign_site: 'all',
+          off_amazon_goal: 'maximize_reach',
+          amc_enabled: false,
+          amc_audience: '',
+          amc_bid_pct: 0,
           ad_group_name: '',
           start_date: (() => {
             const d = new Date();
@@ -1128,6 +1187,14 @@
         const adTotalBudget = computed(() =>
           adCampaigns.value.reduce((s, c) => s + Number(adBudgetMap.value[c.parent_sku] || 0), 0));
 
+        // 广告位竞价示例（复刻赛狐：¥1.00 竞价按百分比调整后的结果）
+        const bidExample = (pct) => {
+          const p = Number(pct) || 0;
+          if (p <= 0) return '示例：对于此广告位，JPY 1.00 竞价将保持 JPY 1.00 不变';
+          const v = (1 + p / 100).toFixed(2);
+          return `示例：对于此广告位，JPY 1.00 竞价将变为 JPY ${v}`;
+        };
+
         // 本地日期（与后端 campaign_name 的 today_str 保持一致）
         const adToday = () => {
           const d = new Date();
@@ -1452,7 +1519,7 @@
           adShop, adShopData, adProducts, adFiltered, adSelected, adProductCount,
           isAllAdSelected, toggleAdSelectAll, adSearch,
           adGranularity, adSettings, adBudgetMode, adSingleBudget, adPoolBudget,
-          adCampaigns, adTotalBudget, adCampaignName, adExporting, exportAdExcel,
+          adCampaigns, adTotalBudget, adCampaignName, adExporting, exportAdExcel, bidExample,
           adSteps, adTargetingRows, addAdProduct, removeAdProduct, clearAdProducts, goAdBlock,
           toggleAdProduct, isKidOn, toggleKid, adKidOnCount, adSelectedKidCount, clearKidFilter,
           adNegKwTab, adNegProductTab, adNegMatchType, adNegIllegalMode, adIllegalModes,
