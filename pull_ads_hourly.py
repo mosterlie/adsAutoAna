@@ -209,7 +209,7 @@ def pull_hour(client, campaign_id, day, model, *, group_id="", target_id="",
 # 主流程
 # --------------------------------------------------------------------------
 def pull_one_campaign(conn, client, *, shop_id, ad_type, campaign_id, day,
-                      with_cross=False, camp=None):
+                      with_cross=False, camp=None, only_skus=None):
     facts = []
 
     # 1) 活动
@@ -279,6 +279,11 @@ def pull_one_campaign(conn, client, *, shop_id, ad_type, campaign_id, day,
 
     # 5) 广告产品（ad = 组 × SKU），一次 HOURLY_ASIN 拿全部
     products = pull_products(client, shop_id, ad_type, campaign_id, day)
+    if only_skus:
+        kept = [p for p in products if sku_hit(p.get("sku"), only_skus)]
+        if len(kept) != len(products):
+            print(f"    产品粒度仅保留 SKU 命中 {len(kept)}/{len(products)} 个")
+        products = kept
     ad_index = {}
     for p in products:
         ad_id = str(p.get("adId") or "")
@@ -298,6 +303,8 @@ def pull_one_campaign(conn, client, *, shop_id, ad_type, campaign_id, day,
     for row in adh.get("periodReportList") or []:
         asin = str(row.get("title") or "")
         ad_id, gid, asin, sku = ad_index.get(asin, ("", "", asin, ""))
+        if only_skus and not sku_hit(sku, only_skus):
+            continue
         append_detail_facts(facts, row.get("detail"), day=day, grain="ad", shop_id=shop_id,
                             currency=adh.get("currency") or "",
                             campaign_id=str(campaign_id), ad_group_id=gid,
@@ -338,6 +345,8 @@ def pull_one_campaign(conn, client, *, shop_id, ad_type, campaign_id, day,
             for row in y.get("periodReportList") or []:
                 asin = str(row.get("title") or "")
                 ad_id, agid, asin, sku = ad_index.get(asin, ("", gid, asin, ""))
+                if only_skus and not sku_hit(sku, only_skus):
+                    continue
                 append_detail_facts(facts, row.get("detail"), day=day, grain="target_ad",
                                     shop_id=shop_id, currency=y.get("currency") or "",
                                     campaign_id=str(campaign_id), ad_group_id=agid,
@@ -346,6 +355,21 @@ def pull_one_campaign(conn, client, *, shop_id, ad_type, campaign_id, day,
     n = mdb.upsert_facts(conn, facts)
     conn.commit()
     return n
+
+
+def sku_hit(sku, patterns):
+    """SKU 是否命中任一模糊关键字（大小写不敏感）"""
+    s = str(sku or "").lower()
+    return any(p and p.lower() in s for p in patterns)
+
+
+def campaigns_for_skus(conn, skus):
+    """按 SKU 模糊匹配 dim_product，反查需要采集的活动ID"""
+    where = " OR ".join(["lower(sku) LIKE ?"] * len(skus))
+    rows = conn.execute(
+        f"SELECT DISTINCT campaign_id FROM dim_product WHERE ({where}) AND campaign_id <> ''",
+        [f"%{s.lower()}%" for s in skus]).fetchall()
+    return [str(r[0]).strip() for r in rows]
 
 
 def already_done(conn, day, cid, with_cross):
@@ -358,8 +382,8 @@ def already_done(conn, day, cid, with_cross):
 
 
 def run(day, *, shop_id=DEFAULT_SHOP_ID, ad_type=DEFAULT_AD_TYPE,
-        campaign_id="", with_cross=False, resume=False, sleep_sec=0.5,
-        dry_run=False, include_zero=False, limit=0):
+        campaign_id="", campaign_ids=None, only_skus=None, with_cross=False,
+        resume=False, sleep_sec=0.5, dry_run=False, include_zero=False, limit=0):
     cookies = load_cookies()
     if not cookies:
         sys.exit("未找到登录 Cookie，请先同步赛狐登录态")
@@ -373,10 +397,19 @@ def run(day, *, shop_id=DEFAULT_SHOP_ID, ad_type=DEFAULT_AD_TYPE,
         print(f"[{day}] 活动 {campaign_id} 当天无数据，跳过")
         conn.close()
         return 0
+    if campaign_ids:
+        missing = [c for c in campaign_ids if c not in camp_index]
+        if missing:
+            print(f"[{day}] 以下活动当天无数据，跳过：{', '.join(missing)}")
 
-    ids = [campaign_id] if campaign_id else list(camp_index)
+    if campaign_ids:
+        ids = [c for c in campaign_ids if c in camp_index]
+    elif campaign_id:
+        ids = [campaign_id]
+    else:
+        ids = list(camp_index)
     empty = 0
-    if not include_zero and not campaign_id:
+    if not include_zero and not campaign_id and not campaign_ids:
         kept = []
         for cid in ids:
             c = camp_index.get(cid) or {}
@@ -412,7 +445,7 @@ def run(day, *, shop_id=DEFAULT_SHOP_ID, ad_type=DEFAULT_AD_TYPE,
         try:
             n = pull_one_campaign(conn, client, shop_id=shop_id, ad_type=ad_type,
                                   campaign_id=cid, day=day, with_cross=with_cross,
-                                  camp=camp_index.get(cid))
+                                  camp=camp_index.get(cid), only_skus=only_skus)
             total += n
             ok += 1
             conn.execute("UPDATE etl_pull_log SET status='success', rows_written=?, finished_at=?"
@@ -447,6 +480,8 @@ def main():
     ap.add_argument("--shop-id", default=DEFAULT_SHOP_ID)
     ap.add_argument("--ad-type", default=DEFAULT_AD_TYPE, choices=["sp", "sb", "sd"])
     ap.add_argument("--campaign-id", default="")
+    ap.add_argument("--sku", default="",
+                    help="仅采集包含该 SKU 的活动（模糊匹配，逗号分隔多个；产品粒度也只落这些 SKU）")
     ap.add_argument("--with-cross", action="store_true",
                     help="额外拉 投放×广告位 / 投放×广告产品（请求数 = 投放数 × 2）")
     ap.add_argument("--resume", action="store_true",
@@ -467,11 +502,22 @@ def main():
     else:
         ap.error("必须指定 --date 或 --start/--end")
 
+    skus = [s.strip() for s in (a.sku or "").split(",") if s.strip()]
+    cids = None
+    if skus:
+        conn = mdb.get_conn()
+        mdb.init_db(conn)
+        cids = campaigns_for_skus(conn, skus)
+        conn.close()
+        if not cids:
+            sys.exit(f"库中未找到 SKU 命中 {skus} 的活动，先采集一次该活动或检查 SKU 写法")
+        print(f"SKU {skus} 命中活动 {len(cids)} 个：{', '.join(cids)}")
+
     for day in days:
         run(day, shop_id=a.shop_id, ad_type=a.ad_type,
-            campaign_id=a.campaign_id, with_cross=a.with_cross,
-            resume=a.resume, sleep_sec=a.sleep, dry_run=a.dry_run,
-            include_zero=a.include_zero, limit=a.limit)
+            campaign_id=a.campaign_id, campaign_ids=cids, only_skus=skus or None,
+            with_cross=a.with_cross, resume=a.resume, sleep_sec=a.sleep,
+            dry_run=a.dry_run, include_zero=a.include_zero, limit=a.limit)
 
 
 if __name__ == "__main__":

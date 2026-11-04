@@ -280,7 +280,8 @@ def write_rows(conn, day, shop_id, product_code, data):
 # 主流程
 # --------------------------------------------------------------------------
 def run(day, *, shop_id="711811", ad_type="sp", campaign_id="", resume=False,
-        sleep_sec=0.2, csv_dir="", dry_run=False, rebuild=False, ad_ids=None):
+        sleep_sec=0.2, csv_dir="", dry_run=False, rebuild=False, ad_ids=None,
+        skus=None):
     cookies = load_cookies()
     if not cookies:
         sys.exit("未找到登录 Cookie，请先同步赛狐登录态")
@@ -318,6 +319,11 @@ def run(day, *, shop_id="711811", ad_type="sp", campaign_id="", resume=False,
             "asin": r.get("asin"), "sku": r.get("sku"),
         })
     conn.commit()
+    if skus:
+        before = len(products)
+        products = [p for p in products
+                    if any(s.lower() in str(p.get("sku") or "").lower() for s in skus)]
+        print(f"  SKU 过滤 {skus}：保留 {len(products)}/{before} 个产品")
     print(f"[{day}] 产品 {len(products)} 个"
           + (f"（活动 {campaign_id}）" if campaign_id else "（全店）"))
 
@@ -415,6 +421,8 @@ def main():
     ap.add_argument("--campaign-id", default="", help="只采某个活动")
     ap.add_argument("--ad-id", action="append", default=[],
                     help="只采指定广告产品（可重复），如 --ad-id 362907926691507")
+    ap.add_argument("--sku", default="",
+                    help="只采 SKU 命中该关键字的产品（模糊匹配，逗号分隔多个）")
     ap.add_argument("--resume", action="store_true", help="跳过已成功的产品")
     ap.add_argument("--sleep", type=float, default=0.2, help="每个产品之间的间隔秒数")
     ap.add_argument("--csv", default="", help="导出宽表目录")
@@ -423,9 +431,10 @@ def main():
                     help="先清空三张事实表、产品编码与采集日志")
     a = ap.parse_args()
 
+    skus = [s.strip() for s in (a.sku or "").split(",") if s.strip()]
     run(a.date, shop_id=a.shop_id, ad_type=a.ad_type, campaign_id=a.campaign_id,
         resume=a.resume, sleep_sec=a.sleep, csv_dir=a.csv, dry_run=a.dry_run,
-        rebuild=a.rebuild, ad_ids=a.ad_id)
+        rebuild=a.rebuild, ad_ids=a.ad_id, skus=skus or None)
 
 
 if __name__ == "__main__":
