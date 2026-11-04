@@ -1903,7 +1903,8 @@ function bindPager() {
   };
 }
 
-document.querySelectorAll("#viewSwitch .seg-btn")
+/* 只给带 data-view 的按钮绑视图切换：分时分析是独立页面（跳转），不参与 */
+document.querySelectorAll("#viewSwitch .seg-btn[data-view]")
   .forEach((b) => b.onclick = () => showView(b.dataset.view));
 
 /* ===================================================================

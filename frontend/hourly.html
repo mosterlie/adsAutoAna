@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>广告产品分时分析 - 赛狐ERP</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+:root{
+  --c1:#2b5fd0; --c2:#02a15c; --c3:#f08c22; --c4:#9099a6;
+}
+body{background:var(--bg)}
+.wrap{max-width:1440px;margin:0 auto;padding:0 12px 28px}
+
+/* 筛选条 */
+.hfilter{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px;
+  padding:12px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.hfilter .fld{display:flex;align-items:center;gap:6px}
+.hfilter .fld.grow{flex:1;min-width:260px}
+.hfilter select{max-width:420px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}
+.kpi{background:#fff;border:1px solid var(--bd);border-radius:4px;padding:12px 14px}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:21px;font-weight:600;margin-top:4px;letter-spacing:-.2px}
+.kpi .s{font-size:11.5px;color:var(--txt-2);margin-top:2px}
+.kpi.hl .v{color:var(--blue)}
+
+/* 产品卡片 */
+.pcard{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px;padding:12px 14px;
+  display:flex;gap:14px;align-items:center}
+.pcard img{width:56px;height:56px;object-fit:contain;border:1px solid var(--bd);border-radius:4px;background:#fafbfc}
+.pcard .meta{flex:1;min-width:0}
+.pcard .nm{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard .sub{font-size:12px;color:var(--txt-2);margin-top:3px;display:flex;gap:14px;flex-wrap:wrap}
+.pcard .tag{background:var(--blue-l);color:var(--blue);border-radius:3px;padding:1px 6px;font-size:11.5px}
+
+/* 体系卡片 */
+.sys{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px}
+.sys-head{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--bd)}
+.sys-head h3{font-size:13.5px;font-weight:600}
+.sys-head .sum{margin-left:auto;font-size:12px;color:var(--txt-2)}
+.sys-body{padding:12px 14px 6px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-2)}
+.legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+/* 堆叠柱 */
+.bars{display:flex;align-items:flex-end;gap:4px;height:170px;padding-top:6px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.stack{flex:1;width:100%;display:flex;flex-direction:column-reverse;justify-content:flex-start;
+  border-radius:2px;overflow:hidden;background:#f7f8fa;position:relative}
+/* 注意: 不能叫 .seg, 会与顶栏分段控件的 .seg 冲突(把该控件撑成 100% 宽) */
+.bseg{width:100%;transition:height .2s}
+.bl{font-size:10.5px;color:var(--muted);flex:0 0 auto}
+.bar:hover .bl{color:var(--blue);font-weight:600}
+
+/* 明细表 */
+.dtable{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.dtable th,.dtable td{border-bottom:1px solid #f0f1f4;padding:5px 6px;text-align:right;white-space:nowrap}
+.dtable th:first-child,.dtable td:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
+.dtable thead th{background:#fafbfc;color:var(--txt-2);font-weight:500;position:sticky;top:0}
+.dtable tbody tr:hover td{background:#f7faff}
+.dtable .zero{color:#c8ccd4}
+.tbl-wrap{overflow:auto;max-height:280px;border:1px solid var(--bd);border-radius:4px}
+.tbl-wrap::-webkit-scrollbar{height:8px;width:8px}
+.tbl-wrap::-webkit-scrollbar-thumb{background:#d6dae1;border-radius:4px}
+
+/* 顶栏按钮：蓝底上白字，且不被 flex 压缩（否则文字被挤没） */
+.topbar-right{flex:0 0 auto;white-space:nowrap}
+.topbar-right .btn-ghost{background:rgba(255,255,255,.16);color:#fff;
+  border:1px solid rgba(255,255,255,.45);flex:0 0 auto;white-space:nowrap}
+.topbar-right .btn-ghost:hover{background:rgba(255,255,255,.3);color:#fff}
+
+.empty{background:#fff;border:1px dashed var(--bd);border-radius:4px;margin-top:10px;
+  padding:48px;text-align:center;color:var(--muted)}
+.mini-btn{height:26px;padding:0 9px;font-size:12px;border:1px solid var(--bd-d);border-radius:3px;
+  background:#fff;color:var(--txt-2);cursor:pointer}
+.mini-btn:hover{border-color:var(--blue);color:var(--blue)}
+.mini-btn.on{background:var(--blue-l);border-color:#b9cdf5;color:var(--blue)}
+
+@media (max-width:1100px){
+  .kpis{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:720px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .pcard{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <header class="topbar topbar-slim">
+    <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+    <div class="seg seg-top">
+      <button class="seg-btn" onclick="location.href='/'">数据表格</button>
+      <button class="seg-btn active">分时分析</button>
+    </div>
+    <div class="topbar-right">
+      <span class="muted" v-if="detail">{{ detail.product.sku }}</span>
+      <button class="btn btn-ghost" @click="loadProducts()">刷新</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- 筛选 -->
+    <div class="hfilter">
+      <div class="fld">
+        <label>日期</label>
+        <select v-model="date" @change="onDateChange">
+          <option v-for="d in dates" :key="d" :value="d">{{ d }}</option>
+        </select>
+      </div>
+      <div class="fld grow">
+        <label>广告产品</label>
+        <select v-model="productCode" @change="loadDetail" style="flex:1">
+          <option v-for="p in products" :key="p.product_code" :value="p.product_code">
+            {{ p.sku }} / {{ p.asin }} · 曝光 {{ fmt(p.imp) }}
+          </option>
+        </select>
+      </div>
+      <div class="fld">
+        <label>指标</label>
+        <button v-for="m in metrics" :key="m.key" class="mini-btn"
+                :class="{on: metric === m.key}" @click="metric = m.key">{{ m.label }}</button>
+      </div>
+    </div>
+
+    <div v-if="loading" class="empty">加载中…</div>
+    <div v-else-if="!detail" class="empty">暂无数据，请先采集该日期的广告产品分时数据</div>
+
+    <template v-else>
+      <!-- 产品信息 -->
+      <div class="pcard">
+        <div style="width:56px;height:56px;border:1px solid var(--bd);border-radius:4px;
+                    background:#fafbfc;display:flex;align-items:center;justify-content:center;
+                    font-size:10.5px;color:var(--muted);text-align:center;line-height:1.2;padding:4px">
+          {{ detail.product.asin }}
+        </div>
+        <div class="meta">
+          <div class="nm">{{ detail.product.title || detail.product.sku }}</div>
+          <div class="sub">
+            <span>SKU <b>{{ detail.product.sku }}</b></span>
+            <span>ASIN <b>{{ detail.product.asin }}</b></span>
+            <span class="tag">{{ detail.campaign.name || detail.product.campaign_id }}</span>
+            <span>广告组 {{ detail.ad_group.name || detail.product.ad_group_id }}</span>
+            <span v-if="detail.product.portfolio_name">组合 {{ detail.product.portfolio_name }}</span>
+          </div>
+        </div>
+        <div class="sub" style="color:var(--muted);font-size:12px">{{ detail.date }} · 24 小时</div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpis">
+        <div class="kpi hl"><div class="k">曝光量</div><div class="v">{{ fmt(o.impressions) }}</div>
+          <div class="s">24 小时累计</div></div>
+        <div class="kpi"><div class="k">点击量</div><div class="v">{{ fmt(o.clicks) }}</div>
+          <div class="s">CTR {{ o.ctr }}%</div></div>
+        <div class="kpi"><div class="k">花费</div><div class="v">{{ money(o.cost) }}</div>
+          <div class="s">CPC {{ money(o.cpc) }}</div></div>
+        <div class="kpi"><div class="k">订单</div><div class="v">{{ fmt(o.orders) }}</div>
+          <div class="s">CVR {{ o.cvr }}%</div></div>
+        <div class="kpi"><div class="k">销售额</div><div class="v">{{ money(o.sales) }}</div>
+          <div class="s">ACOS {{ o.acos }}%</div></div>
+        <div class="kpi"><div class="k">ROAS</div><div class="v">{{ o.roas }}</div>
+          <div class="s">销售额 / 花费</div></div>
+      </div>
+
+      <!-- 三个体系 -->
+      <div class="sys" v-for="sys in detail.systems" :key="sys.key">
+        <div class="sys-head">
+          <h3>{{ sys.label }}</h3>
+          <span class="tag" style="font-size:11px">{{ sys.codes.length }} 个子类</span>
+          <span class="sum">
+            曝光 {{ fmt(sys.total.impressions) }} · 点击 {{ fmt(sys.total.clicks) }} ·
+            花费 {{ money(sys.total.cost) }} · CTR {{ sys.total.ctr }}%
+          </span>
+        </div>
+        <div class="sys-body">
+          <div class="legend">
+            <span v-for="c in sys.codes" :key="c.code">
+              <i :style="{background: color(sys, c.code)}"></i>
+              {{ c.name }} · {{ metricText(c.day) }}
+            </span>
+          </div>
+          <div class="bars">
+            <div class="bar" v-for="h in 24" :key="h">
+              <div class="stack">
+                <div class="bseg" v-for="c in sys.codes" :key="c.code"
+                     :style="{height: pct(sys, c, h-1), background: color(sys, c.code)}"
+                     :title="c.name + ' ' + (h-1) + '时 ' + metricText(c.hours[h-1])"></div>
+              </div>
+              <span class="bl">{{ h-1 }}</span>
+            </div>
+          </div>
+          <div class="tbl-wrap" style="margin-top:12px">
+            <table class="dtable">
+              <thead>
+                <tr><th>子类</th><th v-for="h in 24" :key="h">{{ h-1 }}</th><th>合计</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="c in sys.codes" :key="c.code">
+                  <td>{{ c.name }}</td>
+                  <td v-for="h in 24" :key="h" :class="{zero: !cellVal(c.hours[h-1])}">
+                    {{ cellVal(c.hours[h-1]) }}
+                  </td>
+                  <td><b>{{ cellVal(c.day) }}</b></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<script src="/static/vendor/vue.global.prod.js"></script>
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      dates: [],
+      date: '',
+      products: [],
+      productCode: '',
+      detail: null,
+      loading: false,
+      metric: 'impressions',
+      metrics: [
+        { key: 'impressions', label: '曝光' },
+        { key: 'clicks', label: '点击' },
+        { key: 'cost', label: '花费' },
+      ],
+      palette: ['#2b5fd0', '#02a15c', '#f08c22', '#9099a6'],
+      imgUrl: '',
+    };
+  },
+  computed: {
+    o() {
+      return this.detail ? this.detail.overall : { impressions: 0, clicks: 0, cost: 0,
+        orders: 0, sales: 0, ctr: 0, cpc: 0, acos: 0, roas: 0, cvr: 0 };
+    },
+  },
+  methods: {
+    fmt(v) { return (v || 0).toLocaleString('zh-CN'); },
+    money(v) { return '¥' + (Number(v) || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+    color(sys, code) { return this.palette[(code - 1) % this.palette.length]; },
+    metricText(m) {
+      if (!m) return '';
+      if (this.metric === 'clicks') return this.fmt(m.clicks);
+      if (this.metric === 'cost') return this.money(m.cost);
+      return this.fmt(m.impressions);
+    },
+    cellVal(m) {
+      if (!m) return 0;
+      if (this.metric === 'clicks') return m.clicks;
+      if (this.metric === 'cost') return Number(m.cost).toFixed(2);
+      return m.impressions;
+    },
+    maxOf(sys) {
+      let mx = 0;
+      sys.codes.forEach(c => c.hours.forEach(h => {
+        const v = this.cellVal(h) || 0;
+        if (v > mx) mx = Number(v);
+      }));
+      return mx || 1;
+    },
+    pct(sys, c, hour) {
+      const mx = this.maxOf(sys);
+      const v = Number(this.cellVal(c.hours[hour]) || 0);
+      return (v / mx * 100).toFixed(1) + '%';
+    },
+    async loadDates() {
+      const r = await fetch('/api/ads-fact/dates').then(x => x.json());
+      this.dates = r.dates || [];
+      if (this.dates.length && !this.date) {
+        this.date = this.dates[0];
+        await this.loadProducts();
+      }
+    },
+    async loadProducts() {
+      if (!this.date) return;
+      const r = await fetch('/api/ads-fact/products?date=' + this.date).then(x => x.json());
+      this.products = r.products || [];
+      if (this.products.length) {
+        const keep = this.products.find(p => String(p.product_code) === String(this.productCode));
+        this.productCode = keep ? keep.product_code : this.products[0].product_code;
+        await this.loadDetail();
+      } else {
+        this.detail = null;
+      }
+    },
+    async loadDetail() {
+      if (!this.date || !this.productCode) return;
+      this.loading = true;
+      try {
+        const url = `/api/ads-fact/detail?date=${this.date}&product_code=${this.productCode}`;
+        const r = await fetch(url).then(x => x.json());
+        if (r.detail === null || r.systems === undefined) { this.detail = null; return; }
+        this.detail = r;
+      } finally {
+        this.loading = false;
+      }
+    },
+    onDateChange() {
+      this.productCode = '';
+      this.loadProducts();
+    },
+  },
+  mounted() {
+    this.loadDates();
+  },
+}).mount('#app');
+</script>
+</body>
+</html>
