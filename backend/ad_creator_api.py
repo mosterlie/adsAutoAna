@@ -22,7 +22,8 @@ from backend.ad_creator.budget_engine import build_shop_payload
 from backend.ad_creator.bulk_generator import generate_bulk_excel
 from backend.ad_creator.parser import parse_sellfox_excel_multi_shop
 from backend.ad_creator.suggest_bid import (
-    DEFAULT_STRATEGY, _friendly, fetch_bids, resolve_shop_id,
+    DEFAULT_STRATEGY, _friendly, fetch_aba_rank_trend, fetch_bids, fetch_keyword_bids,
+    fetch_suggest_keywords, resolve_marketplace_id, resolve_shop_id,
     search_asins_for_targeting)
 from backend.ad_creator.translator import noun_matcher
 from backend.cookies import load_cookies
@@ -377,6 +378,96 @@ def rematch_names(payload: RematchRequest = Body(default=RematchRequest())) -> D
     return {"matched_names": matched, "hit_skus": hit_skus, "miss_skus": miss_skus,
             "matched_count": len(matched), "hit_count": len(hit_skus),
             "miss_count": len(miss_skus), "dict_total": len(noun_matcher.dictionary)}
+
+
+class KeywordBidItem(BaseModel):
+    keywordText: str = ""
+    matchType: str = "broad"      # broad / phrase / exact
+
+
+class KeywordBidRequest(BaseModel):
+    shop: str = ""
+    shop_id: str = ""
+    asins: List[str] = []
+    keywords: List[KeywordBidItem] = []
+    bidding_strategy: str = ""
+    placement_top: Optional[float] = None
+    placement_rest: Optional[float] = None
+    placement_product: Optional[float] = None
+
+
+@router.post("/keyword-bids")
+def keyword_bids(payload: KeywordBidRequest) -> Dict[str, Any]:
+    """手动投放：关键词建议竞价（一次传多个关键词, 走赛狐 suggestBid 接口）"""
+    shop_id = (payload.shop_id or "").strip() or resolve_shop_id(payload.shop)
+    if not shop_id:
+        raise HTTPException(400, f"未能确定店铺 shopId：{payload.shop or '未指定'}")
+    cookies = load_cookies()
+    if not cookies:
+        raise HTTPException(400, "未找到登录 Cookie，请先在「同步登录态」里同步赛狐登录态")
+    try:
+        items = fetch_keyword_bids(
+            cookies, shop_id, payload.asins,
+            [k.model_dump() for k in payload.keywords],
+            payload.bidding_strategy or DEFAULT_STRATEGY,
+            placement_top=payload.placement_top,
+            placement_rest=payload.placement_rest,
+            placement_product=payload.placement_product,
+        )
+    except Exception as exc:        # noqa: BLE001
+        raise HTTPException(400, _friendly(str(exc))) from exc
+    return {"ok": True, "shopId": shop_id, "keywords": items}
+
+
+class AbaRankRequest(BaseModel):
+    shop: str = ""
+    shop_id: str = ""
+    keywords: List[str] = []
+    period_type: str = "WEEK"      # DAY / WEEK / MONTH / QUARTER
+
+
+@router.post("/aba-rank-trend")
+def aba_rank_trend(payload: AbaRankRequest) -> Dict[str, Any]:
+    """ABA 搜索词排名 + 排名趋势（赛狐「建议」表勾选「ABA搜索词排名-按周」后的两列）
+
+    返回 items: {关键词: {abaRank, rank, createTime, list:[{startDate,endDate,weekStr,searchFrequencyRank}]}}
+    """
+    shop_id = (payload.shop_id or "").strip() or resolve_shop_id(payload.shop)
+    marketplace_id = resolve_marketplace_id(shop_id)
+    if not marketplace_id:
+        raise HTTPException(400, f"未能确定店铺站点 marketplaceId：{payload.shop or shop_id or '未指定'}")
+    cookies = load_cookies()
+    if not cookies:
+        raise HTTPException(400, "未找到登录 Cookie，请先在「同步登录态」里同步赛狐登录态")
+    terms = [str(k or "").strip() for k in payload.keywords if str(k or "").strip()]
+    if not terms:
+        return {"ok": True, "marketplaceId": marketplace_id,
+                "periodType": payload.period_type or "WEEK", "items": {}}
+    try:
+        items = fetch_aba_rank_trend(cookies, marketplace_id, terms,
+                                     payload.period_type or "WEEK")
+    except Exception as exc:        # noqa: BLE001
+        raise HTTPException(400, _friendly(str(exc))) from exc
+    return {"ok": True, "marketplaceId": marketplace_id,
+            "periodType": (payload.period_type or "WEEK").upper(), "items": items}
+
+
+@router.get("/suggest-keywords")
+def suggest_keywords(shop: str = "", shop_id: str = "", asins: str = "",
+                     page_no: int = 1, page_size: int = 50, search_val: str = "") -> Dict[str, Any]:
+    """手动投放：推荐关键词（赛狐「建议」tab，按已选商品 ASIN 推荐）"""
+    sid = (shop_id or "").strip() or resolve_shop_id(shop)
+    if not sid:
+        raise HTTPException(400, f"未能确定店铺 shopId：{shop or '未指定'}")
+    cookies = load_cookies()
+    if not cookies:
+        raise HTTPException(400, "未找到登录 Cookie，请先在「同步登录态」里同步赛狐登录态")
+    asin_list = [a.strip().upper() for a in re.split(r"[,，\s]+", asins or "") if a.strip()]
+    try:
+        data = fetch_suggest_keywords(cookies, sid, asin_list, page_no, page_size, search_val)
+    except Exception as exc:        # noqa: BLE001
+        raise HTTPException(400, _friendly(str(exc))) from exc
+    return {"ok": True, "shopId": sid, **data}
 
 
 @router.get("/search-asins-for-targeting")

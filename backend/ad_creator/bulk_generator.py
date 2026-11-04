@@ -3,9 +3,13 @@
 输出符合亚马逊日本站 Sponsored Products 批量操作模板的单个工作表：
 ``Sponsored Products Campaigns``。
 
-每个父体生成一个自动投放活动，行结构：
-    Campaign -> [Bidding Adjustment(top) -> Bidding Adjustment(product page)]
-    -> Ad Group -> Product Ad(每个子体一行) -> Product Targeting(4 组自动匹配)
+每个父体生成一个广告活动，行结构（``targeting_mode`` / ``targeting_type``）：
+    自动投放 auto：
+        Campaign -> [Bidding Adjustment] -> Ad Group -> Product Ad
+        -> Product Targeting(4 组自动匹配)
+    手动投放 manual：
+        Campaign(投放类型 Manual) -> [Bidding Adjustment] -> Ad Group -> Product Ad
+        -> Keyword(每个手动关键词一行：关键词文本 + 匹配类型 + 竞价)
 
 表头严格对齐亚马逊官方模板 ``AdvertisingBulksheetTemplate-seller.xlsx``
 中「商品推广活动」工作表的 31 列（列名、顺序完全一致），末尾额外追加一列
@@ -252,6 +256,26 @@ def build_rows(
     ]
     include_placement = bool(settings.get("include_placement", True))
 
+    # 投放方式（v12）: auto = 自动投放 4 组; manual = 手动投放关键词
+    #   手动模式下不再生成自动投放的 Product Targeting 行, 改为每个关键词一行
+    #   Keyword 实体（关键词文本 + 匹配类型 + 竞价）。
+    #   兼容前端既有字段名 ``targeting_type``（auto/manual），二者取其一即可。
+    targeting_mode = str(
+        settings.get("targeting_mode") or settings.get("targeting_type") or "auto"
+    ).strip().lower()
+    manual_mode = targeting_mode == "manual"
+    # 默认活动名的模式标记：自动 → _自动_ / 手动 → _手动_（前端预览同步）
+    mode_label = "手动" if manual_mode else "自动"
+    manual_keywords = settings.get("manual_keywords") or []
+    # 手动投放的商品投放（ASIN 定向）：[{asin}] 或 ["B0...", ...]
+    manual_targets = settings.get("manual_targets") or []
+    manual_bid_default = _to_float(settings.get("manual_keyword_bid", 0.0), 0.0)
+    kw_match_alias = {
+        "broad": "broad", "广泛": "broad",
+        "phrase": "phrase", "词组": "phrase",
+        "exact": "exact", "精准": "exact",
+    }
+
     # 编号列（v11）:
     #   广告活动编号 = CA_父sku_YYYYMMDDHHMM   例 CA_abc002_202611032153
     #   广告组编号   = GR_父sku_YYYYMMDDHHMM   例 GR_abc002_202611032153
@@ -298,7 +322,7 @@ def build_rows(
         campaign_name = (
             f"{campaign_name_custom}_{parent_sku}"
             if campaign_name_custom
-            else f"{parent_sku}_{prod_name}_自动_{today_str}"
+            else f"{parent_sku}_{prod_name}_{mode_label}_{today_str}"
         )
         ad_group_id = f"GR_{sku_key}_{id_stamp}" if fill_ids else ""
         ad_group_name = (
@@ -317,7 +341,7 @@ def build_rows(
                 "广告组合编号": portfolio_id,
                 "广告活动名称": campaign_name,
                 "开始日期": start_date,
-                "投放类型": TARGETING_TYPE_AUTO,
+                "投放类型": TARGETING_TYPE_MANUAL if manual_mode else TARGETING_TYPE_AUTO,
                 "状态": "enabled",
                 "每日预算": budget,
                 "竞价方案": bidding_strategy,
@@ -438,7 +462,7 @@ def build_rows(
         #    2) 表达式必须写在官方列 ``拓展商品投放编号`` 里，取值是亚马逊
         #       受控裸值 close-match/loose-match/substitutes/complements；
         #    3) ``关键词文本`` 与 ``匹配类型`` 必须留空（这是投放组，不是关键词）。
-        if include_targeting:
+        if include_targeting and not manual_mode:
             preds = [p for p in AUTO_TARGETING if (not target_types or p in target_types)]
             for pred in preds:
                 rows.append(
@@ -453,6 +477,62 @@ def build_rows(
                         "状态": "enabled",
                         "竞价": targeting_bids[pred],
                         TARGETING_EXPR_COLUMN: pred,
+                    }
+                )
+
+        # 7. 手动投放：每个关键词一行 Keyword 实体
+        #    字段：关键词文本 + 匹配类型(broad/phrase/exact 小写受控值) + 竞价；
+        #    「拓展商品投放编号」必须留空（那是商品投放的表达式列）。
+        if manual_mode:
+            for kw in manual_keywords:
+                if isinstance(kw, dict):
+                    kw_text = str(kw.get("keywordText") or kw.get("text") or "").strip()
+                    kw_match = kw_match_alias.get(
+                        str(kw.get("matchType") or kw.get("match") or "broad").strip().lower(),
+                        "broad",
+                    )
+                    kw_bid = _to_float(kw.get("bid"), manual_bid_default or default_bid)
+                else:
+                    kw_text = str(kw).strip()
+                    kw_match = "broad"
+                    kw_bid = manual_bid_default or default_bid
+                if not kw_text:
+                    continue
+                rows.append(
+                    {
+                        "产品": "Sponsored Products",
+                        "实体层级": "Keyword",
+                        "操作": "Create",
+                        "广告活动编号": campaign_id,
+                        "广告组编号": ad_group_id,
+                        "广告活动名称": campaign_name,
+                        "广告组名称": ad_group_name,
+                        "状态": "enabled",
+                        "关键词文本": kw_text,
+                        "匹配类型": kw_match,
+                        "竞价": kw_bid,
+                    }
+                )
+
+        # 8. 手动投放：商品投放（ASIN 定向）每个 ASIN 一行 Product Targeting
+        #    表达式列写 asin="B0..."，关键词列留空。
+        if manual_mode:
+            for tgt in manual_targets:
+                raw_asin = tgt.get("asin") if isinstance(tgt, dict) else tgt
+                asin = str(raw_asin or "").strip().upper().replace('"', "")
+                if not asin:
+                    continue
+                rows.append(
+                    {
+                        "产品": "Sponsored Products",
+                        "实体层级": "Product Targeting",
+                        "操作": "Create",
+                        "广告活动编号": campaign_id,
+                        "广告组编号": ad_group_id,
+                        "广告活动名称": campaign_name,
+                        "广告组名称": ad_group_name,
+                        "状态": "enabled",
+                        TARGETING_EXPR_COLUMN: f'asin="{asin}"',
                     }
                 )
 
@@ -528,12 +608,18 @@ def _validate_output(df: "pd.DataFrame") -> None:
                 "（亚马逊会报「以下列缺少值」）"
             )
         bad_expr = sorted(
-            {str(v) for v in expr.dropna() if str(v).strip() and str(v) not in AUTO_TARGETING}
+            {
+                str(v)
+                for v in expr.dropna()
+                if str(v).strip()
+                and str(v) not in AUTO_TARGETING
+                and not str(v).strip().lower().startswith("asin=")
+            }
         )
         if bad_expr:
             problems.append(
-                f"Product Targeting 的「{TARGETING_EXPR_COLUMN}」必须是裸受控值 "
-                f"{AUTO_TARGETING}，发现：{bad_expr}"
+                f"Product Targeting 的「{TARGETING_EXPR_COLUMN}」必须是自动投放受控值 "
+                f"{AUTO_TARGETING} 或商品投放表达式 asin=\"B0...\"，发现：{bad_expr}"
             )
         # 投放行不得携带关键词字段
         if "关键词文本" in df.columns:

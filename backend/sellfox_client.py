@@ -296,6 +296,28 @@ class SellfoxClient:
     def post(self, api: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self._post(api, payload)
 
+    # ---- 通用分页拉全量 ----
+    def fetch_pages(self, api: str, payload: Dict[str, Any],
+                    page_size: int = 200, max_pages: int = 100) -> List[Dict[str, Any]]:
+        """兼容 {page:{rows,total}} 与 {rows:[]} 两种返回结构"""
+        out: List[Dict[str, Any]] = []
+        page_no = 1
+        while page_no <= max_pages:
+            data = self._post(api, {**payload, "pageNo": page_no,
+                                    "pageSize": page_size}).get("data") or {}
+            node = data.get("page") if isinstance(data, dict) else None
+            if not isinstance(node, dict):
+                node = data if isinstance(data, dict) else {}
+            batch = node.get("rows") or []
+            out += batch
+            total = node.get("total") or node.get("totalCount") or 0
+            if not batch or len(batch) < page_size:
+                break
+            if total and len(out) >= int(total):
+                break
+            page_no += 1
+        return out
+
     # ---- 店铺 + 广告组合 ----
     def get_shops(self, shop_ids: Optional[List[int]] = None) -> Dict[str, Any]:
         """返回 {rows:[{shopId,shopName,siteName,marketplaceId,portfolioId,portfolioName,...}]}"""

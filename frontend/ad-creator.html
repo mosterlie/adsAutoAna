@@ -355,7 +355,7 @@
               <div class="flex items-center gap-3">
                 <input v-model="adSettings.campaign_name" placeholder="示例：节假日收藏夹"
                        class="h-8 w-[490px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
-                <span class="text-[11px] text-[#B4B8C2]">留空则自动命名：父SKU_品名_自动_日期</span>
+                <span class="text-[11px] text-[#B4B8C2]">留空则自动命名：父SKU_品名_{{ adManualMode ? '手动' : '自动' }}_日期</span>
               </div>
             </div>
 
@@ -429,11 +429,11 @@
                     <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊将自动分析您的广告产品，并找到相关的关键词和产品进行投放</span>
                   </span>
                 </label>
-                <label class="flex items-start gap-2 cursor-not-allowed" title="当前版本仅支持自动投放">
-                  <input type="radio" value="manual" disabled class="mt-[3px]" />
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input type="radio" value="manual" v-model="adSettings.targeting_type" class="mt-[3px] accent-[#2969FF]" />
                   <span>
                     <span class="block leading-5">手动投放</span>
-                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊根据您选择的关键词或产品进行投放</span>
+                    <span class="block text-[12px] text-[#8A8F99] leading-5">亚马逊根据您选择的关键词进行投放（下一步录入关键词）</span>
                   </span>
                 </label>
               </div>
@@ -563,7 +563,7 @@
                 <input v-model="adSettings.ad_group_name" placeholder="示例：圣诞节大促"
                        class="h-8 w-[490px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
                 <span class="text-[11px] text-[#B4B8C2]">
-                  留空则与活动同名：{{ adCampaigns.length ? adCampaignName(adCampaigns[0]) : '父SKU_品名_自动_日期' }}
+                  留空则与活动同名：{{ adCampaigns.length ? adCampaignName(adCampaigns[0]) : '父SKU_品名_' + (adManualMode ? '手动' : '自动') + '_日期' }}
                 </span>
               </div>
             </div>
@@ -578,7 +578,7 @@
                          class="h-full w-[120px] px-2 text-[12px] outline-none" placeholder="请输入" />
                 </div>
                 <span class="text-[11px] text-[#B4B8C2]">
-                  写入广告组「默认竞价」；自动投放 4 组匹配可在下一步单独设置（未设置则继承此值）
+                  写入广告组「默认竞价」；{{ adManualMode ? '手动关键词未单独填竞价时继承此值' : '自动投放 4 组匹配可在下一步单独设置（未设置则继承此值）' }}
                 </span>
               </div>
             </div>
@@ -810,9 +810,11 @@
             <div class="flex items-center gap-1.5 mb-5">
               <span class="w-[3px] h-[14px] bg-[#2969FF] rounded-sm"></span>
               <h2 class="text-[14px] font-medium text-[#0F0F0F]">设定投放规则</h2>
-              <span class="text-[12px] text-[#8A8F99] ml-1">自动投放 4 组匹配</span>
+              <span class="text-[12px] text-[#8A8F99] ml-1">{{ adManualMode ? '手动投放关键词' : '自动投放 4 组匹配' }}</span>
             </div>
 
+            <!-- 自动投放：4 组匹配 -->
+            <template v-if="!adManualMode">
             <div class="flex items-start text-[12px] text-[#0F0F0F]">
               <div class="flex-1 border border-[#E4E6EB] rounded-[4px] overflow-hidden">
                 <div class="grid grid-cols-[150px_150px_150px_1fr] items-center bg-[#F7F8FA] text-[#606266] h-[46px] border-b border-[#E4E6EB]">
@@ -880,6 +882,595 @@
                 生成 4 组自动匹配 Targeting 行
               </label>
             </div>
+            </template>
+
+            <!-- 手动投放：1:1 还原赛狐「设定投放规则」 -->
+            <template v-else>
+              <!-- 关键词投放 / 商品投放 -->
+              <div class="flex flex-wrap gap-[56px]">
+                <label class="flex items-start gap-2 min-w-[252px] cursor-pointer">
+                  <input type="radio" value="keyword" v-model="adTargetTab" class="mt-[3px] accent-[#2969FF]" />
+                  <span class="flex flex-col gap-[5px] text-[12px]">
+                    <span class="leading-[18px] text-[#0F0F0F]">关键词投放</span>
+                    <span class="leading-[18px] text-[#9A9A9A]">选择有助于您的产品针对顾客搜索展示的关键词</span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 min-w-[252px] cursor-pointer">
+                  <input type="radio" value="product" v-model="adTargetTab" class="mt-[3px] accent-[#2969FF]" />
+                  <span class="flex flex-col gap-[5px] text-[12px]">
+                    <span class="leading-[18px] text-[#0F0F0F]">商品投放</span>
+                    <span class="leading-[18px] text-[#9A9A9A]">选择特定产品、品类、品牌或其他产品特征来定向您的广告</span>
+                  </span>
+                </label>
+              </div>
+
+              <div class="mt-4 flex border border-[#E4E6EB] rounded-[4px] overflow-hidden h-[452px] text-[12px] text-[#0F0F0F]">
+                <!-- ===== 左：投放来源 ===== -->
+                <div class="shrink-0 flex flex-col border-r border-[#E4E6EB]"
+                   :class="adKwAba ? 'w-[700px]' : 'w-[544px]'">
+                  <!-- 页签 -->
+                  <div v-if="adTargetTab === 'keyword'" class="flex items-center gap-5 px-4 h-[42px] border-b border-[#E4E6EB] shrink-0">
+                    <button type="button" @click="adKwTab = 'suggest'" class="relative h-full"
+                            :class="adKwTab === 'suggest' ? 'text-[#FFA91E]' : 'text-[#0F0F0F]'">
+                      建议<span v-if="adKwTab === 'suggest'" class="absolute inset-x-0 bottom-0 h-[2px] bg-[#FFA91E]"></span>
+                    </button>
+                    <button type="button" @click="adKwTab = 'input'" class="relative h-full"
+                            :class="adKwTab === 'input' ? 'text-[#FFA91E]' : 'text-[#0F0F0F]'">
+                      输入列表<span v-if="adKwTab === 'input'" class="absolute inset-x-0 bottom-0 h-[2px] bg-[#FFA91E]"></span>
+                    </button>
+                    <button type="button" @click="adKwTab = 'library'" class="relative h-full"
+                            :class="adKwTab === 'library' ? 'text-[#FFA91E]' : 'text-[#0F0F0F]'">
+                      关键词库<span v-if="adKwTab === 'library'" class="absolute inset-x-0 bottom-0 h-[2px] bg-[#FFA91E]"></span>
+                    </button>
+                  </div>
+                  <div v-else class="flex items-center gap-5 px-4 h-[42px] border-b border-[#E4E6EB] shrink-0">
+                    <button type="button" @click="adProductTab = 'category'" class="relative h-full"
+                            :class="adProductTab === 'category' ? 'text-[#FFA91E]' : 'text-[#0F0F0F]'">
+                      品类<span v-if="adProductTab === 'category'" class="absolute inset-x-0 bottom-0 h-[2px] bg-[#FFA91E]"></span>
+                    </button>
+                    <button type="button" @click="adProductTab = 'product'" class="relative h-full"
+                            :class="adProductTab === 'product' ? 'text-[#FFA91E]' : 'text-[#0F0F0F]'">
+                      商品<span v-if="adProductTab === 'product'" class="absolute inset-x-0 bottom-0 h-[2px] bg-[#FFA91E]"></span>
+                    </button>
+                  </div>
+
+                  <!-- ---------- 关键词投放 ---------- -->
+                  <template v-if="adTargetTab === 'keyword'">
+                    <!-- 建议 -->
+                    <div v-if="adKwTab === 'suggest'" class="flex flex-col flex-1 min-h-0">
+                      <div class="px-3 pt-3 shrink-0">
+                        <div class="flex items-center gap-2">
+                          <select v-model="adKwBidFilter"
+                                  class="h-8 w-[96px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                            <option value="">建议竞价</option>
+                            <option value="has">有建议竞价</option>
+                            <option value="none">无建议竞价</option>
+                          </select>
+                          <div class="flex items-center h-8 w-[200px] border border-[#DADCE0] rounded-[4px] px-2 gap-1">
+                            <input v-model="adKwSearch" @keyup.enter="loadSuggestKeywords(1)" placeholder="输入关键词"
+                                   class="flex-1 min-w-0 text-[12px] outline-none" />
+                            <button type="button" @click="loadSuggestKeywords(1)" class="shrink-0 flex items-center justify-center w-4 h-4">
+                              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                                <circle cx="7" cy="7" r="5" stroke="#9A9A9A" />
+                                <path d="M11 11L14.5 14.5" stroke="#9A9A9A" stroke-linecap="round" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="mt-2 flex items-center">
+                          <span class="text-[#5E5E5E]">匹配类型</span>
+                          <label class="ml-3 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.broad" class="accent-[#2969FF]" />广泛</label>
+                          <label class="ml-4 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.phrase" class="accent-[#2969FF]" />词组</label>
+                          <label class="ml-4 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.exact" class="accent-[#2969FF]" />精准</label>
+                          <div class="ml-auto flex items-center">
+                            <label class="inline-flex items-center gap-1 cursor-pointer">
+                              <input type="checkbox" v-model="adKwAba" class="accent-[#2969FF]" />
+                              <span>ABA搜索词排名-{{ adAbaPeriodLabel }}</span>
+                              <span class="w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] cursor-help"
+                                    title="基于亚马逊ABA报告，展示关键词在当前店铺所属站点的搜索次数排名">?</span>
+                            </label>
+                            <div class="relative">
+                              <button type="button" @click="adAbaPeriodOpen = !adAbaPeriodOpen"
+                                      class="ml-1 text-[#9A9A9A] leading-none">⌄</button>
+                              <div v-if="adAbaPeriodOpen"
+                                   class="absolute right-0 top-[18px] z-40 w-[96px] bg-white border border-[#E4E6EB] rounded-[4px] shadow-lg py-1">
+                                <button v-for="p in adAbaPeriodOptions" :key="p.value" type="button"
+                                        @click="adAbaPeriod = p.value; adAbaPeriodOpen = false"
+                                        class="block w-full text-left px-3 h-7 leading-7 hover:bg-[#F5F7FA]"
+                                        :class="p.value === adAbaPeriod ? 'text-[#2969FF]' : 'text-[#5E5E5E]'">{{ p.label }}</button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="mt-2 flex-1 min-h-0 overflow-auto">
+                        <!-- 关键词组 -->
+                        <div class="grid grid-cols-[1fr_80px_150px_62px] items-center h-10 px-3 bg-[#F7F8FA] font-bold border-y border-[#EBEEF5]">
+                          <div>关键词组</div>
+                          <div>匹配类型</div>
+                          <div>建议竞价</div>
+                          <div class="text-right font-normal">
+                            <button type="button" @click="addAllThemes" class="text-[#2969FF] hover:underline">添加全部</button>
+                          </div>
+                        </div>
+                        <div v-for="g in adThemeGroups" :key="g.key"
+                             class="grid grid-cols-[1fr_80px_150px_62px] items-center min-h-[52px] px-3 border-b border-[#EBEEF5]">
+                          <div class="min-w-0 py-1">
+                            <div class="flex items-center gap-1">
+                              <span class="truncate" :title="g.title">{{ g.title }}</span>
+                              <span class="shrink-0 w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A]">?</span>
+                            </div>
+                            <div class="text-[11px] text-[#9A9A9A] truncate">{{ g.cn }}</div>
+                          </div>
+                          <div>主题</div>
+                          <div class="text-[#5E5E5E]">
+                            <template v-if="g.key === 'category' && adThemeAvg">
+                              <div>{{ fmtThemeBid(adThemeAvg.suggested) }}</div>
+                              <div class="text-[11px] text-[#9A9A9A]">
+                                {{ fmtThemeBid(adThemeAvg.rangeStart, 2) }} ~ {{ fmtThemeBid(adThemeAvg.rangeEnd, 2) }}
+                              </div>
+                            </template>
+                            <div v-else-if="g.key === 'category' && adKwBidLoading" class="text-[#9A9A9A]">查询中…</div>
+                            <div v-else class="text-[#9A9A9A]">-</div>
+                          </div>
+                          <div class="text-right">
+                            <button type="button" @click="addTheme(g)"
+                                    :class="isThemeAdded(g) ? 'text-[#C0C4CC] cursor-default' : 'text-[#2969FF]'">
+                              {{ isThemeAdded(g) ? '已添加' : '添加' }}
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- 关键词 -->
+                        <div class="grid items-center h-10 px-3 bg-[#F7F8FA] font-bold border-b border-[#EBEEF5]"
+                             :class="adKwAba ? 'min-w-[640px]' : ''" :style="{ gridTemplateColumns: adKwGridCols }">
+                          <div>关键词</div>
+                          <template v-if="adKwAba">
+                            <div class="flex items-center gap-1">
+                              <span>搜索词排名</span>
+                              <span class="shrink-0 w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] font-normal cursor-help"
+                                    title="亚马逊最近一期ABA搜索词报告中的排名">?</span>
+                            </div>
+                            <div>{{ adAbaTrendTitle }}</div>
+                          </template>
+                          <div>匹配类型</div>
+                          <div>建议竞价</div>
+                          <div class="flex items-center gap-1">
+                            <span class="leading-[14px]">建议竞价预<br>计周曝光量</span>
+                            <span class="shrink-0 w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] font-normal cursor-help"
+                                  title="预计周曝光量：按上方建议竞价投放时，该关键词预计每周能获得的展示次数（根据近期同类投放数据估算，仅供参考）。">?</span>
+                          </div>
+                          <div class="text-right font-normal">
+                            <button type="button" @click="addAllKeywords" class="text-[#2969FF] hover:underline">添加全部</button>
+                          </div>
+                        </div>
+                        <div v-for="(row, idx) in adKwFiltered" :key="row.keywordText"
+                             class="grid items-start px-3 border-b border-[#EBEEF5]"
+                             :class="adKwAba ? 'min-w-[640px]' : ''" :style="{ gridTemplateColumns: adKwGridCols }">
+                          <div class="min-w-0 py-2">
+                            <div class="truncate" :title="row.keywordText">{{ row.keywordText }}</div>
+                            <div v-if="row.keywordTextCn" class="text-[11px] text-[#9A9A9A] truncate">{{ row.keywordTextCn }}</div>
+                          </div>
+                          <template v-if="adKwAba">
+                            <div class="py-2">
+                              <span v-if="row.aba && row.aba.abaRank" class="text-[#2969FF]">{{ row.aba.abaRank }}</span>
+                              <span v-else-if="adAbaLoading" class="text-[#9A9A9A]">…</span>
+                              <span v-else class="text-[#9A9A9A]">-</span>
+                            </div>
+                            <div class="py-2">
+                              <div v-if="row.aba && row.aba.spark" class="relative group inline-block align-middle">
+                                <svg width="120" height="30" viewBox="0 0 120 30" fill="none">
+                                  <path :d="row.aba.spark.area" fill="#E8F1FF"></path>
+                                  <path :d="row.aba.spark.line" stroke="#2B7FFF" stroke-width="1.2" stroke-linejoin="round" fill="none"></path>
+                                  <circle v-for="(pt, i) in row.aba.spark.dots" :key="i" :cx="pt[0]" :cy="pt[1]" r="1.4" fill="#2B7FFF"></circle>
+                                </svg>
+                                <div class="hidden group-hover:block absolute left-0 z-40 bg-white border border-[#E4E6EB] rounded-[4px] shadow-lg p-2"
+                                     :class="idx < adKwFiltered.length / 2 ? 'top-full mt-1' : 'bottom-full mb-1'">
+                                  <div class="text-[11px] text-[#5E5E5E] whitespace-nowrap">
+                                    搜索词排名
+                                    <span class="ml-1" :class="row.aba.abaRank ? 'text-[#2969FF]' : ''">{{ row.aba.abaRank || '-' }}</span>
+                                  </div>
+                                  <div v-if="row.aba.rank" class="text-[11px] text-[#5E5E5E] whitespace-nowrap">加入时排名：{{ row.aba.rank }}</div>
+                                  <div v-if="row.aba.createTime" class="text-[11px] text-[#5E5E5E] whitespace-nowrap">加入时间：{{ row.aba.createTime }}</div>
+                                  <svg class="mt-1" width="240" height="72" viewBox="0 0 240 72" fill="none">
+                                    <path :d="row.aba.big.area" fill="#E8F1FF"></path>
+                                    <path :d="row.aba.big.line" stroke="#2B7FFF" stroke-width="1.4" stroke-linejoin="round" fill="none"></path>
+                                    <circle v-for="(pt, i) in row.aba.big.dots" :key="i" :cx="pt[0]" :cy="pt[1]" r="1.8" fill="#2B7FFF"></circle>
+                                  </svg>
+                                </div>
+                              </div>
+                              <span v-else class="text-[#9A9A9A]">-</span>
+                            </div>
+                          </template>
+                          <div class="py-1">
+                            <div v-for="m in adVisibleMatches" :key="m" class="min-h-[46px] leading-[20px] pt-1">{{ adKwMatchLabel(m) }}</div>
+                          </div>
+                          <div class="py-1">
+                            <div v-for="m in adVisibleMatches" :key="m" class="min-h-[46px] py-1 leading-[18px]"
+                                 :class="!row.bids[m] && adKwBidLoading ? 'text-[#9A9A9A]' : ''">
+                              <div>{{ row.bids[m] ? fmtBid(row.bids[m].suggested) : (adKwBidLoading ? '查询中…' : '-') }}</div>
+                              <div v-if="row.bids[m]" class="text-[11px] text-[#9A9A9A]">{{ fmtBidRange(row.bids[m]) }}</div>
+                            </div>
+                          </div>
+                          <div class="py-1">
+                            <div v-for="m in adVisibleMatches" :key="m" class="min-h-[46px] py-1 leading-[18px] text-[#5E5E5E]">{{ fmtWeeklyImp(row.bids[m]) }}</div>
+                          </div>
+                          <div class="py-1">
+                            <div v-for="m in adVisibleMatches" :key="m" class="min-h-[46px] leading-[20px] pt-1 text-right">
+                              <button type="button" @click="addKeyword(row, m)"
+                                      :class="isKwAdded(row.keywordText, m) ? 'text-[#C0C4CC] cursor-default' : 'text-[#2969FF]'">
+                                {{ isKwAdded(row.keywordText, m) ? '已添加' : '添加' }}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        <div v-if="!adKwFiltered.length" class="h-[280px] flex flex-col items-center justify-center">
+                          <svg width="82" height="62" viewBox="0 0 82 62" fill="none" aria-hidden="true">
+                            <path d="M16 24 L41 12 L66 24 L41 36 Z" fill="#EFF3FC" stroke="#DDE4F4" />
+                            <path d="M16 24 L16 50 L41 62 L41 36 Z" fill="#F8FAFE" stroke="#DDE4F4" />
+                            <path d="M66 24 L66 50 L41 62 L41 36 Z" fill="#F3F6FD" stroke="#DDE4F4" />
+                            <path d="M28 6 L34 3 L40 6 L34 9 Z" fill="#E7EDFA" />
+                          </svg>
+                          <p class="text-[12px] text-[#B4B8C2] mt-2">{{ adKwLoading ? '加载中…' : (adKwError || '暂无数据') }}</p>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center justify-end gap-2 h-[42px] px-3 border-t border-[#EBEEF5] shrink-0 text-[#5E5E5E]">
+                        <span>共 {{ adKwTotal }} 条</span>
+                        <button type="button" @click="loadSuggestKeywords(adKwPage - 1)" :disabled="adKwPage <= 1"
+                                class="px-1 disabled:text-[#C0C4CC]">‹</button>
+                        <button v-for="p in adKwPageList" :key="p" type="button" @click="loadSuggestKeywords(p)"
+                                :class="p === adKwPage ? 'text-[#2969FF] font-medium' : 'text-[#0F0F0F]'" class="px-1">{{ p }}</button>
+                        <button type="button" @click="loadSuggestKeywords(adKwPage + 1)" :disabled="adKwPage >= adKwPageCount"
+                                class="px-1 disabled:text-[#C0C4CC]">›</button>
+                        <select v-model.number="adKwPageSize" @change="loadSuggestKeywords(1)"
+                                class="h-7 border border-[#DADCE0] rounded-[4px] px-1 bg-white outline-none">
+                          <option :value="20">20条/页</option>
+                          <option :value="50">50条/页</option>
+                          <option :value="100">100条/页</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- 输入列表 -->
+                    <div v-else-if="adKwTab === 'input'" class="flex flex-col flex-1 min-h-0 px-3 pt-3">
+                      <div class="flex items-center gap-2 shrink-0">
+                        <select v-model="adKwBidFilter"
+                                class="h-8 w-[96px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                          <option value="">建议竞价</option>
+                          <option value="has">有建议竞价</option>
+                          <option value="none">无建议竞价</option>
+                        </select>
+                      </div>
+                      <div class="mt-2 flex items-center shrink-0">
+                        <span class="text-[#5E5E5E]">匹配类型</span>
+                        <label class="ml-3 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.broad" class="accent-[#2969FF]" />广泛</label>
+                        <label class="ml-4 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.phrase" class="accent-[#2969FF]" />词组</label>
+                        <label class="ml-4 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.exact" class="accent-[#2969FF]" />精准</label>
+                        <div class="ml-auto flex items-center">
+                          <label class="inline-flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" v-model="adKwAba" class="accent-[#2969FF]" />
+                            <span>ABA搜索词排名-{{ adAbaPeriodLabel }}</span>
+                            <span class="w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] cursor-help"
+                                  title="基于亚马逊ABA报告，展示关键词在当前店铺所属站点的搜索次数排名">?</span>
+                          </label>
+                          <div class="relative">
+                            <button type="button" @click="adAbaPeriodOpen = !adAbaPeriodOpen"
+                                    class="ml-1 text-[#9A9A9A] leading-none">⌄</button>
+                            <div v-if="adAbaPeriodOpen"
+                                 class="absolute right-0 top-[18px] z-40 w-[96px] bg-white border border-[#E4E6EB] rounded-[4px] shadow-lg py-1">
+                              <button v-for="p in adAbaPeriodOptions" :key="p.value" type="button"
+                                      @click="adAbaPeriod = p.value; adAbaPeriodOpen = false"
+                                      class="block w-full text-left px-3 h-7 leading-7 hover:bg-[#F5F7FA]"
+                                      :class="p.value === adAbaPeriod ? 'text-[#2969FF]' : 'text-[#5E5E5E]'">{{ p.label }}</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mt-2 flex items-center gap-3 shrink-0">
+                        <span class="text-[#5E5E5E]">非法字符处理方式</span>
+                        <span class="w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A]"
+                              title="关键词中的英文标点会按此方式处理">?</span>
+                        <label v-for="opt in adIllegalModeOptions" :key="opt.value"
+                               class="inline-flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" :value="opt.value" v-model="adKwIllegalMode" class="accent-[#2969FF]" />{{ opt.label }}
+                        </label>
+                      </div>
+                      <textarea v-model="adKwInputText" @keyup.enter="parseInputKeywords" @blur="parseInputKeywords"
+                                placeholder="输入关键词，并以换行或是中文逗号的方式将其分隔开。"
+                                class="mt-2 flex-1 min-h-[240px] w-full border border-[#DADCE0] rounded-[4px] p-2 text-[12px] leading-5 outline-none resize-none focus:border-[#2969FF]"></textarea>
+                    </div>
+
+                    <!-- 关键词库 -->
+                    <div v-else class="flex flex-col flex-1 min-h-0 px-3 pt-3">
+                      <div class="flex items-center gap-2 shrink-0">
+                        <select v-model="adKwBidFilter"
+                                class="h-8 w-[96px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-white outline-none focus:border-[#2969FF]">
+                          <option value="">建议竞价</option>
+                          <option value="has">有建议竞价</option>
+                          <option value="none">无建议竞价</option>
+                        </select>
+                        <select disabled class="h-8 w-[104px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-[#F7F8FA] text-[#B4B8C2] outline-none"><option>ASIN标签</option></select>
+                        <select disabled class="h-8 w-[86px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-[#F7F8FA] text-[#B4B8C2] outline-none"><option>标签</option></select>
+                        <select disabled class="h-8 w-[86px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-[#F7F8FA] text-[#B4B8C2] outline-none"><option>管理员</option></select>
+                      </div>
+                      <div class="mt-2 flex items-center gap-2 shrink-0">
+                        <select disabled class="h-8 w-[170px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] bg-[#F7F8FA] text-[#B4B8C2] outline-none"><option>最近30天（不含近两天）</option></select>
+                        <div class="flex items-center h-8 w-[210px] border border-[#DADCE0] rounded-[4px] px-2 gap-1">
+                          <input v-model="adLibSearch" placeholder="请输入关键词" class="flex-1 min-w-0 text-[12px] outline-none" />
+                          <span class="text-[11px] text-[#9A9A9A]">精</span>
+                          <span class="text-[#DADCE0]">|</span>
+                          <button type="button" @click="loadKeywordLibrary" class="shrink-0 flex items-center justify-center w-4 h-4">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                              <circle cx="7" cy="7" r="5" stroke="#9A9A9A" />
+                              <path d="M11 11L14.5 14.5" stroke="#9A9A9A" stroke-linecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div class="mt-2 flex items-center shrink-0">
+                        <span class="text-[#5E5E5E]">匹配类型</span>
+                        <label class="ml-3 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.broad" class="accent-[#2969FF]" />广泛</label>
+                        <label class="ml-4 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.phrase" class="accent-[#2969FF]" />词组</label>
+                        <label class="ml-4 inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" v-model="adKwMatchChecks.exact" class="accent-[#2969FF]" />精准</label>
+                        <div class="ml-auto flex items-center">
+                          <label class="inline-flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" v-model="adKwAba" class="accent-[#2969FF]" />
+                            <span>ABA搜索词排名-{{ adAbaPeriodLabel }}</span>
+                            <span class="w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] cursor-help"
+                                  title="基于亚马逊ABA报告，展示关键词在当前店铺所属站点的搜索次数排名">?</span>
+                          </label>
+                          <div class="relative">
+                            <button type="button" @click="adAbaPeriodOpen = !adAbaPeriodOpen"
+                                    class="ml-1 text-[#9A9A9A] leading-none">⌄</button>
+                            <div v-if="adAbaPeriodOpen"
+                                 class="absolute right-0 top-[18px] z-40 w-[96px] bg-white border border-[#E4E6EB] rounded-[4px] shadow-lg py-1">
+                              <button v-for="p in adAbaPeriodOptions" :key="p.value" type="button"
+                                      @click="adAbaPeriod = p.value; adAbaPeriodOpen = false"
+                                      class="block w-full text-left px-3 h-7 leading-7 hover:bg-[#F5F7FA]"
+                                      :class="p.value === adAbaPeriod ? 'text-[#2969FF]' : 'text-[#5E5E5E]'">{{ p.label }}</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mt-2 flex-1 min-h-0 overflow-y-auto">
+                        <div class="grid grid-cols-[1fr_70px_80px_70px_62px] items-center h-10 px-3 bg-[#F7F8FA] font-bold border-y border-[#EBEEF5]">
+                          <div>关键词</div>
+                          <div>标签</div>
+                          <div>ASIN标签</div>
+                          <div>广告曝光</div>
+                          <div class="text-right font-normal">
+                            <button type="button" @click="addAllLibraryKeywords" class="text-[#2969FF] hover:underline">添加全部</button>
+                          </div>
+                        </div>
+                        <div v-for="row in adLibFiltered" :key="'lib-' + row.keywordText"
+                             class="grid grid-cols-[1fr_70px_80px_70px_62px] items-center px-3 py-2 border-b border-[#EBEEF5]">
+                          <div class="min-w-0">
+                            <div class="truncate" :title="row.keywordText">{{ row.keywordText }}</div>
+                            <div v-if="row.keywordTextCn" class="text-[11px] text-[#9A9A9A] truncate">{{ row.keywordTextCn }}</div>
+                          </div>
+                          <div class="text-[#9A9A9A]">-</div>
+                          <div class="text-[#9A9A9A]">-</div>
+                          <div class="text-[#9A9A9A]">-</div>
+                          <div class="text-right">
+                            <button type="button" @click="addLibraryRow(row)"
+                                    :class="kwAllAdded(row.keywordText) ? 'text-[#C0C4CC] cursor-default' : 'text-[#2969FF]'">
+                              {{ kwAllAdded(row.keywordText) ? '已添加' : '添加' }}
+                            </button>
+                          </div>
+                        </div>
+                        <div v-if="!adLibFiltered.length" class="h-[240px] flex flex-col items-center justify-center">
+                          <svg width="82" height="62" viewBox="0 0 82 62" fill="none" aria-hidden="true">
+                            <path d="M16 24 L41 12 L66 24 L41 36 Z" fill="#EFF3FC" stroke="#DDE4F4" />
+                            <path d="M16 24 L16 50 L41 62 L41 36 Z" fill="#F8FAFE" stroke="#DDE4F4" />
+                            <path d="M66 24 L66 50 L41 62 L41 36 Z" fill="#F3F6FD" stroke="#DDE4F4" />
+                            <path d="M28 6 L34 3 L40 6 L34 9 Z" fill="#E7EDFA" />
+                          </svg>
+                          <p class="text-[12px] text-[#B4B8C2] mt-2">{{ adLibLoading ? '加载中…' : '暂无数据' }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- ---------- 商品投放 ---------- -->
+                  <template v-else>
+                    <div class="px-3 pt-3 shrink-0">
+                      <div class="inline-flex items-center rounded-[4px] border border-[#DADCE0] overflow-hidden">
+                        <button type="button" @click="adProductSub = 'suggest'" class="h-7 px-3"
+                                :class="adProductSub === 'suggest' ? 'bg-white text-[#0F0F0F]' : 'bg-[#F7F8FA] text-[#5E5E5E]'">建议</button>
+                        <button type="button" @click="adProductSub = 'search'" class="h-7 px-3 border-l border-[#DADCE0]"
+                                :class="adProductSub === 'search' ? 'bg-white text-[#0F0F0F]' : 'bg-[#F7F8FA] text-[#5E5E5E]'">搜索</button>
+                      </div>
+                    </div>
+                    <div v-if="adProductSub === 'search'" class="px-3 mt-2 flex items-center gap-2 shrink-0">
+                      <input v-model="adProductSearch" @keyup.enter="searchTargetProducts" placeholder="输入 ASIN，多个用逗号分隔"
+                             class="h-8 w-[340px] border border-[#DADCE0] rounded-[4px] px-2 text-[12px] outline-none focus:border-[#2969FF]" />
+                      <button type="button" @click="searchTargetProducts"
+                              class="h-8 px-3 border border-[#DADCE0] rounded-[4px] bg-white hover:bg-[#F5F7FA]">搜索</button>
+                    </div>
+                    <div class="mt-2 flex-1 min-h-0 overflow-y-auto">
+                      <div class="grid grid-cols-[1fr_96px_120px_76px] items-center h-10 px-3 bg-[#F7F8FA] font-bold border-y border-[#EBEEF5]">
+                        <div>{{ adProductTab === 'category' ? '品类' : '商品' }}</div>
+                        <div>建议竞价</div>
+                        <div class="flex items-center gap-1">
+                          <span class="leading-[14px]">建议竞价预<br>计周曝光量</span>
+                          <span class="shrink-0 w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] font-normal cursor-help"
+                                title="预计周曝光量：按建议竞价投放时，该商品/品类预计每周能获得的展示次数（根据近期同类投放数据估算，仅供参考）。">?</span>
+                        </div>
+                        <div class="text-right font-normal">
+                          <button type="button" @click="addAllProductTargets" class="text-[#2969FF] hover:underline">添加全部</button>
+                        </div>
+                      </div>
+                      <div v-for="p in adProductRows" :key="p.asin"
+                           class="grid grid-cols-[1fr_96px_120px_76px] items-center min-h-[46px] px-3 border-b border-[#EBEEF5]">
+                        <div class="min-w-0 py-1">
+                          <div class="truncate" :title="p.title">{{ p.title || p.asin }}</div>
+                          <div class="text-[11px] text-[#9A9A9A] truncate">{{ p.asin }}{{ p.sku ? ' · ' + p.sku : '' }}</div>
+                        </div>
+                        <div class="text-[#9A9A9A]">-</div>
+                        <div class="text-[#5E5E5E]">{{ fmtWeeklyImp(p.bid) }}</div>
+                        <div class="text-right">
+                          <button type="button" @click="addProductTarget(p)"
+                                  :class="isProductAdded(p.asin) ? 'text-[#C0C4CC] cursor-default' : 'text-[#2969FF]'">
+                            {{ isProductAdded(p.asin) ? '已添加' : '添加' }}
+                          </button>
+                          <span v-if="adProductTab === 'category'" class="ml-2 text-[#2969FF]">细化</span>
+                        </div>
+                      </div>
+                      <div v-if="!adProductRows.length" class="h-[300px] flex flex-col items-center justify-center">
+                        <svg width="82" height="62" viewBox="0 0 82 62" fill="none" aria-hidden="true">
+                          <path d="M16 24 L41 12 L66 24 L41 36 Z" fill="#EFF3FC" stroke="#DDE4F4" />
+                          <path d="M16 24 L16 50 L41 62 L41 36 Z" fill="#F8FAFE" stroke="#DDE4F4" />
+                          <path d="M66 24 L66 50 L41 62 L41 36 Z" fill="#F3F6FD" stroke="#DDE4F4" />
+                          <path d="M28 6 L34 3 L40 6 L34 9 Z" fill="#E7EDFA" />
+                        </svg>
+                        <p class="text-[12px] text-[#B4B8C2] mt-2">{{ adProductLoading ? '加载中…' : '暂无数据' }}</p>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- ===== 右：已添加 ===== -->
+                <div class="flex-1 min-w-0 flex flex-col">
+                  <div class="h-[38px] flex items-center px-3 bg-[#EEF3FE] shrink-0">已添加 {{ adAddedVisible.length }} 个投放</div>
+                  <!-- 关键词投放表头 -->
+                  <div v-if="adTargetTab === 'keyword'"
+                       class="grid items-center h-10 px-3 bg-[#F7F8FA] font-bold border-b border-[#EBEEF5] shrink-0"
+                       :style="{ gridTemplateColumns: adAddedKwGridCols }">
+                    <div>关键词</div>
+                    <template v-if="adKwAba">
+                      <div class="flex items-center gap-1">
+                        <span>搜索词排名</span>
+                        <span class="shrink-0 w-[14px] h-[14px] rounded-full border border-[#C0C4CC] text-[10px] leading-[12px] text-center text-[#9A9A9A] font-normal cursor-help"
+                              title="亚马逊最近一期ABA搜索词报告中的排名">?</span>
+                      </div>
+                      <div>{{ adAbaTrendTitle }}</div>
+                    </template>
+                    <div>建议竞价</div>
+                    <div>应用</div>
+                    <div>竞价</div>
+                    <div class="text-right font-normal">
+                      <button type="button" @click="clearAdded" class="text-[#2969FF] hover:underline">移除全部</button>
+                    </div>
+                  </div>
+                  <!-- 商品投放表头 -->
+                  <div v-else
+                       class="grid grid-cols-[1fr_88px_88px_80px_136px_64px] items-center h-10 px-3 bg-[#F7F8FA] font-bold border-b border-[#EBEEF5] shrink-0">
+                    <div>品类&amp;商品</div>
+                    <div>筛选条件</div>
+                    <div>建议竞价</div>
+                    <div>应用</div>
+                    <div>竞价</div>
+                    <div class="text-right font-normal">
+                      <button type="button" @click="clearAdded" class="text-[#2969FF] hover:underline">移除全部</button>
+                    </div>
+                  </div>
+                  <div class="flex-1 min-h-0 overflow-auto">
+                    <div v-for="(x, xi) in adAddedVisible" :key="x.id"
+                         class="grid items-start px-3 py-2 border-b border-[#EBEEF5]"
+                         :class="x.type !== 'product' && adKwAba ? 'min-w-[670px]' : ''"
+                         :style="{ gridTemplateColumns: x.type === 'product' ? adAddedProdGridCols : adAddedKwGridCols }">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1">
+                          <span class="shrink-0 px-1 h-[18px] leading-[18px] rounded-[2px] bg-[#F2F3F5] text-[11px] text-[#5E5E5E]">
+                            {{ x.type === 'theme' ? '主题' : (x.type === 'product' ? '商品' : adKwMatchLabel(x.matchType)) }}
+                          </span>
+                          <span class="truncate" :title="x.keywordText">{{ x.keywordText }}</span>
+                        </div>
+                        <div v-if="x.keywordTextCn" class="text-[11px] text-[#9A9A9A] truncate">{{ x.keywordTextCn }}</div>
+                      </div>
+                      <template v-if="x.type === 'product'">
+                        <div class="text-[#9A9A9A]">-</div>
+                        <div class="text-[#9A9A9A]">-</div>
+                        <div>
+                          <select disabled class="h-7 w-[72px] bg-transparent border-0 appearance-none text-[#C0C4CC] outline-none cursor-default">
+                            <option>应用</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div class="flex items-center h-7 w-[128px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                            <span class="px-1.5 text-[#606266]">JP￥</span>
+                            <input type="number" min="0" step="0.01" v-model.number="x.bid"
+                                   class="h-full flex-1 min-w-0 px-1 text-[12px] outline-none" placeholder="请输入" />
+                          </div>
+                        </div>
+                        <div class="text-right">
+                          <button type="button" @click="removeAddedTarget(x)" class="text-[#2969FF]">移除</button>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <template v-if="adKwAba">
+                          <div>
+                            <span v-if="x.aba && x.aba.abaRank" class="text-[#2969FF]">{{ x.aba.abaRank }}</span>
+                            <span v-else class="text-[#9A9A9A]">-</span>
+                          </div>
+                          <div>
+                            <div v-if="x.aba && x.aba.spark" class="relative group inline-block align-middle">
+                              <svg width="120" height="30" viewBox="0 0 120 30" fill="none">
+                                <path :d="x.aba.spark.area" fill="#E8F1FF"></path>
+                                <path :d="x.aba.spark.line" stroke="#2B7FFF" stroke-width="1.2" stroke-linejoin="round" fill="none"></path>
+                                <circle v-for="(pt, i) in x.aba.spark.dots" :key="i" :cx="pt[0]" :cy="pt[1]" r="1.4" fill="#2B7FFF"></circle>
+                              </svg>
+                              <div class="hidden group-hover:block absolute left-0 z-40 bg-white border border-[#E4E6EB] rounded-[4px] shadow-lg p-2"
+                                    :class="xi < adAddedVisible.length / 2 ? 'top-full mt-1' : 'bottom-full mb-1'">
+                                <div class="text-[11px] text-[#5E5E5E] whitespace-nowrap">
+                                  搜索词排名
+                                  <span class="ml-1" :class="x.aba.abaRank ? 'text-[#2969FF]' : ''">{{ x.aba.abaRank || '-' }}</span>
+                                </div>
+                                <div v-if="x.aba.rank" class="text-[11px] text-[#5E5E5E] whitespace-nowrap">加入时排名：{{ x.aba.rank }}</div>
+                                <div v-if="x.aba.createTime" class="text-[11px] text-[#5E5E5E] whitespace-nowrap">加入时间：{{ x.aba.createTime }}</div>
+                                <svg class="mt-1" width="240" height="72" viewBox="0 0 240 72" fill="none">
+                                  <path :d="x.aba.big.area" fill="#E8F1FF"></path>
+                                  <path :d="x.aba.big.line" stroke="#2B7FFF" stroke-width="1.4" stroke-linejoin="round" fill="none"></path>
+                                  <circle v-for="(pt, i) in x.aba.big.dots" :key="i" :cx="pt[0]" :cy="pt[1]" r="1.8" fill="#2B7FFF"></circle>
+                                </svg>
+                              </div>
+                            </div>
+                            <span v-else class="text-[#9A9A9A]">-</span>
+                          </div>
+                        </template>
+                        <div class="text-[#5E5E5E]">
+                          <div v-if="x.bidLoading" class="text-[#9A9A9A]">查询中…</div>
+                          <template v-else>
+                            <div>{{ fmtBid(x.suggested) }}</div>
+                            <div v-if="x.rangeStart && x.rangeEnd" class="text-[11px] text-[#9A9A9A]">{{ fmtBidRange(x) }}</div>
+                          </template>
+                        </div>
+                        <div>
+                          <select @change="applyAddedBid(x, $event.target.value)"
+                                  class="h-7 w-[68px] text-[#2969FF] bg-transparent border-0 appearance-none outline-none cursor-pointer">
+                            <option value="">应用</option>
+                            <option value="low">最低价</option>
+                            <option value="mid">建议价</option>
+                            <option value="high">最高价</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div class="flex items-center h-7 w-[128px] border border-[#DADCE0] rounded-[4px] overflow-hidden focus-within:border-[#2969FF]">
+                            <span class="px-1.5 text-[#606266]">JP￥</span>
+                            <input type="number" min="0" step="0.01" v-model.number="x.bid"
+                                   class="h-full flex-1 min-w-0 px-1 text-[12px] outline-none" placeholder="请输入" />
+                          </div>
+                        </div>
+                        <div class="text-right">
+                          <button type="button" @click="removeAddedTarget(x)" class="text-[#2969FF]">移除</button>
+                        </div>
+                      </template>
+                    </div>
+                    <div v-if="!adAddedVisible.length" class="h-[382px] flex flex-col items-center justify-center">
+                      <svg width="110" height="84" viewBox="0 0 82 62" fill="none" aria-hidden="true">
+                        <path d="M16 24 L41 12 L66 24 L41 36 Z" fill="#EFF3FC" stroke="#DDE4F4" />
+                        <path d="M16 24 L16 50 L41 62 L41 36 Z" fill="#F8FAFE" stroke="#DDE4F4" />
+                        <path d="M66 24 L66 50 L41 62 L41 36 Z" fill="#F3F6FD" stroke="#DDE4F4" />
+                        <path d="M28 6 L34 3 L40 6 L34 9 Z" fill="#E7EDFA" />
+                      </svg>
+                      <p class="text-[12px] text-[#B4B8C2] mt-2">暂无数据</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <div class="h-px bg-[#EEEEF6] my-4"></div>
@@ -1279,6 +1870,664 @@
           })(),
           end_date: '',
           placement_rest_pct: 0
+        });
+
+        // ---- 手动投放：设定投放规则（1:1 还原赛狐）----
+        //   关键词投放：建议 / 输入列表 / 关键词库 + 右侧「已添加 N 个投放」
+        //   商品投放：品类 / 商品（建议 / 搜索）
+        const adManualMode = computed(() => adSettings.value.targeting_type === 'manual');
+        const AD_MATCH_LABELS = { broad: '广泛', phrase: '词组', exact: '精准' };
+        const AD_MATCH_ORDER = ['broad', 'phrase', 'exact'];
+        const adKwMatchLabel = (m) => AD_MATCH_LABELS[m] || AD_MATCH_LABELS.broad;
+
+        const adTargetTab = ref('keyword');        // keyword | product
+        const adKwTab = ref('suggest');            // suggest | input | library
+        const adProductTab = ref('category');      // category | product
+        const adProductSub = ref('suggest');       // suggest | search
+
+        const adKwMatchChecks = ref({ broad: true, phrase: true, exact: true });
+        const adKwSearch = ref('');
+        const adKwBidFilter = ref('');             // '' | has | none
+        const adKwAba = ref(false);                // ABA搜索词排名-按周（勾选后出「搜索词排名 / 排名趋势」两列）
+        const adAbaPeriod = ref('WEEK');           // DAY | WEEK | MONTH | QUARTER
+        const adAbaPeriodOpen = ref(false);
+        const adAbaLoading = ref(false);
+        const adAbaPeriodOptions = [
+          { value: 'DAY', label: '按日' },
+          { value: 'WEEK', label: '按周' },
+          { value: 'MONTH', label: '月度' },
+          { value: 'QUARTER', label: '季度' }
+        ];
+        const adKwIllegalMode = ref('clear');      // clear | space | none
+        const adIllegalModeOptions = [
+          { value: 'clear', label: '直接清除' },
+          { value: 'space', label: '替换为空格' },
+          { value: 'none', label: '不做处理' }
+        ];
+        const adKwInputText = ref('');
+
+        // 赛狐「关键词组」固定 4 组（建议页第一张表）
+        const adThemeGroups = ref([
+          { key: 'category', title: 'Keywords related to your product category', cn: '与您的商品类别相关的关键词' },
+          { key: 'brand', title: 'Keywords from brands also considered by shoppers', cn: '顾客还会考虑品牌关键词' },
+          { key: 'gift', title: 'Keywords related to gifts', cn: '与礼物相关的关键词' },
+          { key: 'own_brand', title: 'Keywords related to your brand', cn: '与您的品牌相关的关键词' }
+        ]);
+
+        const adKwRows = ref([]);                  // [{keywordText, keywordTextCn, bids:{broad,phrase,exact}}]
+        const adKwTotal = ref(0);
+        const adKwPage = ref(1);
+        const adKwPageSize = ref(20);
+        const adKwLoading = ref(false);
+        const adKwBidLoading = ref(false);         // 建议竞价批量查询中
+        const adKwLoadedKey = ref('');             // 当前列表对应的 ASIN 集合（商品变了要重拉）
+        const adKwError = ref('');
+
+        const adLibRows = ref([]);                 // 本地词库 → 关键词库页签
+        const adLibSearch = ref('');
+        const adLibLoading = ref(false);
+
+        const adProductSearch = ref('');
+        const adProductRows = ref([]);
+        const adProductLoading = ref(false);
+
+        const adAdded = ref([]);                   // 已添加投放
+        let adAddedSeq = 1;
+
+        // 已选商品的 ASIN 见下方 adSelectedAsins（与「建议竞价」共用同一份）
+
+        const adVisibleMatches = computed(() => AD_MATCH_ORDER.filter((m) => adKwMatchChecks.value[m]));
+        const adKwPageCount = computed(() => Math.max(1, Math.ceil(adKwTotal.value / adKwPageSize.value)));
+        const adKwPageList = computed(() => {
+          const n = adKwPageCount.value;
+          const cur = adKwPage.value;
+          const start = Math.max(1, Math.min(cur - 2, n - 4));
+          const out = [];
+          for (let i = start; i < start + 5 && i <= n; i += 1) out.push(i);
+          return out;
+        });
+
+        const adKwFiltered = computed(() => {
+          const kw = adKwSearch.value.trim().toLowerCase();
+          return adKwRows.value.filter((row) => {
+            if (kw) {
+              const hay = `${row.keywordText} ${row.keywordTextCn || ''}`.toLowerCase();
+              if (!hay.includes(kw)) return false;
+            }
+            if (adKwBidFilter.value === 'has') return AD_MATCH_ORDER.some((m) => row.bids[m]);
+            if (adKwBidFilter.value === 'none') return !AD_MATCH_ORDER.some((m) => row.bids[m]);
+            return true;
+          });
+        });
+
+        // 关键词组（主题）建议竞价：赛狐口径 = 组内关键词竞价的平均值
+        //   「建议」接口只按类目推荐，整页关键词都挂在第一组「与您的商品类别相关的关键词」，
+        //   其余三组没有关键词 → 显示 '-'（与赛狐一致）。
+        const adThemeAvg = computed(() => {
+          const rows = adKwRows.value.filter((r) => r.bids && r.bids.broad);
+          const n = rows.length;
+          if (!n) return null;
+          const avg = (pick) => rows.reduce((acc, r) => acc + (Number(pick(r.bids.broad)) || 0), 0) / n;
+          const suggested = avg((b) => b.suggested);
+          if (!(suggested > 0)) return null;
+          return {
+            suggested,
+            rangeStart: avg((b) => b.rangeStart),
+            rangeEnd: avg((b) => b.rangeEnd)
+          };
+        });
+        const fmtThemeBid = (v, digits = 1) => (Number(v) > 0 ? `JP￥${Number(v).toFixed(digits)}` : '-');
+
+        const adLibFiltered = computed(() => {
+          const kw = adLibSearch.value.trim().toLowerCase();
+          if (!kw) return adLibRows.value;
+          return adLibRows.value.filter((r) =>
+            `${r.keywordText} ${r.keywordTextCn || ''}`.toLowerCase().includes(kw));
+        });
+
+        // ¥ 金额展示：赛狐口径保留 1 位小数，取不到显示 '-'
+        const fmtBid = (v) => (v === null || v === undefined || v === '' || Number(v) <= 0)
+          ? '-' : `JP￥${Number(v).toFixed(1)}`;
+        const fmtBidRange = (b) => (b && Number(b.rangeStart) > 0 && Number(b.rangeEnd) > 0)
+          ? `JP￥${Number(b.rangeStart).toFixed(1)} ~ JP￥${Number(b.rangeEnd).toFixed(1)}`
+          : '-';
+        // 预计周曝光量：赛狐 suggestBid 只回三档竞价、不回展示量估算 → 取不到显示 '-'（与原页面一致）
+        const fmtWeeklyImp = (b) => {
+          if (!b) return '-';
+          const raw = b.weeklyImpressions !== undefined && b.weeklyImpressions !== null
+            ? b.weeklyImpressions : b.impressions;
+          if (raw === null || raw === undefined || raw === '') return '-';
+          const n = Number(raw);
+          if (!Number.isFinite(n) || n < 0) return '-';
+          return n.toLocaleString('en-US');
+        };
+
+        // ---- ABA 搜索词排名 + 排名趋势（对齐赛狐：勾选后建议表/已添加表各多两列）----
+        //   接口：POST /api/adcreator/aba-rank-trend（转调赛狐 /api/search/terms/analysis/getTrend.json）
+        //   单值 = 最近一期排名；趋势 = list[].searchFrequencyRank（周维度约 13 个点，y 轴反转）
+        const adAbaMap = ref({});                   // 关键词 → {abaRank, rank, createTime, spark, big}
+        let adAbaSeq = 0;
+
+        const adAbaPeriodLabel = computed(() => {
+          const hit = adAbaPeriodOptions.find((o) => o.value === adAbaPeriod.value);
+          return (hit || adAbaPeriodOptions[1]).label;
+        });
+        const adAbaTrendTitle = computed(() => `排名趋势-${adAbaPeriodLabel.value}`);
+
+        // 表头/行共用同一套列宽（勾选 ABA 时在「关键词」后插入两列）
+        const adKwGridCols = computed(() => (adKwAba.value
+          ? 'minmax(120px,1fr) 86px 136px 66px 112px 96px 56px'
+          : '1fr 80px 112px 120px 56px'));
+        const adAddedKwGridCols = computed(() => (adKwAba.value
+          ? 'minmax(110px,1fr) 80px 120px 108px 56px 132px 48px'
+          : '1fr 112px 80px 136px 64px'));
+        const adAddedProdGridCols = '1fr 88px 88px 80px 136px 64px';
+
+        // 排名折线：赛狐用 ECharts（y 轴 inverse，排名越小越靠上），这里用等价的 SVG polyline
+        const buildAbaSpark = (list, w, h, pad) => {
+          const vals = (list || []).map((p) => {
+            const v = Number(p && p.searchFrequencyRank);
+            return Number.isFinite(v) && v > 0 ? v : null;
+          });
+          const valid = vals.filter((v) => v !== null);
+          if (!valid.length) return null;
+          const min = Math.min(...valid);
+          const max = Math.max(5, ...valid);
+          const span = Math.max(1, max - min);
+          const n = vals.length;
+          const xs = (i) => (n <= 1 ? w / 2 : pad + (i * (w - pad * 2)) / (n - 1));
+          const ys = (v) => pad + ((v - min) / span) * (h - pad * 2);
+          const segs = [];
+          let cur = [];
+          vals.forEach((v, i) => {
+            if (v === null) {
+              if (cur.length) segs.push(cur);
+              cur = [];
+              return;
+            }
+            cur.push([Number(xs(i).toFixed(1)), Number(ys(v).toFixed(1))]);
+          });
+          if (cur.length) segs.push(cur);
+          let line = '';
+          let area = '';
+          const dots = [];
+          segs.forEach((seg) => {
+            line += seg.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ');
+            area += `M${seg[0][0]},${h} `
+              + seg.map((p) => `L${p[0]},${p[1]}`).join(' ')
+              + ` L${seg[seg.length - 1][0]},${h} Z`;
+            dots.push(...seg);
+          });
+          return { line, area, dots };
+        };
+
+        const applyAbaToRows = () => {
+          const map = adAbaMap.value;
+          adKwRows.value.forEach((r) => { r.aba = map[r.keywordText] || null; });
+          adAdded.value.forEach((x) => {
+            if (x.type === 'keyword') x.aba = map[x.keywordText] || null;
+          });
+        };
+
+        const clearAba = () => {
+          adAbaMap.value = {};
+          adAbaSeq += 1;
+          applyAbaToRows();
+        };
+
+        const abaKeywords = () => {
+          const set = new Set();
+          adKwRows.value.forEach((r) => { if (r.keywordText) set.add(r.keywordText); });
+          adAdded.value.forEach((x) => {
+            if (x.type === 'keyword' && x.keywordText) set.add(x.keywordText);
+          });
+          return [...set];
+        };
+
+        const loadAbaRank = async () => {
+          const keywords = abaKeywords();
+          if (!adKwAba.value || !keywords.length) {
+            clearAba();
+            return;
+          }
+          const missing = keywords.filter((k) => !adAbaMap.value[k]);
+          if (!missing.length) {
+            applyAbaToRows();
+            return;
+          }
+          const seq = ++adAbaSeq;
+          adAbaLoading.value = true;
+          try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 20000);
+            let res = null;
+            try {
+              res = await fetch('/api/adcreator/aba-rank-trend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  shop: adShop.value || '',
+                  keywords: missing,
+                  period_type: adAbaPeriod.value
+                }),
+                signal: ctrl.signal
+              });
+            } finally {
+              clearTimeout(timer);
+            }
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(res.status === 404
+                ? '后端未加载「ABA搜索词排名」接口，请重启 python run.py 后再试'
+                : (d.detail || 'ABA搜索词排名获取失败'));
+            }
+            if (seq !== adAbaSeq) return;
+            const items = d.items || {};
+            const next = { ...adAbaMap.value };
+            missing.forEach((term) => {
+              const it = items[term];
+              if (!it) return;
+              next[term] = {
+                abaRank: it.abaRank || null,
+                rank: it.rank || null,
+                createTime: it.createTime || '',
+                spark: buildAbaSpark(it.list, 120, 30, 2),
+                big: buildAbaSpark(it.list, 240, 72, 6)
+              };
+            });
+            adAbaMap.value = next;
+            applyAbaToRows();
+          } catch (e) {
+            if (seq === adAbaSeq) {
+              const msg = (e && e.name === 'AbortError') ? '请求超时' : (e.message || '接口异常');
+              showToast(`ABA搜索词排名获取失败：${msg}`);
+            }
+          } finally {
+            if (seq === adAbaSeq) adAbaLoading.value = false;
+          }
+        };
+
+        // 勾选/取消、切换周期 → 重新取数；新增已添加关键词 → 补齐
+        watch(adKwAba, (on) => {
+          if (!on) {
+            adAbaPeriodOpen.value = false;
+            clearAba();
+            return;
+          }
+          loadAbaRank();
+        });
+        watch(adAbaPeriod, () => {
+          clearAba();
+          if (adKwAba.value) loadAbaRank();
+        });
+        watch(() => adAdded.value.length, () => {
+          if (adKwAba.value) loadAbaRank();
+        });
+
+        // ---- 已添加投放 ----
+        const isThemeAdded = (g) => adAdded.value.some((x) => x.type === 'theme' && x.keywordText === g.title);
+        const isKwAdded = (text, match) => adAdded.value.some(
+          (x) => x.type === 'keyword' && x.keywordText === text && x.matchType === match);
+        const isProductAdded = (asin) => adAdded.value.some(
+          (x) => x.type === 'product' && x.asin === asin);
+
+        const pushKeyword = (keywordText, keywordTextCn, matchType, bidInfo) => {
+          if (!keywordText || isKwAdded(keywordText, matchType)) return false;
+          const b = bidInfo || null;
+          const suggested = b && Number(b.suggested) > 0 ? Number(b.suggested) : null;
+          adAdded.value.push({
+            id: adAddedSeq++, type: 'keyword',
+            keywordText, keywordTextCn: keywordTextCn || '', matchType,
+            suggested,
+            rangeStart: b && Number(b.rangeStart) > 0 ? Number(b.rangeStart) : null,
+            rangeEnd: b && Number(b.rangeEnd) > 0 ? Number(b.rangeEnd) : null,
+            bid: suggested
+          });
+          return true;
+        };
+
+        const addKeyword = (row, match) => {
+          const ok = pushKeyword(row.keywordText, row.keywordTextCn, match, row.bids[match]);
+          if (ok) ensureBidsForPending();   // 该词还没有建议竞价时, 点「添加」立刻联动查询
+        };
+        // 关键词库：一行一次加入（按当前勾选的匹配类型全加）
+        const kwAllAdded = (text) => {
+          const ms = adVisibleMatches.value;
+          return ms.length > 0 && ms.every((m) => isKwAdded(text, m));
+        };
+        const addLibraryRow = (row) => {
+          adVisibleMatches.value.forEach((m) => pushKeyword(row.keywordText, row.keywordTextCn, m, null));
+          ensureBidsForPending();
+        };
+        const addTheme = (g) => {
+          if (isThemeAdded(g)) return;
+          adAdded.value.push({
+            id: adAddedSeq++, type: 'theme',
+            keywordText: g.title, keywordTextCn: g.cn, matchType: '',
+            suggested: null, rangeStart: null, rangeEnd: null, bid: null
+          });
+        };
+        const addAllThemes = () => adThemeGroups.value.forEach(addTheme);
+        const addAllKeywords = () => {
+          adKwFiltered.value.forEach((row) => {
+            adVisibleMatches.value.forEach((m) => addKeyword(row, m));
+          });
+        };
+        const addAllLibraryKeywords = () => {
+          adLibFiltered.value.forEach((row) => {
+            adVisibleMatches.value.forEach((m) => pushKeyword(row.keywordText, row.keywordTextCn, m, null));
+          });
+          ensureBidsForPending();
+        };
+        const addAllProductTargets = () => adProductRows.value.forEach(addProductTarget);
+        const applyAddedBid = (x, level) => {
+          if (!level) return;
+          if (level === 'low') x.bid = x.rangeStart || x.suggested || x.bid;
+          else if (level === 'high') x.bid = x.rangeEnd || x.suggested || x.bid;
+          else x.bid = x.suggested || x.bid;
+        };
+        // 右侧列表只显示当前投放方式的投放（与赛狐一致：关键词 / 品类&商品 各自成表）
+        const adAddedVisible = computed(() => adAdded.value.filter((x) =>
+          adTargetTab.value === 'product' ? x.type === 'product' : x.type !== 'product'));
+        const removeAddedTarget = (target) => {
+          const id = target && typeof target === 'object' ? target.id : target;
+          const i = adAdded.value.findIndex((x) => x.id === id);
+          if (i >= 0) adAdded.value.splice(i, 1);
+        };
+        const clearAdded = () => {
+          adAdded.value = adAdded.value.filter((x) =>
+            adTargetTab.value === 'product' ? x.type !== 'product' : x.type === 'product');
+        };
+
+        // ---- 推荐关键词（赛狐「建议」页签）----
+        const loadSuggestKeywords = async (page = 1) => {
+          const asins = adSelectedAsins.value;
+          const asinKey = [...asins].sort().join(',');
+          adKwError.value = '';
+          if (!asins.length) {
+            adKwRows.value = [];
+            adKwTotal.value = 0;
+            adKwLoadedKey.value = '';
+            adKwError.value = '请先在「添加推广的广告产品」里选择商品';
+            return;
+          }
+          adKwLoading.value = true;
+          try {
+            const q = new URLSearchParams({
+              shop: adShop.value || '',
+              asins: asins.join(','),
+              page_no: String(Math.max(1, page)),
+              page_size: String(adKwPageSize.value),
+              search_val: adKwSearch.value.trim()
+            });
+            const res = await fetch(`/api/adcreator/suggest-keywords?${q}`);
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(res.status === 404
+                ? '后端未加载「推荐关键词」接口，请重启 python run.py 后再试'
+                : (d.detail || '推荐关键词获取失败'));
+            }
+            const list = d.keywordList || [];
+            const map = new Map();
+            list.forEach((it) => {
+              const text = String(it.keywordText || '').trim();
+              if (!text) return;
+              if (!map.has(text)) {
+                map.set(text, {
+                  keywordText: text,
+                  keywordTextCn: it.keywordTextCn || '',
+                  bids: { broad: null, phrase: null, exact: null }
+                });
+              }
+            });
+            adKwRows.value = [...map.values()];
+            adKwTotal.value = Number(d.totalSize || 0);
+            adKwPage.value = Number(d.pageNo || page);
+            adKwLoadedKey.value = asinKey;      // 这批关键词属于哪组 ASIN
+            await loadKeywordBids();
+            if (adKwAba.value) await loadAbaRank();   // 勾了 ABA 排名：换关键词后同步补排名/趋势
+          } catch (e) {
+            adKwRows.value = [];
+            adKwTotal.value = 0;
+            adKwLoadedKey.value = '';
+            adKwError.value = e.message || '推荐关键词获取失败';
+          } finally {
+            adKwLoading.value = false;
+          }
+        };
+
+        // ---- 建议竞价（关键词 × 匹配类型）：分批并发查询 + 逐批回填 ----
+        //     赛狐一次传太多会明显变慢甚至超时，按 20 条一批、最多 3 批并发，
+        //     任意一批返回就立刻回填（用户不用等全部批次）；
+        //     单批 15s 超时 + 失败重试一次，失败原因用 toast 暴露。
+        const BID_CHUNK = 20;
+        const BID_CONCURRENCY = 3;
+
+        const requestBidChunk = async (slice) => {
+          const url = '/api/adcreator/keyword-bids';
+          const body = JSON.stringify({
+            shop: adShop.value || '',
+            asins: adSelectedAsins.value,
+            keywords: slice,
+            bidding_strategy: adSettings.value.bidding_strategy
+          });
+          const call = async () => {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 15000);
+            try {
+              return await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+                signal: ctrl.signal
+              });
+            } finally {
+              clearTimeout(timer);
+            }
+          };
+          let res = null;
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            try {
+              res = await call();
+              if (res.ok) break;
+            } catch (e) {
+              if (attempt === 1) {
+                throw (e && e.name === 'AbortError')
+                  ? new Error('建议竞价请求超时') : e;
+              }
+            }
+            if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+          }
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(res.status === 404
+              ? '后端未加载「建议竞价」接口，请重启 python run.py 后再试'
+              : (d.detail || `建议竞价接口 ${res.status}`));
+          }
+          return d.keywords || [];
+        };
+
+        const postKeywordBids = async (keywords, onChunk) => {
+          const chunks = [];
+          for (let i = 0; i < keywords.length; i += BID_CHUNK) {
+            chunks.push(keywords.slice(i, i + BID_CHUNK));
+          }
+          const out = [];
+          let cursor = 0;
+          let firstError = null;
+          const worker = async () => {
+            while (cursor < chunks.length) {
+              const slice = chunks[cursor];
+              cursor += 1;
+              try {
+                const items = await requestBidChunk(slice);
+                out.push(...items);
+                if (onChunk) onChunk(items);      // 每批到货立刻回填
+              } catch (e) {
+                if (!firstError) firstError = e;
+              }
+            }
+          };
+          const n = Math.min(BID_CONCURRENCY, chunks.length);
+          await Promise.all(Array.from({ length: n }, worker));
+          if (firstError && !out.length) throw firstError;
+          return out;
+        };
+
+        // 回填：右侧「已添加」行 + 左侧建议表同关键词同匹配类型
+        const applyBidItems = (items) => {
+          if (!items || !items.length) return;
+          const byKey = new Map();
+          items.forEach((k) => byKey.set(`${k.keywordText}||${k.matchType}`, k));
+          const rowMap = new Map(adKwRows.value.map((r) => [r.keywordText, r]));
+          items.forEach((b) => {
+            const row = rowMap.get(b.keywordText);
+            if (row && b.matchType in row.bids) row.bids[b.matchType] = b;
+          });
+          adAdded.value.forEach((x) => {
+            if (x.type !== 'keyword') return;
+            const b = byKey.get(`${x.keywordText}||${x.matchType}`);
+            if (!b) return;
+            x.suggested = Number(b.suggested) || null;
+            x.rangeStart = Number(b.rangeStart) || null;
+            x.rangeEnd = Number(b.rangeEnd) || null;
+            if (!x.bid) x.bid = x.suggested;
+          });
+        };
+
+        // 进入「建议」页：把当前页关键词的建议竞价补全（逐批回填）
+        const loadKeywordBids = async () => {
+          const keywords = [];
+          adKwRows.value.forEach((r) => AD_MATCH_ORDER.forEach((m) => {
+            keywords.push({ keywordText: r.keywordText, matchType: m });
+          }));
+          if (!keywords.length) return;
+          adKwBidLoading.value = true;
+          try {
+            await postKeywordBids(keywords, applyBidItems);
+          } catch (e) {
+            showToast(`建议竞价查询失败：${e.message || '接口异常'}`);
+          } finally {
+            adKwBidLoading.value = false;
+          }
+        };
+
+        // 点击「添加」/ 录入关键词后：立即联动查询这些关键词的建议竞价
+        const ensureBidsForPending = async () => {
+          const pending = adAdded.value.filter(
+            (x) => x.type === 'keyword' && !x.suggested && !x.bidLoading);
+          if (!pending.length) return;
+          pending.forEach((x) => { x.bidLoading = true; });
+          try {
+            const items = await postKeywordBids(
+              pending.map((x) => ({ keywordText: x.keywordText, matchType: x.matchType })),
+              applyBidItems);
+            const got = new Set(items.map((k) => `${k.keywordText}||${k.matchType}`));
+            const miss = pending.filter((x) => !got.has(`${x.keywordText}||${x.matchType}`));
+            if (!items.length) {
+              showToast('赛狐未返回建议竞价，可直接填写竞价');
+            } else if (miss.length) {
+              showToast(`${miss.length} 个关键词无建议竞价，可直接填写竞价`);
+            }
+          } catch (e) {
+            showToast(`建议竞价查询失败：${e.message || '接口异常'}`);
+          } finally {
+            pending.forEach((x) => { x.bidLoading = false; });
+          }
+        };
+
+        // ---- 输入列表：按赛狐「非法字符处理方式」清洗后批量加入 ----
+        const sanitizeTargetKeyword = (text) => {
+          if (adKwIllegalMode.value === 'clear') return text.replace(ILLEGAL_KW_CHARS, '');
+          if (adKwIllegalMode.value === 'space') {
+            return text.replace(ILLEGAL_KW_CHARS, ' ').replace(/\s+/g, ' ').trim();
+          }
+          return text;
+        };
+        const parseInputKeywords = () => {
+          const raw = (adKwInputText.value || '').trim();
+          if (!raw) return;
+          const items = raw
+            .split(/[\n,，、;；]+/)
+            .map((s) => sanitizeTargetKeyword(s.trim()))
+            .filter(Boolean);
+          let added = 0;
+          items.forEach((text) => {
+            adVisibleMatches.value.forEach((m) => {
+              if (pushKeyword(text, '', m, null)) added += 1;
+            });
+          });
+          adKwInputText.value = '';
+          if (added) {
+            showToast(`已添加 ${added} 个投放`);
+            ensureBidsForPending();
+          } else if (items.length) {
+            showToast('关键词均已存在，未重复添加');
+          }
+        };
+
+        // ---- 关键词库（本地词库）----
+        const loadKeywordLibrary = async () => {
+          adLibLoading.value = true;
+          try {
+            const res = await fetch('/api/adcreator/dictionary');
+            const d = await res.json().catch(() => ({}));
+            const entries = d.entries || [];
+            adLibRows.value = entries
+              .map((e) => ({
+                keywordText: String(e.ja || '').trim(),
+                keywordTextCn: String(e.zh || '').trim()
+              }))
+              .filter((r) => r.keywordText);
+          } catch (e) {
+            adLibRows.value = [];
+          } finally {
+            adLibLoading.value = false;
+          }
+        };
+
+        // ---- 商品投放：按 ASIN 搜索 ----
+        const searchTargetProducts = async () => {
+          const kw = (adProductSearch.value || '').trim();
+          if (!kw) { showToast('请输入 ASIN'); return; }
+          adProductLoading.value = true;
+          try {
+            const q = new URLSearchParams({ shop: adShop.value || '', kw });
+            const res = await fetch(`/api/adcreator/search-asins-for-targeting?${q}`);
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(d.detail || '搜索失败');
+            adProductRows.value = (d.items || []).filter((x) => x.found);
+          } catch (e) {
+            adProductRows.value = [];
+            showToast(e.message || '搜索失败');
+          } finally {
+            adProductLoading.value = false;
+          }
+        };
+        const addProductTarget = (p) => {
+          if (!p || !p.asin || isProductAdded(p.asin)) return;
+          adAdded.value.push({
+            id: adAddedSeq++, type: 'product',
+            asin: p.asin,
+            keywordText: p.title || p.asin,
+            keywordTextCn: p.sku || '',
+            matchType: '', suggested: null, rangeStart: null, rangeEnd: null, bid: null
+          });
+        };
+
+        // 进入手动投放 / 切页签时自动拉数据（与赛狐一致：建议页默认加载）
+        //   用 ASIN 集合做「数据版本」：商品选过又换了，切回建议页也会重拉
+        watch([adManualMode, adTargetTab, adKwTab], () => {
+          if (!adManualMode.value) return;
+          const asinKey = [...adSelectedAsins.value].sort().join(',');
+          if (adTargetTab.value === 'keyword' && adKwTab.value === 'suggest'
+              && asinKey && asinKey !== adKwLoadedKey.value && !adKwLoading.value) {
+            loadSuggestKeywords(1);
+          }
+          if (adTargetTab.value === 'keyword' && adKwTab.value === 'library'
+              && !adLibRows.value.length && !adLibLoading.value) {
+            loadKeywordLibrary();
+          }
         });
 
         // ---- 设定否定投放（复刻赛狐：左输入 / 右已添加列表）----
@@ -1779,6 +3028,21 @@
 
         const adSelectedAsins = computed(() =>
           adSelected.value.flatMap(p => adKids(p).map(c => c.asin)).filter(Boolean));
+        // 手动投放「建议」页签：已选商品变化 → 清掉旧商品的推荐结果，
+        // 若正在建议页则立刻按新 ASIN 重拉（否则等切回建议页时再拉）。
+        watch(adSelectedAsins, (list) => {
+          if (!adManualMode.value) return;
+          const key = [...list].sort().join(',');
+          if (key === adKwLoadedKey.value) return;
+          adKwRows.value = [];
+          adKwTotal.value = 0;
+          adKwPage.value = 1;
+          adKwLoadedKey.value = '';
+          adKwError.value = '';
+          if (adTargetTab.value === 'keyword' && adKwTab.value === 'suggest' && list.length) {
+            loadSuggestKeywords(1);
+          }
+        });
         const adSuggestKey = computed(() => [
           adShop.value, adSettings.value.bidding_strategy,
           adSettings.value.placement_top_pct, adSettings.value.placement_rest_pct,
@@ -1914,8 +3178,9 @@
           return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
         };
 
+        // 与后端一致：auto → 父SKU_品名_自动_日期 / manual → 父SKU_品名_手动_日期
         const adCampaignName = (c) =>
-          `${c.parent_sku}_${c.product_name || '商品'}_自动_${adToday()}`;
+          `${c.parent_sku}_${c.product_name || '商品'}_${adManualMode.value ? '手动' : '自动'}_${adToday()}`;
 
         // 否定关键词：英文标点按「非法字符处理方式」清洗
         const ILLEGAL_KW_CHARS = /[!@#$%^&*()\-_=+\[\]{}|\\/:;",.<>?~`'’“”「」]/g;
@@ -2042,6 +3307,10 @@
           adNegAsins.value = [];
           adNegKeywordInput.value = '';
           adNegAsinInputText.value = '';
+          adAdded.value = [];
+          adKwInputText.value = '';
+          adProductRows.value = [];
+          adProductSearch.value = '';
           adSettings.value = { ...adSettings.value, campaign_name: '', ad_group_name: '' };
           resetSuggestBids();
           showToast('已清空当前广告创建表单');
@@ -2164,6 +3433,12 @@
         const createRecords = async () => {
           const list = adCampaigns.value;
           if (!list.length) { showToast('请先勾选要投放的商品'); return; }
+          // 手动投放必须有至少 1 个关键词，否则活动建出来没有任何投放
+          if (adManualMode.value
+              && !adAdded.value.some(x => x.type === 'keyword' || x.type === 'product')) {
+            showToast('手动投放请先在「设定投放规则」添加关键词或商品');
+            return;
+          }
           adExporting.value = true;
           try {
             const budgets = adBudgetMap.value;
@@ -2181,6 +3456,16 @@
                 include_targeting: adSettings.value.include_targeting
                   && adTargetingRows.value.some(r => r.enabled),
                 targeting_types: adTargetingRows.value.filter(r => r.enabled).map(r => r.pred),
+                // 投放方式：auto = 自动投放 4 组 / manual = 手动关键词（后端 target_mode 兼容 targeting_type）
+                targeting_mode: adSettings.value.targeting_type,
+                manual_keywords: adManualMode.value
+                  ? adAdded.value.filter(x => x.type === 'keyword')
+                      .map(x => ({ keywordText: x.keywordText, matchType: x.matchType, bid: x.bid }))
+                  : [],
+                manual_targets: adManualMode.value
+                  ? adAdded.value.filter(x => x.type === 'product').map(x => ({ asin: x.asin }))
+                  : [],
+                manual_keyword_bid: adSettings.value.default_bid,
                 negative_keywords: adNegKeywords.value,
                 negative_asins: adNegAsins.value,
                 negative_level: 'campaign'
@@ -2578,6 +3863,21 @@
           adShop, adShopData, adProducts, adFiltered, adSelected, adProductCount,
           isAllAdSelected, toggleAdSelectAll, adSearch,
           adGranularity, adSettings, adBudgetMode, adSingleBudget, adPoolBudget,
+          adManualMode, adKwMatchLabel, adTargetTab, adKwTab, adProductTab, adProductSub,
+          adKwMatchChecks, adKwSearch, adKwBidFilter, adKwAba, adKwIllegalMode,
+          adAbaPeriod, adAbaPeriodOpen, adAbaLoading, adAbaPeriodOptions,
+          adAbaPeriodLabel, adAbaTrendTitle, adKwGridCols, adAddedKwGridCols,
+          adAddedProdGridCols, loadAbaRank,
+          adIllegalModeOptions, adKwInputText, adThemeGroups, adKwRows, adKwTotal,
+          adKwPage, adKwPageSize, adKwLoading, adKwBidLoading, adKwError,
+          adKwPageCount, adKwPageList,
+          adKwFiltered, adVisibleMatches, adLibRows, adLibSearch, adLibLoading, adLibFiltered,
+          adThemeAvg, fmtThemeBid,
+          adProductSearch, adProductRows, adProductLoading, adAdded, adAddedVisible,
+          isThemeAdded, isKwAdded, isProductAdded, addKeyword, addTheme, addAllThemes,
+          addAllKeywords, addLibraryRow, kwAllAdded, addAllLibraryKeywords, addAllProductTargets,
+          applyAddedBid, removeAddedTarget, clearAdded, loadSuggestKeywords, loadKeywordLibrary,
+          parseInputKeywords, searchTargetProducts, addProductTarget, fmtBid, fmtBidRange, fmtWeeklyImp,
           adCampaigns, adTotalBudget, adCampaignName, adExporting, createRecords, bidExample,
           adView, openCreateView, backToList,
           adPortfolios, adPortfolioLoading, adPortfolioNote, loadAdPortfolios,
