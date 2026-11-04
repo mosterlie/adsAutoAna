@@ -84,62 +84,132 @@ def products(date: str = Query(...), keyword: str = "", limit: int = 500) -> Dic
     return {"date": date, "products": [dict(r) for r in rows]}
 
 
-@router.get("/detail")
-def detail(date: str = Query(...), product_code: int = Query(...)) -> Dict[str, Any]:
-    conn = fdb.get_conn()
-    try:
-        prod = conn.execute(
-            "SELECT * FROM dim_product WHERE product_code = ?", (product_code,)).fetchone()
-        if not prod:
-            raise HTTPException(404, "产品不存在")
+def _sum_metrics(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """合计：原始指标相加，比率指标重算（不能把各路 CTR/ACOS 直接相加）"""
+    imp = sum(int(m.get("impressions") or 0) for m in items)
+    clk = sum(int(m.get("clicks") or 0) for m in items)
+    cost = sum(float(m.get("cost") or 0) for m in items)
+    orders = sum(int(m.get("orders") or 0) for m in items)
+    sales = sum(float(m.get("sales") or 0) for m in items)
+    return {
+        "impressions": imp, "clicks": clk, "cost": round(cost, 2),
+        "orders": orders, "sales": round(sales, 2),
+        "ctr": round(clk / imp * 100, 2) if imp else 0.0,
+        "cpc": round(cost / clk, 2) if clk else 0.0,
+        "acos": round(cost / sales * 100, 2) if sales else 0.0,
+        "roas": round(sales / cost, 2) if cost else 0.0,
+        "cvr": round(orders / clk * 100, 2) if clk else 0.0,
+        "addToCart": 0, "detailPageViews": 0,
+    }
 
-        camp = conn.execute(
-            "SELECT name, state FROM dim_campaign WHERE campaign_id = ?",
-            (prod["campaign_id"],)).fetchone()
-        grp = conn.execute(
-            "SELECT name, state FROM dim_ad_group WHERE ad_group_id = ?",
-            (prod["ad_group_id"],)).fetchone()
 
-        systems = []
-        for system_code, key, label, code_col, fixed_name in SYSTEMS:
-            table = fdb.TABLES[system_code]
-            names = {int(r["item_code"]): r["item_name"] for r in conn.execute(
-                "SELECT item_code, item_name FROM dim_dict"
-                " WHERE field_code = ? AND parent_code = ?", (fdb.FIELD_SUBCAT, system_code))}
-            codes = []
-            wanted = [1] if fixed_name else sorted(names)
-            for code in wanted:
-                cond = "stat_date=? AND product_code=?" + (
-                    f" AND {code_col}=?" if code_col else "")
-                args = (date, product_code, code) if code_col else (date, product_code)
-                day = conn.execute(
-                    f"SELECT * FROM {table} WHERE {cond} AND hour=-1", args).fetchone()
-                if day is None and fixed_name:
-                    continue
-                hours_raw = {int(r["hour"]): r for r in conn.execute(
-                    f"SELECT * FROM {table} WHERE {cond} AND hour>=0", args)}
-                hours = [_row_metrics(hours_raw.get(h)) for h in range(24)]
-                codes.append({
-                    "code": code,
-                    "name": names.get(code, fixed_name or str(code)),
-                    "day": _row_metrics(day),
-                    "hours": hours,
-                })
-            if not codes:
+def _detail_one(conn: Any, date: str, product_code: int) -> Dict[str, Any]:
+    """单日三体系明细（hour 长度 24）"""
+    prod = conn.execute(
+        "SELECT * FROM dim_product WHERE product_code = ?", (product_code,)).fetchone()
+    if not prod:
+        raise HTTPException(404, "产品不存在")
+
+    camp = conn.execute(
+        "SELECT name, state FROM dim_campaign WHERE campaign_id = ?",
+        (prod["campaign_id"],)).fetchone()
+    grp = conn.execute(
+        "SELECT name, state FROM dim_ad_group WHERE ad_group_id = ?",
+        (prod["ad_group_id"],)).fetchone()
+
+    systems = []
+    for system_code, key, label, code_col, fixed_name in SYSTEMS:
+        table = fdb.TABLES[system_code]
+        names = {int(r["item_code"]): r["item_name"] for r in conn.execute(
+            "SELECT item_code, item_name FROM dim_dict"
+            " WHERE field_code = ? AND parent_code = ?", (fdb.FIELD_SUBCAT, system_code))}
+        codes = []
+        wanted = [1] if fixed_name else sorted(names)
+        for code in wanted:
+            cond = "stat_date=? AND product_code=?" + (
+                f" AND {code_col}=?" if code_col else "")
+            args = (date, product_code, code) if code_col else (date, product_code)
+            day = conn.execute(
+                f"SELECT * FROM {table} WHERE {cond} AND hour=-1", args).fetchone()
+            if day is None and fixed_name:
                 continue
-            total = {k: round(sum(c["day"][k] for c in codes), 2) for k in CORE}
-            systems.append({"key": key, "label": label, "codes": codes, "total": total})
-
-        overall = systems[0]["total"] if systems else _row_metrics(None)
-    finally:
-        conn.close()
+            hours_raw = {int(r["hour"]): r for r in conn.execute(
+                f"SELECT * FROM {table} WHERE {cond} AND hour>=0", args)}
+            hours = [_row_metrics(hours_raw.get(h)) for h in range(24)]
+            codes.append({
+                "code": code,
+                "name": names.get(code, fixed_name or str(code)),
+                "day": _row_metrics(day),
+                "hours": hours,
+            })
+        if not codes:
+            continue
+        systems.append({"key": key, "label": label, "codes": codes,
+                        "total": _sum_metrics([c["day"] for c in codes])})
 
     return {
-        "date": date,
         "product": dict(prod),
         "campaign": dict(camp) if camp else {},
         "ad_group": dict(grp) if grp else {},
+        "systems": systems,
+        "overall": systems[0]["total"] if systems else _row_metrics(None),
+    }
+
+
+@router.get("/detail")
+def detail(date: str = "", dates: str = "", product_code: int = Query(...)) -> Dict[str, Any]:
+    """单日：date=2026-11-03；多日：dates=2026-11-02,2026-11-03（连续小时轴）"""
+    day_list = sorted({d.strip() for d in (dates or date).split(",") if d.strip()})
+    if not day_list:
+        raise HTTPException(400, "缺少日期参数 date 或 dates")
+
+    conn = fdb.get_conn()
+    try:
+        per_day = [_detail_one(conn, d, product_code) for d in day_list]
+    finally:
+        conn.close()
+
+    axis = [{"date": d, "hour": h, "label": f"{h:02d}"} for d in day_list for h in range(24)]
+    for i, a in enumerate(axis):
+        a["idx"] = i
+
+    systems: List[Dict[str, Any]] = []
+    base_keys = [s["key"] for s in per_day[0]["systems"]]
+    for key in base_keys:
+        label = next(s["label"] for s in per_day[0]["systems"] if s["key"] == key)
+        codes_by_day = []
+        for one in per_day:
+            sys_one = next((s for s in one["systems"] if s["key"] == key), None)
+            codes_by_day.append({c["code"]: c for c in (sys_one["codes"] if sys_one else [])})
+
+        codes = []
+        for code in sorted({c for m in codes_by_day for c in m}):
+            name, hours, days = "", [], []
+            for m in codes_by_day:
+                c = m.get(code)
+                if c:
+                    name = name or c["name"]
+                    hours += c["hours"]
+                    days.append(c["day"])
+                else:
+                    hours += [_row_metrics(None) for _ in range(24)]
+                    days.append(_row_metrics(None))
+            codes.append({"code": code, "name": name,
+                          "day": _sum_metrics(days), "hours": hours})
+        if not codes:
+            continue
+        systems.append({"key": key, "label": label, "codes": codes,
+                        "total": _sum_metrics([c["day"] for c in codes])})
+
+    first = per_day[0]
+    return {
+        "dates": day_list,
+        "date": day_list[-1],
+        "product": first["product"],
+        "campaign": first["campaign"],
+        "ad_group": first["ad_group"],
+        "axis": axis,
         "hour_axis": [f"{h:02d}" for h in range(24)],
         "systems": systems,
-        "overall": overall,
+        "overall": systems[0]["total"] if systems else _row_metrics(None),
     }

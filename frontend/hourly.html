@@ -19,6 +19,29 @@ body{background:var(--bg)}
 .hfilter .fld.grow{flex:1;min-width:260px}
 .hfilter select{max-width:420px}
 
+/* 广告产品：可输入筛选的下拉框（产品多时靠 select 找不动） */
+.combo{position:relative;flex:1;min-width:240px}
+.combo > input{width:100%;height:30px;border:1px solid var(--bd-d);border-radius:4px;
+  padding:0 26px 0 8px;font-size:13px;color:var(--txt);background:#fff}
+.combo > input:focus{outline:none;border-color:var(--blue)}
+.combo::after{content:"▾";position:absolute;right:9px;top:50%;transform:translateY(-50%);
+  color:var(--muted);font-size:11px;pointer-events:none}
+.combo-list{position:absolute;top:100%;left:0;right:0;z-index:60;margin-top:4px;background:#fff;
+  border:1px solid var(--bd-d);border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.12);
+  max-height:300px;overflow:auto}
+.combo-item{padding:7px 10px;font-size:12.5px;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combo-item:hover{background:var(--blue-l);color:var(--blue)}
+.combo-item.on{background:var(--blue-l);color:var(--blue);font-weight:600}
+.combo-empty{padding:10px;color:var(--muted);font-size:12px;text-align:center}
+
+/* 日期多选：只做下拉勾选，选完点空白处收起 */
+.combo-date{flex:0 0 auto;width:220px}
+.combo-date > input{cursor:pointer}
+.combo-item.check{display:flex;align-items:center;gap:7px}
+.combo-item.check input{accent-color:var(--blue);cursor:pointer}
+.combo-item.check span{flex:1}
+
 /* KPI */
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px}
 .kpi{background:#fff;border:1px solid var(--bd);border-radius:4px;padding:12px 14px}
@@ -46,9 +69,12 @@ body{background:var(--bg)}
 .legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-2)}
 .legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
 
-/* 堆叠柱 */
-.bars{display:flex;align-items:flex-end;gap:4px;height:170px;padding-top:6px}
-.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+/* 堆叠柱（多天时按天分组，组间留白，时间轴仍连续） */
+.bars{display:flex;align-items:flex-end;gap:18px;height:170px;padding-top:6px}
+.daygrp{display:flex;align-items:flex-end;gap:4px;flex:1;min-width:0;height:100%}
+.daylabels{display:flex;gap:18px;margin-top:3px}
+.daylabels span{flex:1;text-align:center;font-size:11px;color:var(--muted)}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;min-width:0}
 .stack{flex:1;width:100%;display:flex;flex-direction:column-reverse;justify-content:flex-start;
   border-radius:2px;overflow:hidden;background:#f7f8fa;position:relative}
 /* 注意: 不能叫 .seg, 会与顶栏分段控件的 .seg 冲突(把该控件撑成 100% 宽) */
@@ -61,6 +87,8 @@ body{background:var(--bg)}
 .dtable th,.dtable td{border-bottom:1px solid #f0f1f4;padding:5px 6px;text-align:right;white-space:nowrap}
 .dtable th:first-child,.dtable td:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
 .dtable thead th{background:#fafbfc;color:var(--txt-2);font-weight:500;position:sticky;top:0}
+/* 多天表头两行：第二行（小时）贴着第一行（日期）粘住 */
+.dtable thead tr:nth-child(2) th{top:29px}
 .dtable tbody tr:hover td{background:#f7faff}
 .dtable .zero{color:#c8ccd4}
 .tbl-wrap{overflow:auto;max-height:280px;border:1px solid var(--bd);border-radius:4px}
@@ -108,17 +136,31 @@ body{background:var(--bg)}
     <div class="hfilter">
       <div class="fld">
         <label>日期</label>
-        <select v-model="date" @change="onDateChange">
-          <option v-for="d in dates" :key="d" :value="d">{{ d }}</option>
-        </select>
+        <div class="combo combo-date" v-click-outside="() => dateOpen = false">
+          <input readonly :value="dateText" placeholder="选择日期"
+                 @click="dateOpen = !dateOpen">
+          <div class="combo-list" v-if="dateOpen">
+            <label class="combo-item check" v-for="d in dates" :key="d">
+              <input type="checkbox" :value="d" v-model="selectedDates" @change="onDatesChange">
+              <span>{{ d }}</span>
+            </label>
+          </div>
+        </div>
       </div>
       <div class="fld grow">
         <label>广告产品</label>
-        <select v-model="productCode" @change="loadDetail" style="flex:1">
-          <option v-for="p in products" :key="p.product_code" :value="p.product_code">
-            {{ p.sku }} / {{ p.asin }} · 曝光 {{ fmt(p.imp) }}
-          </option>
-        </select>
+        <div class="combo" v-click-outside="() => comboOpen = false">
+          <input v-model="productKw" :placeholder="currentProductText"
+                 @focus="comboOpen = true" @input="comboOpen = true">
+          <div class="combo-list" v-if="comboOpen">
+            <div class="combo-item" v-for="p in filteredProducts" :key="p.product_code"
+                 :class="{on: String(p.product_code) === String(productCode)}"
+                 @click="pickProduct(p)">
+              {{ p.sku }} / {{ p.asin }} · 曝光 {{ fmt(p.imp) }}
+            </div>
+            <div class="combo-empty" v-if="!filteredProducts.length">无匹配产品</div>
+          </div>
+        </div>
       </div>
       <div class="fld">
         <label>指标</label>
@@ -148,13 +190,13 @@ body{background:var(--bg)}
             <span v-if="detail.product.portfolio_name">组合 {{ detail.product.portfolio_name }}</span>
           </div>
         </div>
-        <div class="sub" style="color:var(--muted);font-size:12px">{{ detail.date }} · 24 小时</div>
+        <div class="sub" style="color:var(--muted);font-size:12px">{{ dateSummary }}</div>
       </div>
 
       <!-- KPI -->
       <div class="kpis">
         <div class="kpi hl"><div class="k">曝光量</div><div class="v">{{ fmt(o.impressions) }}</div>
-          <div class="s">24 小时累计</div></div>
+          <div class="s">{{ hoursLabel }}</div></div>
         <div class="kpi"><div class="k">点击量</div><div class="v">{{ fmt(o.clicks) }}</div>
           <div class="s">CTR {{ o.ctr }}%</div></div>
         <div class="kpi"><div class="k">花费</div><div class="v">{{ money(o.cost) }}</div>
@@ -185,25 +227,41 @@ body{background:var(--bg)}
             </span>
           </div>
           <div class="bars">
-            <div class="bar" v-for="h in 24" :key="h">
-              <div class="stack">
-                <div class="bseg" v-for="c in sys.codes" :key="c.code"
-                     :style="{height: pct(sys, c, h-1), background: color(sys, c.code)}"
-                     :title="c.name + ' ' + (h-1) + '时 ' + metricText(c.hours[h-1])"></div>
+            <div class="daygrp" v-for="g in dayGroups" :key="g.date">
+              <div class="bar" v-for="it in g.items" :key="it.idx">
+                <div class="stack">
+                  <div class="bseg" v-for="c in sys.codes" :key="c.code"
+                       :style="{height: pct(sys, c, it.idx), background: color(sys, c.code)}"
+                       :title="c.name + ' ' + it.date.slice(5) + ' ' + it.label + '时 '
+                               + metricText(c.hours[it.idx])"></div>
+                </div>
+                <span class="bl">{{ dense && it.hour % 3 ? '' : it.hour }}</span>
               </div>
-              <span class="bl">{{ h-1 }}</span>
             </div>
+          </div>
+          <div class="daylabels" v-if="dayGroups.length > 1">
+            <span v-for="g in dayGroups" :key="g.date">{{ g.date.slice(5) }}</span>
           </div>
           <div class="tbl-wrap" style="margin-top:12px">
             <table class="dtable">
               <thead>
-                <tr><th>子类</th><th v-for="h in 24" :key="h">{{ h-1 }}</th><th>合计</th></tr>
+                <tr>
+                  <th rowspan="2">子类</th>
+                  <th v-for="g in dayGroups" :key="g.date" :colspan="g.items.length">
+                    {{ g.date.slice(5) }}
+                  </th>
+                  <th rowspan="2">合计</th>
+                </tr>
+                <tr>
+                  <th v-for="it in flatAxis" :key="it.idx">{{ it.label }}</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="c in sys.codes" :key="c.code">
                   <td>{{ c.name }}</td>
-                  <td v-for="h in 24" :key="h" :class="{zero: !cellVal(c.hours[h-1])}">
-                    {{ cellVal(c.hours[h-1]) }}
+                  <td v-for="it in flatAxis" :key="it.idx"
+                      :class="{zero: !cellVal(c.hours[it.idx])}">
+                    {{ cellVal(c.hours[it.idx]) }}
                   </td>
                   <td><b>{{ cellVal(c.day) }}</b></td>
                 </tr>
@@ -220,13 +278,16 @@ body{background:var(--bg)}
 <script>
 const { createApp } = Vue;
 
-createApp({
+const app = createApp({
   data() {
     return {
       dates: [],
-      date: '',
+      selectedDates: [],
+      dateOpen: false,
       products: [],
       productCode: '',
+      productKw: '',
+      comboOpen: false,
       detail: null,
       loading: false,
       metric: 'impressions',
@@ -243,6 +304,49 @@ createApp({
     o() {
       return this.detail ? this.detail.overall : { impressions: 0, clicks: 0, cost: 0,
         orders: 0, sales: 0, ctr: 0, cpc: 0, acos: 0, roas: 0, cvr: 0 };
+    },
+    filteredProducts() {
+      const k = (this.productKw || '').trim().toLowerCase();
+      if (!k) return this.products;
+      return this.products.filter(p => [p.sku, p.asin, p.title]
+        .filter(Boolean).join(' ').toLowerCase().includes(k));
+    },
+    currentProductText() {
+      const p = this.products.find(x => String(x.product_code) === String(this.productCode));
+      return p ? `${p.sku} / ${p.asin} · 曝光 ${this.fmt(p.imp)}` : '输入 SKU / ASIN 筛选';
+    },
+    dateText() {
+      const n = this.selectedDates.length;
+      if (!n) return '';
+      if (n === 1) return this.selectedDates[0];
+      const s = this.selectedDates.slice().sort();
+      return `${s[0]} 等 ${n} 天`;
+    },
+    dateSummary() {
+      if (!this.detail) return '';
+      const ds = this.detail.dates || [];
+      if (ds.length <= 1) return `${this.detail.date} · 24 小时`;
+      return `${ds[0].slice(5)} ~ ${ds[ds.length - 1].slice(5)} · ${ds.length} 天 · `
+        + `${(this.detail.axis || []).length} 小时`;
+    },
+    flatAxis() {
+      return (this.detail && this.detail.axis) || [];
+    },
+    dayGroups() {
+      const out = [];
+      this.flatAxis.forEach(it => {
+        let g = out[out.length - 1];
+        if (!g || g.date !== it.date) { g = { date: it.date, items: [] }; out.push(g); }
+        g.items.push(it);
+      });
+      return out;
+    },
+    hoursLabel() {
+      const n = this.flatAxis.length;
+      return n > 24 ? `${n / 24} 天 · ${n} 小时累计` : '24 小时累计';
+    },
+    dense() {
+      return this.flatAxis.length > 24;
     },
   },
   methods: {
@@ -277,14 +381,15 @@ createApp({
     async loadDates() {
       const r = await fetch('/api/ads-fact/dates').then(x => x.json());
       this.dates = r.dates || [];
-      if (this.dates.length && !this.date) {
-        this.date = this.dates[0];
+      if (this.dates.length && !this.selectedDates.length) {
+        this.selectedDates = [this.dates[0]];
         await this.loadProducts();
       }
     },
     async loadProducts() {
-      if (!this.date) return;
-      const r = await fetch('/api/ads-fact/products?date=' + this.date).then(x => x.json());
+      if (!this.selectedDates.length) { this.products = []; this.detail = null; return; }
+      const base = this.selectedDates.slice().sort()[0];
+      const r = await fetch('/api/ads-fact/products?date=' + base).then(x => x.json());
       this.products = r.products || [];
       if (this.products.length) {
         const keep = this.products.find(p => String(p.product_code) === String(this.productCode));
@@ -295,10 +400,11 @@ createApp({
       }
     },
     async loadDetail() {
-      if (!this.date || !this.productCode) return;
+      if (!this.selectedDates.length || !this.productCode) return;
       this.loading = true;
       try {
-        const url = `/api/ads-fact/detail?date=${this.date}&product_code=${this.productCode}`;
+        const ds = this.selectedDates.slice().sort().join(',');
+        const url = `/api/ads-fact/detail?dates=${ds}&product_code=${this.productCode}`;
         const r = await fetch(url).then(x => x.json());
         if (r.detail === null || r.systems === undefined) { this.detail = null; return; }
         this.detail = r;
@@ -306,15 +412,38 @@ createApp({
         this.loading = false;
       }
     },
-    onDateChange() {
-      this.productCode = '';
-      this.loadProducts();
+    pickProduct(p) {
+      this.productCode = p.product_code;
+      this.productKw = '';
+      this.comboOpen = false;
+      this.loadDetail();
+    },
+    onDatesChange() {
+      // 连续勾选时只发最后一次请求
+      clearTimeout(this._dt);
+      this._dt = setTimeout(() => {
+        this.productCode = '';
+        this.productKw = '';
+        this.comboOpen = false;
+        this.loadProducts();
+      }, 220);
     },
   },
   mounted() {
     this.loadDates();
   },
-}).mount('#app');
+});
+
+/* 点空白处收起下拉 */
+app.directive('click-outside', {
+  mounted(el, binding) {
+    el.__co = (e) => { if (!el.contains(e.target)) binding.value(e); };
+    document.addEventListener('click', el.__co, true);
+  },
+  unmounted(el) { document.removeEventListener('click', el.__co, true); },
+});
+
+app.mount('#app');
 </script>
 </body>
 </html>
