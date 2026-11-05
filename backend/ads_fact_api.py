@@ -5,16 +5,24 @@
     GET /api/ads-fact/products?date=&keyword=        产品列表（按当日曝光降序）
     GET /api/ads-fact/detail?date=&product_code=     单产品三体系分时明细
 """
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from backend import ads_fact_db as fdb
+from backend import ads_fetch
 
 router = APIRouter(prefix="/api/ads-fact", tags=["ads-fact"])
 
 CORE = ["impressions", "clicks", "cost", "ctr", "cpc", "acos", "roas", "cvr",
         "orders", "sales", "addToCart", "detailPageViews"]
+
+# metrics_json 里的非指标键（维度/序号）与核心指标别名（避免重复出列）
+NON_METRIC_KEYS = {"title", "order", "predicate", "detail", "id", "adId",
+                   "targetId", "name", "children", "sfCampaignId",
+                   "adCost", "adSale", "adOrderNum", "adCostPerClick"}
 
 # (system_code, key, label, 子分类列, 固定子类名)
 # 广告总量只有「产品」这一个维度，没有额外子分类列
@@ -25,28 +33,60 @@ SYSTEMS = [
 ]
 
 
+def _to_num(v: Any) -> Optional[float]:
+    """赛狐指标多为字符串（"-" / "0.00~0.00" 等占位），能转数字就转"""
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v.strip())
+        except ValueError:
+            return None
+    return None
+
+
 def _row_metrics(row: Any) -> Dict[str, Any]:
-    """核心指标，兼容 cost/adCost 命名"""
+    """核心指标（按原始值重算）+ 赛狐原始指标全量透传
+
+    赛狐「小时维度指标分析」页面展示的列都在 metrics_json 里，
+    这里一并返回，页面可任选指标（曝光/点击/CTR/CPC/加购/曝光份额…）。
+    """
     if row is None:
         return {k: 0 for k in CORE}
-    return {
-        "impressions": int(row["impressions"] or 0),
-        "clicks": int(row["clicks"] or 0),
-        "cost": round(float(row["cost"] or 0), 2),
-        "orders": int(row["orders"] or 0),
-        "sales": round(float(row["sales"] or 0), 2),
-        "ctr": round(float(row["clicks"] or 0) / row["impressions"] * 100, 2)
-        if row["impressions"] else 0.0,
-        "cpc": round(float(row["cost"] or 0) / row["clicks"], 2) if row["clicks"] else 0.0,
-        "acos": round(float(row["cost"] or 0) / row["sales"] * 100, 2)
-        if row["sales"] else 0.0,
-        "roas": round(float(row["sales"] or 0) / float(row["cost"] or 0), 2)
-        if row["cost"] else 0.0,
-        "cvr": round(float(row["orders"] or 0) / row["clicks"] * 100, 2)
-        if row["clicks"] else 0.0,
-        "addToCart": 0,
-        "detailPageViews": 0,
+    imp = int(row["impressions"] or 0)
+    clk = int(row["clicks"] or 0)
+    cost = float(row["cost"] or 0)
+    orders = int(row["orders"] or 0)
+    sales = float(row["sales"] or 0)
+    try:
+        raw: Dict[str, Any] = json.loads(row["metrics_json"] or "{}")
+    except (ValueError, TypeError):
+        raw = {}
+    out: Dict[str, Any] = {
+        "impressions": imp,
+        "clicks": clk,
+        "cost": round(cost, 2),
+        "orders": orders,
+        "sales": round(sales, 2),
+        "ctr": round(clk / imp * 100, 2) if imp else 0.0,
+        "cpc": round(cost / clk, 2) if clk else 0.0,
+        "acos": round(cost / sales * 100, 2) if sales else 0.0,
+        "roas": round(sales / cost, 2) if cost else 0.0,
+        "cvr": round(orders / clk * 100, 2) if clk else 0.0,
+        "addToCart": int(_to_num(raw.get("addToCart")) or 0),
+        "detailPageViews": int(_to_num(raw.get("detailPageViews")) or 0),
     }
+    # 其余赛狐指标原样带上（含 0，保证可选项与赛狐页面列一致）
+    for k, v in raw.items():
+        if k in out or k in NON_METRIC_KEYS:
+            continue
+        num = _to_num(v)
+        if num is None:                 # "-" / "0.00~0.00" 这类占位直接跳过
+            continue
+        out[k] = int(num) if float(num).is_integer() else round(num, 4)
+    return out
 
 
 @router.get("/dates")
@@ -84,6 +124,14 @@ def products(date: str = Query(...), keyword: str = "", limit: int = 500) -> Dic
     return {"date": date, "products": [dict(r) for r in rows]}
 
 
+# 合计时不能相加的比率/排名类字段（含这些片段的跳过）
+RATE_HINTS = ("Rate", "Percentage", "Percent", "Share", "Rank", "Is")
+EXTRA_RATIO = {"cpm", "vcpm", "cpa", "acoas", "asoas", "acots", "asots",
+               "adCostPerClick", "cpc", "ctr", "cvr", "acos", "roas",
+               "advertisingUnitPrice", "selfAdvertisingUnitPrice",
+               "otherAdvertisingUnitPrice", "impressionsFrequencyAverage"}
+
+
 def _sum_metrics(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     """合计：原始指标相加，比率指标重算（不能把各路 CTR/ACOS 直接相加）"""
     imp = sum(int(m.get("impressions") or 0) for m in items)
@@ -91,7 +139,7 @@ def _sum_metrics(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     cost = sum(float(m.get("cost") or 0) for m in items)
     orders = sum(int(m.get("orders") or 0) for m in items)
     sales = sum(float(m.get("sales") or 0) for m in items)
-    return {
+    out: Dict[str, Any] = {
         "impressions": imp, "clicks": clk, "cost": round(cost, 2),
         "orders": orders, "sales": round(sales, 2),
         "ctr": round(clk / imp * 100, 2) if imp else 0.0,
@@ -99,8 +147,20 @@ def _sum_metrics(items: List[Dict[str, Any]]) -> Dict[str, Any]:
         "acos": round(cost / sales * 100, 2) if sales else 0.0,
         "roas": round(sales / cost, 2) if cost else 0.0,
         "cvr": round(orders / clk * 100, 2) if clk else 0.0,
-        "addToCart": 0, "detailPageViews": 0,
+        "addToCart": sum(int(m.get("addToCart") or 0) for m in items),
+        "detailPageViews": sum(int(m.get("detailPageViews") or 0) for m in items),
     }
+    # 其余赛狐指标按可累加的做求和（比率类保持 0，留给前端不展示）
+    keys = {k for m in items for k in m}
+    for k in keys:
+        if k in out or k in EXTRA_RATIO or any(h in k for h in RATE_HINTS):
+            continue
+        nums = [m[k] for m in items if isinstance(m.get(k), (int, float))]
+        if not nums:
+            continue
+        total = sum(nums)
+        out[k] = int(total) if float(total).is_integer() else round(total, 4)
+    return out
 
 
 def _detail_one(conn: Any, date: str, product_code: int) -> Dict[str, Any]:
@@ -213,3 +273,36 @@ def detail(date: str = "", dates: str = "", product_code: int = Query(...)) -> D
         "systems": systems,
         "overall": systems[0]["total"] if systems else _row_metrics(None),
     }
+
+
+# --------------------------------------------------------------------------
+# 取数（页面「获取数据」按钮）
+# --------------------------------------------------------------------------
+class FetchRequest(BaseModel):
+    dates: List[str] = Field(default_factory=list)
+    date: str = ""
+    product_code: Optional[int] = None
+    sku: str = ""
+    with_cross: bool = False
+
+
+@router.post("/fetch")
+def fetch_start(req: FetchRequest) -> Dict[str, Any]:
+    """按「日期 × 广告产品」统一取数（后台任务，返回 task_id 供轮询）"""
+    days = sorted({d.strip() for d in (list(req.dates) + ([req.date] if req.date else []))
+                   if d.strip()})
+    if not days:
+        raise HTTPException(400, "缺少日期")
+    if not req.product_code and not (req.sku or "").strip():
+        raise HTTPException(400, "请先选择广告产品")
+    tid = ads_fetch.start_fetch(days, product_code=req.product_code,
+                                sku=(req.sku or "").strip(), with_cross=req.with_cross)
+    return {"task_id": tid, "dates": days}
+
+
+@router.get("/fetch/{task_id}")
+def fetch_state(task_id: str) -> Dict[str, Any]:
+    st = ads_fetch.get_task(task_id)
+    if not st:
+        raise HTTPException(404, "任务不存在")
+    return st

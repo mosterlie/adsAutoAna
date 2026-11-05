@@ -55,6 +55,18 @@ def sync_products(conn) -> int:
     return len(rows)
 
 
+def sync_total(conn, now: str = "", overwrite: bool = True) -> int:
+    """按 fact_ads_performance 重建广告总量
+
+    overwrite=False：只补缺，不覆盖已有行。三体系采集（collect_campaign_dims）
+    写入的日汇总以 HOURLY 口径为准，不能被日指标聚合值盖掉。
+    """
+    sql = SQL_TOTAL
+    if not overwrite:
+        sql = sql.replace("INSERT OR REPLACE", "INSERT OR IGNORE")
+    return conn.execute(sql, {"now": now or NOW()}).rowcount
+
+
 def rebuild(conn, reset: bool = False) -> dict:
     now = NOW()
     conn.execute("PRAGMA foreign_keys=OFF")
@@ -63,7 +75,7 @@ def rebuild(conn, reset: bool = False) -> dict:
         conn.execute("DELETE FROM dim_product WHERE product_code > 0")
         conn.execute("DELETE FROM sqlite_sequence WHERE name = 'dim_product'")
     counts = {"产品实体数": sync_products(conn)}
-    counts["广告总量"] = conn.execute(SQL_TOTAL, {"now": now}).rowcount
+    counts["广告总量"] = sync_total(conn, now)
     conn.commit()
     conn.execute("PRAGMA foreign_keys=ON")
     return counts

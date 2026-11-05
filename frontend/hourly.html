@@ -18,6 +18,7 @@ body{background:var(--bg)}
 .hfilter .fld{display:flex;align-items:center;gap:6px}
 .hfilter .fld.grow{flex:1;min-width:260px}
 .hfilter select{max-width:420px}
+.hfilter .fld.metrics{flex-wrap:wrap;gap:6px;max-width:100%}
 
 /* 广告产品：可输入筛选的下拉框（产品多时靠 select 找不动） */
 .combo{position:relative;flex:1;min-width:240px}
@@ -34,6 +35,14 @@ body{background:var(--bg)}
 .combo-item:hover{background:var(--blue-l);color:var(--blue)}
 .combo-item.on{background:var(--blue-l);color:var(--blue);font-weight:600}
 .combo-empty{padding:10px;color:var(--muted);font-size:12px;text-align:center}
+
+/* 获取数据按钮 */
+.btn-fetch{height:30px;padding:0 14px;border-radius:4px;border:1px solid var(--blue);
+  background:var(--blue);color:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn-fetch:hover{background:var(--blue-d);border-color:var(--blue-d)}
+.btn-fetch:disabled{background:#a9bde8;border-color:#a9bde8;cursor:not-allowed}
+.fetch-msg{font-size:12px;color:var(--txt-2);max-width:300px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 
 /* 日期多选：只做下拉勾选，选完点空白处收起 */
 .combo-date{flex:0 0 auto;width:220px}
@@ -91,6 +100,7 @@ body{background:var(--bg)}
 .dtable thead tr:nth-child(2) th{top:29px}
 .dtable tbody tr:hover td{background:#f7faff}
 .dtable .zero{color:#c8ccd4}
+.tbl-title{font-size:12px;color:var(--muted);margin:12px 0 5px}
 .tbl-wrap{overflow:auto;max-height:280px;border:1px solid var(--bd);border-radius:4px}
 .tbl-wrap::-webkit-scrollbar{height:8px;width:8px}
 .tbl-wrap::-webkit-scrollbar-thumb{background:#d6dae1;border-radius:4px}
@@ -107,6 +117,9 @@ body{background:var(--bg)}
   background:#fff;color:var(--txt-2);cursor:pointer}
 .mini-btn:hover{border-color:var(--blue);color:var(--blue)}
 .mini-btn.on{background:var(--blue-l);border-color:#b9cdf5;color:var(--blue)}
+.mini-select{height:26px;padding:0 6px;font-size:12px;border:1px solid var(--bd-d);border-radius:3px;
+  background:#fff;color:var(--txt-2);cursor:pointer;max-width:140px}
+.mini-select:hover{border-color:var(--blue);color:var(--blue)}
 
 @media (max-width:1100px){
   .kpis{grid-template-columns:repeat(3,1fr)}
@@ -162,10 +175,19 @@ body{background:var(--bg)}
           </div>
         </div>
       </div>
-      <div class="fld">
+      <div class="fld metrics">
         <label>指标</label>
         <button v-for="m in metrics" :key="m.key" class="mini-btn"
                 :class="{on: metric === m.key}" @click="metric = m.key">{{ m.label }}</button>
+        <select class="mini-select" @change="onMetricPick">
+          <option value="">更多指标…</option>
+          <option v-for="k in extraMetricKeys" :key="k" :value="k">{{ metricName(k) }}</option>
+        </select>
+      </div>
+      <div class="fld">
+        <button class="btn-fetch" :disabled="fetching || !productCode"
+                @click="startFetch">{{ fetching ? '获取中…' : '获取数据' }}</button>
+        <span class="fetch-msg" v-if="fetchMsg" :title="fetchMsg">{{ fetchMsg }}</span>
       </div>
     </div>
 
@@ -242,7 +264,8 @@ body{background:var(--bg)}
           <div class="daylabels" v-if="dayGroups.length > 1">
             <span v-for="g in dayGroups" :key="g.date">{{ g.date.slice(5) }}</span>
           </div>
-          <div class="tbl-wrap" style="margin-top:12px">
+          <div class="tbl-title">明细 · {{ metricLabel }}</div>
+          <div class="tbl-wrap">
             <table class="dtable">
               <thead>
                 <tr>
@@ -260,7 +283,7 @@ body{background:var(--bg)}
                 <tr v-for="c in sys.codes" :key="c.code">
                   <td>{{ c.name }}</td>
                   <td v-for="it in flatAxis" :key="it.idx"
-                      :class="{zero: !cellVal(c.hours[it.idx])}">
+                      :class="{zero: isZero(c.hours[it.idx])}">
                     {{ cellVal(c.hours[it.idx]) }}
                   </td>
                   <td><b>{{ cellVal(c.day) }}</b></td>
@@ -290,12 +313,63 @@ const app = createApp({
       comboOpen: false,
       detail: null,
       loading: false,
+      fetching: false,
+      fetchMsg: '',
       metric: 'impressions',
+      // 与赛狐「小时维度指标分析」页面一致的可看指标
       metrics: [
         { key: 'impressions', label: '曝光' },
         { key: 'clicks', label: '点击' },
+        { key: 'ctr', label: 'CTR' },
         { key: 'cost', label: '花费' },
+        { key: 'cpc', label: 'CPC' },
+        { key: 'orders', label: '订单' },
+        { key: 'sales', label: '销售额' },
+        { key: 'acos', label: 'ACOS' },
+        { key: 'roas', label: 'ROAS' },
+        { key: 'cvr', label: 'CVR' },
+        { key: 'addToCart', label: '加购' },
+        { key: 'detailPageViews', label: '详情页浏览' },
       ],
+      // 赛狐「小时维度指标分析」里的其余列（后端全量透传，选到即用）
+      metricNames: {
+        adCost: '花费', adSale: '广告销售额', adOrderNum: '广告订单',
+        adCostPerClick: 'CPC', adCostPercentage: '花费占比',
+        cpm: 'CPM', vcpm: 'vCPM', cpa: 'CPA',
+        addToCartRate: '加购率', eCPAddToCart: '加购成本',
+        adSaleNum: '销量', adSelfSaleNum: '本品销量', adOtherSaleNum: '他品销量',
+        adSales: '广告销售额', adOtherSales: '他品销售额', adOtherOrderNum: '他品订单',
+        orderNum: '订单量', advertisingUnitPrice: '广告单价',
+        impressionShare: '曝光份额', topImpressionShare: '首页顶部曝光份额',
+        impressionRank: '曝光排名', impressionsPercentage: '曝光占比',
+        clickPercentage: '点击占比', adSalePercentage: '销售额占比',
+        viewImpressions: '展示量', viewabilityRate: '可见度',
+        brandedSearches: '品牌搜索', cumulativeReach: '累计触达',
+        ordersNewToBrandFTD: '新客订单', salesNewToBrandFTD: '新客销售额',
+        unitsOrderedNewToBrandFTD: '新客销量',
+        newToBrandDetailPageViews: '新客详情页浏览',
+        video5SecondViews: '视频5秒播放', videoCompleteViews: '视频完整播放',
+        acots: 'ACoTS', asots: 'ASoTS', acoas: 'ACoAS', asoas: 'ASoAS',
+        adOrderNumPercentage: '订单占比', orderNumPercentage: '订单量占比',
+        adSaleNumPercentage: '销量占比', viewImpressionsPercentage: '展示量占比',
+        selfSalesPercentage: '本品销售额占比', selfOrderNumPercentage: '本品订单占比',
+        selfSaleNumPercentage: '本品销量占比', otherSalesPercentage: '他品销售额占比',
+        otherOrderNumPercentage: '他品订单占比',
+        otherSaleNumPercentage: '他品销量占比', otherOrderNumPercent: '他品订单占比',
+        ordersNewToBrandPercentageFTD: '新客订单占比',
+        orderRateNewToBrandFTD: '新客订单率',
+        salesRateNewToBrandFTD: '新客销售额占比',
+        unitsOrderedRateNewToBrandFTD: '新客销量占比',
+        video5SecondViewRate: '视频5秒播放率',
+        videoFirstQuartileViews: '视频25%播放',
+        videoMidpointViews: '视频50%播放',
+        videoThirdQuartileViews: '视频75%播放',
+        videoUnmutes: '视频取消静音',
+        viewClickThroughRate: '展示点击率', maxTopIs: '首页顶部最大份额',
+        impressionsFrequencyAverage: '平均展示频次',
+        selfAdvertisingUnitPrice: '本品广告单价',
+        otherAdvertisingUnitPrice: '他品广告单价',
+      },
       palette: ['#2b5fd0', '#02a15c', '#f08c22', '#9099a6'],
       imgUrl: '',
     };
@@ -345,6 +419,22 @@ const app = createApp({
       const n = this.flatAxis.length;
       return n > 24 ? `${n / 24} 天 · ${n} 小时累计` : '24 小时累计';
     },
+    metricLabel() {
+      const m = this.metrics.find(x => x.key === this.metric);
+      return m ? m.label : this.metricName(this.metric);
+    },
+    extraMetricKeys() {
+      const core = this.metrics.map(m => m.key);
+      const keys = new Set();
+      (this.detail && this.detail.systems ? this.detail.systems : []).forEach(s =>
+        s.codes.forEach(c => c.hours.forEach(h => Object.keys(h).forEach(k => keys.add(k)))));
+      return [...keys].filter(k => !core.includes(k)).sort((a, b) => {
+        const an = !!this.metricNames[a];
+        const bn = !!this.metricNames[b];
+        if (an !== bn) return an ? -1 : 1;      // 有中文名的排前面
+        return this.metricName(a).localeCompare(this.metricName(b), 'zh-CN');
+      });
+    },
     dense() {
       return this.flatAxis.length > 24;
     },
@@ -353,29 +443,55 @@ const app = createApp({
     fmt(v) { return (v || 0).toLocaleString('zh-CN'); },
     money(v) { return '¥' + (Number(v) || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
     color(sys, code) { return this.palette[(code - 1) % this.palette.length]; },
-    metricText(m) {
-      if (!m) return '';
-      if (this.metric === 'clicks') return this.fmt(m.clicks);
-      if (this.metric === 'cost') return this.money(m.cost);
-      return this.fmt(m.impressions);
+    isPct(k) {
+      return ['ctr', 'cvr', 'acos'].includes(k)
+        || /Rate$|Percentage$|Percent$/.test(k || '');
     },
-    cellVal(m) {
+    isMoney(k) {
+      return ['cost', 'sales', 'cpc', 'cpm', 'cpa', 'adCostPerClick',
+        'adSales', 'adSale', 'advertisingUnitPrice', 'selfAdvertisingUnitPrice',
+        'otherAdvertisingUnitPrice'].includes(k);
+    },
+    metricName(k) { return this.metricNames[k] || k; },
+    onMetricPick(e) {
+      const v = e.target.value;
+      if (v) this.metric = v;
+      e.target.value = '';
+    },
+    rawVal(m, key) {
       if (!m) return 0;
-      if (this.metric === 'clicks') return m.clicks;
-      if (this.metric === 'cost') return Number(m.cost).toFixed(2);
-      return m.impressions;
+      const v = m[key === undefined ? this.metric : key];
+      return (v === undefined || v === null) ? 0 : v;
     },
+    fmtMetric(v, key) {
+      const k = key || this.metric;
+      const n = Number(v);
+      if (!isFinite(n)) return String(v);
+      if (this.isMoney(k)) return this.money(n);
+      if (this.isPct(k)) return n.toFixed(2) + '%';
+      if (k === 'roas') return n.toFixed(2);
+      return Number.isInteger(n) ? n.toLocaleString('zh-CN') : n.toFixed(2);
+    },
+    metricText(m) { return this.fmtMetric(this.rawVal(m), this.metric); },
+    cellVal(m) {
+      const n = Number(this.rawVal(m));
+      if (!isFinite(n)) return String(this.rawVal(m));
+      if (this.isPct(this.metric)) return n.toFixed(1);
+      if (this.isMoney(this.metric)) return n.toFixed(2);
+      return Number.isInteger(n) ? n : n.toFixed(2);
+    },
+    isZero(m) { return !Number(this.rawVal(m)); },
     maxOf(sys) {
       let mx = 0;
       sys.codes.forEach(c => c.hours.forEach(h => {
-        const v = this.cellVal(h) || 0;
-        if (v > mx) mx = Number(v);
+        const v = Number(this.rawVal(h)) || 0;
+        if (v > mx) mx = v;
       }));
       return mx || 1;
     },
     pct(sys, c, hour) {
       const mx = this.maxOf(sys);
-      const v = Number(this.cellVal(c.hours[hour]) || 0);
+      const v = Number(this.rawVal(c.hours[hour]) || 0);
       return (v / mx * 100).toFixed(1) + '%';
     },
     async loadDates() {
@@ -427,6 +543,39 @@ const app = createApp({
         this.comboOpen = false;
         this.loadProducts();
       }, 220);
+    },
+    async startFetch() {
+      if (this.fetching || !this.productCode || !this.selectedDates.length) return;
+      this.fetching = true;
+      this.fetchMsg = '提交中…';
+      try {
+        const r = await fetch('/api/ads-fact/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dates: this.selectedDates, product_code: this.productCode }),
+        }).then(x => x.json());
+        if (!r.task_id) {
+          this.fetching = false;
+          this.fetchMsg = r.detail || '提交失败';
+          return;
+        }
+        const tick = async () => {
+          const st = await fetch('/api/ads-fact/fetch/' + r.task_id).then(x => x.json());
+          if (st.message) this.fetchMsg = st.message;
+          if (st.status === 'running') { setTimeout(tick, 1200); return; }
+          this.fetching = false;
+          if (st.status === 'success') {
+            await this.loadDates();
+            await this.loadProducts();
+          } else {
+            this.fetchMsg = '失败：' + (st.message || '未知错误');
+          }
+        };
+        setTimeout(tick, 1000);
+      } catch (e) {
+        this.fetching = false;
+        this.fetchMsg = '请求失败：' + e.message;
+      }
     },
   },
   mounted() {
