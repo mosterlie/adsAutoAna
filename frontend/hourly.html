@@ -136,7 +136,13 @@ body{background:var(--bg)}
     <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
     <div class="seg seg-top">
       <button class="seg-btn" onclick="location.href='/'">数据表格</button>
+      <button class="seg-btn" onclick="location.href='/?view=product'">产品视角</button>
+      <button class="seg-btn" onclick="location.href='/?view=online'">在线产品</button>
+      <button class="seg-btn" onclick="location.href='/?view=adcreator'">广告管理</button>
+      <button class="seg-btn" onclick="location.href='/?view=bulk'">批量建广告</button>
       <button class="seg-btn active">分时分析</button>
+      <button class="seg-btn" onclick="location.href='/static/api-docs.html'">接口查询</button>
+      <button class="seg-btn" onclick="location.href='/static/daily-probe.html'">广告数据</button>
     </div>
     <div class="topbar-right">
       <span class="muted" v-if="detail">{{ detail.product.sku }}</span>

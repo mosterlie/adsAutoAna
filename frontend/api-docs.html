@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>接口查询 - 赛狐ERP</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+body{background:var(--bg)}
+.wrap{max-width:1560px;margin:0 auto;padding:0 12px 32px}
+
+/* 工具条 */
+.apibar{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px;
+  padding:10px 12px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.apibar .fld{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.apibar input[type=search]{height:30px;width:340px;border:1px solid var(--bd-d);border-radius:4px;
+  padding:0 10px;font-size:13px;color:var(--txt);background:#fff}
+.apibar input[type=search]:focus{outline:none;border-color:var(--blue)}
+.apibar select{height:30px;border:1px solid var(--bd-d);border-radius:4px;padding:0 6px;
+  font-size:12.5px;background:#fff;color:var(--txt)}
+.stat{font-size:12.5px;color:var(--txt-2)}
+.stat b{color:var(--blue);font-size:15px;margin:0 2px}
+
+/* 布局 */
+.layout{display:grid;grid-template-columns:196px 1fr;gap:12px;margin-top:10px;align-items:start}
+.cats{background:#fff;border:1px solid var(--bd);border-radius:4px;padding:6px;position:sticky;top:10px}
+.cat{display:flex;align-items:center;justify-content:space-between;gap:6px;
+  padding:7px 9px;border-radius:3px;font-size:13px;color:var(--txt-2);cursor:pointer}
+.cat:hover{background:var(--blue-l);color:var(--blue)}
+.cat.on{background:var(--blue-l);color:var(--blue);font-weight:600}
+.cat .n{font-size:11.5px;color:var(--muted);background:#f2f4f7;border-radius:9px;padding:1px 7px}
+.cat.on .n{background:#fff;color:var(--blue)}
+
+/* 分组卡片 */
+.group{margin-bottom:14px}
+.ghead{display:flex;align-items:center;gap:8px;margin:0 0 8px;padding-left:2px}
+.ghead h2{font-size:14px;font-weight:600;margin:0;color:var(--txt)}
+.ghead .sub{font-size:12px;color:var(--muted)}
+.ghead .line{flex:1;height:1px;background:var(--bd)}
+
+/* 接口行 */
+.api{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-bottom:8px;overflow:hidden}
+.api-top{display:flex;align-items:flex-start;gap:10px;padding:10px 12px}
+.m{flex:0 0 auto;min-width:44px;height:20px;line-height:20px;text-align:center;border-radius:3px;
+  font-size:11px;font-weight:700;letter-spacing:.3px;color:#fff;margin-top:1px}
+.m.GET{background:#02a15c}.m.POST{background:#2b5fd0}.m.BOTH{background:#7a5af8}
+.api-main{flex:1;min-width:0}
+.api-name{font-size:13.5px;font-weight:600;color:var(--txt);display:flex;flex-wrap:wrap;
+  align-items:center;gap:8px}
+.path{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#334;margin-top:4px;
+  background:#f7f8fa;border:1px solid #eef0f4;border-radius:3px;padding:4px 7px;
+  word-break:break-all;display:flex;align-items:center;gap:8px}
+.path span.t{flex:1;min-width:0}
+.act{flex:0 0 auto;display:flex;gap:6px}
+.mini{font-size:11px;cursor:pointer;border-radius:3px;padding:1px 7px;border:1px solid #cfe0ff;
+  background:var(--blue-l);color:var(--blue)}
+.mini:hover{background:#dbe8ff}
+.mini.detail{border-color:#d8cffa;background:#f3effe;color:#6b46c1}
+.mini.detail:hover{background:#eae2ff}
+.api-desc{font-size:12.5px;color:var(--txt-2);margin-top:6px;line-height:1.55}
+.api-desc code{background:#f4f6f9;border-radius:3px;padding:1px 4px;font-size:11.5px;color:#455}
+.api-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.tag{font-size:11px;padding:1px 7px;border-radius:9px;background:#f2f4f7;color:var(--txt-2)}
+.tag.ok{background:#e8f7ef;color:#0a7d47}
+.tag.part{background:#fff5e6;color:#b5701a}
+.tag.todo{background:#fdecec;color:#c0392b}
+.tag.path{background:#eef2fb;color:#3a5fa8;font-family:ui-monospace,Menlo,monospace}
+.tag.sec{background:#f3effe;color:#6b46c1}
+.tag.star{background:#fff7e0;color:#b8860b;font-weight:700}
+.api-name .st{color:#f0a500;font-size:13px;letter-spacing:-1px}
+.cat .st{color:#f0a500;margin-right:2px}
+.hit{background:#fff6a8}
+.empty{background:#fff;border:1px dashed var(--bd);border-radius:4px;padding:44px;
+  text-align:center;color:var(--muted);font-size:13px}
+
+/* 详情抽屉 */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.38);z-index:900;display:none}
+.mask.on{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,94vw);background:#fff;z-index:901;
+  box-shadow:-8px 0 28px rgba(0,0,0,.16);transform:translateX(100%);transition:transform .22s ease;
+  display:flex;flex-direction:column}
+.drawer.on{transform:translateX(0)}
+.dhead{padding:14px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:flex-start;gap:10px}
+.dhead .h{flex:1;min-width:0}
+.dhead .t1{font-size:15px;font-weight:600;color:var(--txt);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dhead .t2{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:#556;
+  margin-top:6px;word-break:break-all;background:#f7f8fa;border:1px solid #eef0f4;border-radius:3px;padding:4px 7px}
+.dclose{flex:0 0 auto;width:26px;height:26px;line-height:24px;text-align:center;border-radius:3px;
+  border:1px solid var(--bd-d);background:#fff;color:var(--muted);cursor:pointer;font-size:15px}
+.dclose:hover{border-color:var(--blue);color:var(--blue)}
+.dbody{flex:1;overflow:auto;padding:14px 16px 28px}
+.dsec{margin-bottom:16px}
+.dsec h3{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 7px;letter-spacing:.3px;
+  text-transform:none;display:flex;align-items:center;gap:6px}
+.dsec h3::before{content:"";width:3px;height:12px;background:var(--blue);border-radius:2px}
+pre.code{margin:0;background:#0f172a;color:#dbe6ff;border-radius:4px;padding:10px 12px;
+  font-size:11.8px;line-height:1.55;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace}
+pre.code.json{color:#c9f1d8}
+table.facts{width:100%;border-collapse:collapse;font-size:12.5px}
+table.facts th,table.facts td{border:1px solid var(--bd);padding:6px 9px;text-align:left;vertical-align:top}
+table.facts th{background:#f7f8fa;color:var(--muted);font-weight:600;width:130px}
+ul.notes{margin:0;padding-left:18px}
+ul.notes li{font-size:12.8px;color:var(--txt-2);line-height:1.7;margin-bottom:3px}
+ul.notes li code{background:#f4f6f9;border-radius:3px;padding:1px 4px;font-size:11.5px;color:#455}
+ul.notes li b{color:#b5701a}
+.dfoot{border-top:1px solid var(--bd);padding:10px 16px;font-size:12px;color:var(--muted);display:flex;
+  justify-content:space-between;gap:10px;flex-wrap:wrap}
+.dfoot a{color:var(--blue);cursor:pointer;text-decoration:none}
+.nodata{font-size:12.8px;color:var(--muted);background:#fafbfc;border:1px dashed var(--bd);
+  border-radius:4px;padding:14px;text-align:center}
+
+@media(max-width:900px){.layout{grid-template-columns:1fr}.cats{position:static;display:flex;
+  flex-wrap:wrap;gap:4px}.cat{flex:0 0 auto}}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top">
+    <button class="seg-btn" onclick="location.href='/'">数据表格</button>
+    <button class="seg-btn" onclick="location.href='/?view=product'">产品视角</button>
+    <button class="seg-btn" onclick="location.href='/?view=online'">在线产品</button>
+    <button class="seg-btn" onclick="location.href='/?view=adcreator'">广告管理</button>
+    <button class="seg-btn" onclick="location.href='/?view=bulk'">批量建广告</button>
+    <button class="seg-btn" onclick="location.href='/static/hourly.html'">分时分析</button>
+    <button class="seg-btn active">接口查询</button>
+    <button class="seg-btn" onclick="location.href='/static/daily-probe.html'">广告数据</button>
+  </div>
+  <div class="topbar-right">
+    <span class="muted" id="buildTag">SP 广告接口全集</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="apibar">
+    <div class="fld">
+      <input type="search" id="q" placeholder="搜索接口名 / 路径 / 关键字，如 campaign、否定、placement">
+    </div>
+    <div class="fld">
+      <label>状态</label>
+      <select id="fStatus">
+        <option value="">全部</option>
+        <option value="ok">已实测</option>
+        <option value="part">部分验证</option>
+        <option value="todo">未验证</option>
+      </select>
+    </div>
+    <div class="fld">
+      <label>方法</label>
+      <select id="fMethod">
+        <option value="">全部</option>
+        <option value="GET">GET</option>
+        <option value="POST">POST</option>
+      </select>
+    </div>
+    <label class="fld" style="cursor:pointer">
+      <input type="checkbox" id="fDetail" style="accent-color:var(--blue)"> 只看有详情的
+    </label>
+    <label class="fld" style="cursor:pointer">
+      <input type="checkbox" id="fStar" style="accent-color:#f0a500"> 只看重点 ★
+    </label>
+    <span class="stat">共 <b id="cTotal">0</b> 个接口 · 已实测 <b id="cOk">0</b> · 重点 <b id="cStar">0</b> · 有详情 <b id="cDetail">0</b></span>
+  </div>
+
+  <div class="layout">
+    <aside class="cats" id="cats"></aside>
+    <main id="list"></main>
+  </div>
+</div>
+
+<!-- 详情抽屉 -->
+<div class="mask" id="mask"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="dhead">
+    <div class="h">
+      <div class="t1" id="dTitle"></div>
+      <div class="t2" id="dPath"></div>
+    </div>
+    <button class="dclose" id="dClose" title="关闭 (Esc)">×</button>
+  </div>
+  <div class="dbody" id="dBody"></div>
+  <div class="dfoot">
+    <span id="dFoot"></span>
+    <a id="dCopy">复制路径</a>
+  </div>
+</aside>
+
+<script>
+/* ============ 接口数据（来源：docs/sellfox_sp_create_api.md 第 1-21 节） ============ */
+const GW = "/api/gw/sellfox/sellfox-cpc/api/sellfox";
+
+const DATA = [
+  /* ============ ★ 重点 1：在线产品 ============ */
+  {g:"★ 在线产品", n:"子体（在线产品）列表", m:"POST", p:"/api/gw/sellfox/sellfox-product/sellfox/product/pageList", star:true,
+   d:"<b>在线产品取数接口</b>（含父子关系、卖家 SKU、ASIN、价格、库存、状态等），产品视角/批量建广告的数据源。",
+   s:"ok", t:["★重点","在线产品"], sec:"—",
+   det:{facts:[["网关","sellfox-product，不是 sellfox-cpc（注意前缀不同）"],
+              ["用途","产品视角、批量建广告选品、父子体配对"],
+              ["配套","父体列表走另一个网关 /api/parent/product/pageList.json"]],
+     req:"POST /api/gw/sellfox/sellfox-product/sellfox/product/pageList\n{ \"pageNo\":1, \"pageSize\":50, \"shopIdList\":[\"711811\"], \"searchValue\":\"\" }",
+     notes:["子体接口返回的 SKU 是卖家 SKU，与广告产品库 id、ASIN 三者需分开保存。"]}},
+
+  {g:"★ 在线产品", n:"父体列表", m:"POST", p:"/api/parent/product/pageList.json", star:true,
+   d:"父体（parent）与子体归属关系，走 <code>/api/parent</code> 网关，不在 sellfox-product 下。",
+   s:"ok", t:["★重点","在线产品","另一网关"], sec:"—",
+   det:{facts:[["网关差异","/api/parent/product/pageList.json（非 gw/sellfox）"],
+              ["用途","父体聚合、按父体生成活动（批量建广告）"]],
+     notes:["父子关系也可从子体行的 parentAsin 字段反推，两个来源要能对上账。"]}},
+
+  {g:"★ 在线产品", n:"店铺 / 广告组合权限", m:"POST", p:GW+"/commonMultiShop/getPortfolioListProductRight",
+   d:"当前账号可见的店铺 × 广告组合清单（含 <code>hasAuth</code>）。",
+   s:"ok", t:["在线产品","基础数据"], sec:"21",
+   det:{facts:[["返回","data.page.rows[{shopId, portfolioId, portfolioName, siteName, hasAuth}]"],
+              ["实测","金梧汇辰 6 个组合，hasAuth:false 表示无操作权限"]],
+     req:"{\"shopIdList\":[\"711811\"],\"pageNo\":1,\"pageSize\":1000}"}},
+
+  /* ============ ★ 重点 2：产品 × 三体系 × 24 时段 ============ */
+  {g:"★ 产品三体系分时", n:"产品级分时（三体系入口）", m:"POST", p:GW+"/multiple/adProduct/getAllProductHourData", star:true,
+   d:"<b>按产品 × 三体系 × 24 时段</b>取指标，<code>dateModel</code> 切换体系：<code>HOURLY</code>（广告总量）/ <code>HOURLY_KEYWORD</code>（关联方式/投放）/ <code>HOURLY_PLACEMENT</code>（广告位）。",
+   s:"ok", t:["★重点","分时","三体系"], sec:"—",
+   det:{facts:[["HOURLY","广告总量 → periodReportList 24 行（每小时一行）"],
+              ["HOURLY_KEYWORD","广告产品-投放（关键词/匹配方式）→ 行含 target 维度 + detail"],
+              ["HOURLY_PLACEMENT","广告产品-广告位 → 4 行 广告位 × detail[24]"],
+              ["实测","B0HLCZH8B4：HOURLY 24 行 / PLACEMENT 4 行×24 小时；KEYWORD 0（自动活动无词）"],
+              ["入参要点","adIds 必传（产品实例 id），pageSize 200"],
+              ["省请求技巧","先请求 HOURLY，全天曝光=花费=0 则跳过另两个体系"]],
+     req:"{\"type\":\"sp\",\"startDate\":\"2026-11-06\",\"endDate\":\"2026-11-06\",\n \"analyzeStartDate\":\"2026-11-06\",\"analyzeEndDate\":\"2026-11-06\",\n \"dateModel\":\"HOURLY\",\n \"adIds\":[\"79503967439\"],\"campaignIdList\":[\"276956384537792\"],\n \"shopIdList\":[\"711811\"],\"pageNo\":1,\"pageSize\":200,\"fromSingle\":true,\n \"weekList\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\"],\"isHide\":true}",
+     resp:"{\"code\":0,\"data\":{\"currency\":\"JPY\",\n  \"periodReportList\":[{\"impressions\":0,\"clicks\":0,\"adCost\":\"0.0\",\"detail\":[24 小时]}, ...],\n  \"aggregateDataVo\":{...},\"hour\":[72 个指标 × N 值]}}",
+     notes:["detail 是「该行对象（产品/投放/广告位）× 24 小时」的明细，一个请求即可拿到产品级全时段。",
+            "三个体系必须分别请求，同一请求只返回一个体系。"]}},
+
+  {g:"★ 产品三体系分时", n:"产品分时-广告总量（HOURLY）", m:"POST", p:GW+"/multiple/adProduct/getAllProductHourData（dateModel=HOURLY）", star:true,
+   d:"产品在该天 24 小时的曝光/点击/花费/订单/销售额等，用于分时分析页主图。",
+   s:"ok", t:["★重点","HOURLY"], sec:"—",
+   det:{facts:[["返回行数","24（每小时一行）"],
+              ["指标","impressions/clicks/ctr/cvr/acos/roas/adCost/orders/adSale…共 30+"]],
+     metrics_note:""}},
+
+  {g:"★ 产品三体系分时", n:"产品分时-关联方式（HOURLY_KEYWORD）", m:"POST", p:GW+"/multiple/adProduct/getAllProductHourData（dateModel=HOURLY_KEYWORD）", star:true,
+   d:"产品 × 投放（关键词/商品定向/自动匹配位）× 24 小时。",
+   s:"ok", t:["★重点","HOURLY_KEYWORD"], sec:"—",
+   det:{facts:[["行维度","每个投放一行，内含 detail[24] 小时明细"],
+              ["实测","自动投放活动下返回 0 行（没有关键词），手动活动有数据"],
+              ["落库","对应 fact_ads_match（product_code + match_code）"]],
+     notes:["自动活动没有关键词，这个体系只在手动活动里有内容。"]}},
+
+  {g:"★ 产品三体系分时", n:"产品分时-广告位（HOURLY_PLACEMENT）", m:"POST", p:GW+"/multiple/adProduct/getAllProductHourData（dateModel=HOURLY_PLACEMENT）", star:true,
+   d:"产品 × 广告位（顶部/其余/详情页/站外）× 24 小时。",
+   s:"ok", t:["★重点","HOURLY_PLACEMENT"], sec:"—",
+   det:{facts:[["实测","返回 4 行（4 个广告位），每行 detail[24]"],
+              ["用途","判断某产品在「搜索结果顶部」的时段表现"],
+              ["落库","对应 fact_ads_placement"]],
+     resp:"periodReportList: 4 行（顶部/其余搜索/商品详情/站外），每行 detail 长度 24"}},
+
+  /* ============ ★ 重点 3：活动/组及其下所有层级的最小粒度 ============ */
+  {g:"最小粒度分时（活动/组/投放）", n:"分时统一入口（活动 / 广告组 / 投放）", m:"POST", p:GW+"/multiple/target/getAllTargetHourData", star:true,
+   d:"一个接口按 <code>dateModel</code> + 维度 id 取不同层级：<b>活动</b>（campaignIdList）/ <b>广告组</b>（+groupIdList）/ <b>投放</b>（+targetId）。",
+   s:"ok", t:["★重点","最小粒度","分时"], sec:"—",
+   det:{facts:[["活动级","campaignIdList=[cid] → hour 72 指标 × 24 小时"],
+              ["广告组级","+ groupIdList=[gid] → 同上，实测 24 小时曝光 [21,8,14,63,15…]"],
+              ["投放级","+ targetId=<内部id> → 单个投放 24 小时"],
+              ["周期","startDate=endDate=当天；DAILY 模式返回单点汇总"]],
+     req:"{\"shopIdList\":[711811],\"shopId\":\"711811\",\"adType\":\"sp\",\"type\":\"sp\",\n \"campaignIdList\":[\"276956384537792\"],\"groupIdList\":[\"<组id>\"],\"targetId\":\"\",\n \"startDate\":\"2026-11-06\",\"endDate\":\"2026-11-06\",\n \"analyzeStartDate\":\"2026-11-06\",\"analyzeEndDate\":\"2026-11-06\",\n \"dateModel\":\"HOURLY\",\"weekList\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\"],\n \"pageNo\":1,\"pageSize\":200,\"fromSingle\":true,\"isHide\":true}",
+     resp:"{\"code\":0,\"data\":{\"hour\":[{\"name\":\"impressions\",\"records\":[{value:21},…24]},…72 个指标],\n  \"periodReportList\":[24 行],\"aggregateDataVo\":{…},\"currency\":\"JPY\"}}",
+     notes:["hour[] 是「指标为中心」的转置结构：每个指标一条，records 是 24 小时值。",
+            "periodReportList 是「小时为中心」：24 行，每行全指标，直接落库更省事。"]}},
+
+  {g:"最小粒度分时（活动/组/投放）", n:"dateModel 取值（实测）", m:"POST", p:"HOURLY · HOURLY_ASIN · HOURLY_KEYWORD · HOURLY_PLACEMENT · DAILY", star:true,
+   d:"实测只有这 5 个值有效，其余（HOURLY_TARGET / HOURLY_SEARCH_TERM / HOURLY_CAMPAIGN / HOURLY_GROUP）统一报 <code>160000 系统异常</code>。",
+   s:"ok", t:["★重点","枚举实测"], sec:"—",
+   det:{facts:[["HOURLY","活动 / 广告组 / 投放（按入参 id 决定）→ hour + 24 行"],
+              ["HOURLY_ASIN","广告产品维度 → 每产品一行 + detail[24]"],
+              ["HOURLY_KEYWORD","投放/匹配维度 → 每投放一行 + detail[24]"],
+              ["HOURLY_PLACEMENT","广告位维度 → 每广告位一行 + detail[24]"],
+              ["DAILY","当天汇总（hour 只有 1 条）"],
+              ["无效值","HOURLY_TARGET / HOURLY_SEARCH_TERM / HOURLY_SEARCHTERM / HOURLY_CAMPAIGN / HOURLY_GROUP 全部 160000"]],
+     notes:["层级不是靠 dateModel 区分，而是靠传哪个 id（campaign / group / target）。"]}},
+
+  {g:"最小粒度分时（活动/组/投放）", n:"层级 → 接口对照表", m:"BOTH", p:"日级用 getAll*Data，分时用 getAllTargetHourData / getAllProductHourData", star:true,
+   d:"从活动到最细粒度的完整取数路径（日级 / 24 小时）。",
+   s:"ok", t:["★重点","对照表"], sec:"—",
+   det:{facts:[
+     ["活动 · 日","campaign/getAllCampaignData（startDate=endDate）"],
+     ["活动 · 小时","target/getAllTargetHourData + dateModel=HOURLY + campaignIdList"],
+     ["广告组 · 日","multiple/group/getAllGroupData"],
+     ["广告组 · 小时","同上 + groupIdList"],
+     ["投放 · 日","multiple/target/getAllTargetData（targetType=auto/keyword/targeting）"],
+     ["投放 · 小时","同上 + targetId"],
+     ["关键词/匹配 · 小时","target/getAllTargetHourData + dateModel=HOURLY_KEYWORD"],
+     ["广告产品 · 日","multiple/adProduct/getAdProductList"],
+     ["广告产品 · 小时","adProduct/getAllProductHourData + dateModel=HOURLY + adIds"],
+     ["广告位 · 日","multiple/placement/getAllPlacementData"],
+     ["广告位 · 小时","dateModel=HOURLY_PLACEMENT（产品级或活动级均可）"],
+     ["搜索词 · 日","multiple/search/getAllSearchData（searchKeyword / searchAsin）"],
+     ["搜索词 · 小时","<b>无</b>（候选 3 条路径均 404）"]],
+     notes:["同一活动下：活动小时 = 其下所有组/投放/产品的加总，可用于勾稽。",
+            "采集顺序建议：活动日 → 活动小时 → 组日 → 组小时 → 产品日 → 产品三体系分时 → 投放日 → 投放小时。"]}},
+
+  /* ============ ★ 建议竞价 ============ */
+  {g:"★ 建议竞价", n:"投放建议竞价（适配全部投放类型）", m:"POST", p:GW+"/spTarget/getSuggestedBid", star:true,
+   d:"按投放查建议竞价：<b>自动匹配位</b>（紧密/宽泛/同类/关联）、<b>关键词</b>、<b>商品定向</b>（ASIN/品类）都能查，一次最多传一批 <code>Amazon targetId</code>。",
+   s:"ok", t:["★重点","建议竞价","实时计算"], sec:"—",
+   det:{facts:[
+     ["入参","{shopId, targetIds:'<Amazon targetId 逗号拼接>'}"],
+     ["必须 Amazon id","传赛狐内部 id 报「对象不存在」"],
+     ["必须逗号字符串","传数组报 160000 参数校验失败"],
+     ["返回","suggested + rangeStart + rangeEnd（建议竞价区间）"],
+     ["自动位额外","estimatedImpressionUpper / Lower（预估曝光区间）"],
+     ["商品定向","extension:[{type:'asinExpandedFrom'|'asinCategorySameAs', value:'ASIN/品类ID'}]"],
+     ["实测","queryHighRelMatches → 53.0（39~70，预估曝光 37~129）"],
+     ["实测","asinSubstituteRelated → 34.0（20~42）"],
+     ["实测","ASIN 定向 → 15.0（11~18）；品类定向只回 extension 无建议价"],
+     ["时间","<b>不返回任何时间字段</b>，每次调用实时计算"]],
+     req:"{\"shopId\":\"711811\",\n \"targetIds\":\"142618529430288,194035837860233,72134771410972\"}",
+     resp:"[{\"targetId\":\"142618529430288\",\"extension\":[{\"type\":\"queryHighRelMatches\"}],\n  \"suggested\":\"53.0\",\"rangeStart\":\"39.0\",\"rangeEnd\":\"70.0\",\n  \"estimatedImpressionUpper\":129,\"estimatedImpressionLower\":37},\n {\"targetId\":\"72134771410972\",\"extension\":[{\"type\":\"asinExpandedFrom\",\"value\":\"B0HHF13X1G\"}],\n  \"suggested\":\"15.0\",\"rangeStart\":\"11.0\",\"rangeEnd\":\"18.0\"},\n {\"targetId\":\"88059833830792\",\"extension\":[{\"type\":\"asinCategorySameAs\",\"value\":\"223631684051\"}]}]",
+     notes:["自动匹配位建议竞价 ≈ 该词/位的市场参考价，可直接用作竞价起点。",
+            "默认建议价在「不加广告位加价」口径下，实际出价需叠加 placement 加价。"]}},
+
+  {g:"★ 建议竞价", n:"关键词建议竞价", m:"POST", p:GW+"/spKeyword/getSuggestedBid", star:true,
+   d:"按关键词查建议竞价（<code>Amazon keywordId</code> 逗号拼接），返回关键词文本 + 匹配类型 + 建议价区间。",
+   s:"ok", t:["★重点","建议竞价","关键词"], sec:"—",
+   det:{facts:[
+     ["入参","{shopId, keywordIds:'<Amazon keywordId 逗号拼接>'}"],
+     ["返回","[{keywordId, keywordText, matchType, suggested, rangeStart, rangeEnd}]"],
+     ["实测","ケージ 小型 犬 用(exact) → 41.0（31~53）"],
+     ["theme 关键词","<b>不返回建议竞价</b>，只有 keywordText + matchType"],
+     ["时间","无时间字段"]],
+     req:"{\"shopId\":\"711811\",\"keywordIds\":\"90429492515259,90354405526160\"}",
+     resp:"[{\"keywordId\":\"90429492515259\",\"keywordText\":\"ケージ 小型 犬 用\",\"matchType\":\"exact\",\n  \"suggested\":\"41.0\",\"rangeStart\":\"31.0\",\"rangeEnd\":\"53.0\"},\n {\"keywordId\":\"90354405526160\",\"keywordText\":\"keyword-group=\\\"category\\\"\",\"matchType\":\"theme\"}]",
+     notes:["关键词与投放是两个接口，别混用：关键词走 spKeyword，自动位/商品定向走 spTarget。"]}},
+
+  {g:"★ 建议竞价", n:"活动预算建议（含统计时间窗口）", m:"POST", p:GW+"/spCampaign/getBudgetRecommendation", star:true,
+   d:"按活动查建议日预算，并给出「因预算不足预计损失的销售额/曝光/点击」区间——<b>这是少数带时间窗口的建议类接口</b>。",
+   s:"ok", t:["★重点","预算建议","带时间"], sec:"—",
+   det:{facts:[
+     ["入参","{shopId, campaignIds:'<Amazon campaignId 逗号拼接>'}"],
+     ["返回","suggestedBudget + estimatedMissedSales/Impressions/Clicks 的 Lower/Upper"],
+     ["时间字段","<b>startDate / endDate</b>：本次建议的统计窗口（实测 2026-10-31~2026-11-06 共 7 天）"],
+     ["percentTimeInBudget","预算在投时间占比（实测 1.0 = 全天未超预算）"],
+     ["实测","该活动建议预算 775.0（当前日预算更低的场景才值得采纳）"],
+     ["时间","这是唯一显式给出统计区间的建议接口"]],
+     req:"{\"shopId\":\"711811\",\"campaignIds\":\"276956384537792\"}",
+     resp:"[{\"campaignId\":\"276956384537792\",\"index\":0,\"suggestedBudget\":775.0,\n  \"estimatedMissedSalesLower\":0.0,\"estimatedMissedSalesUpper\":0.0,\n  \"estimatedMissedImpressionsLower\":0,\"estimatedMissedImpressionsUpper\":0,\n  \"estimatedMissedClicksLower\":0,\"estimatedMissedClicksUpper\":0,\n  \"startDate\":\"2026-10-31\",\"endDate\":\"2026-11-06\",\"percentTimeInBudget\":1.0}]",
+     notes:["percentTimeInBudget < 1 说明当天有段时间预算耗尽，建议预算才有意义。"]}},
+
+  {g:"★ 建议竞价", n:"列表行内 suggestBid（免调用）", m:"POST", p:GW+"/multiple/target/getAllTargetData（行字段 suggestBid）", star:true,
+   d:"投放列表本身就带 <code>suggestBid</code> 字段（建议价），商品定向 ASIN 行实测有值；为空则说明没有建议价。",
+   s:"ok", t:["★重点","建议竞价","零成本"], sec:"—",
+   det:{facts:[
+     ["字段","行内 suggestBid（如 '15.00'），无区间、无时间"],
+     ["实测","ASIN 定向行 suggestBid=15.00，与 spTarget/getSuggestedBid 返回的 15.0 一致"],
+     ["为空","品类行 suggestBid=null（Amazon 不给品类建议价）"],
+     ["时间","无时间字段；行内 updateTime 是「最后更新时间」，不是建议价生成时间"]],
+     notes:["日常批量拿建议价：先读列表拿 suggestBid，为空再按需调 spTarget/spKeyword 建议接口刷新。"]}},
+
+  {g:"★ 建议竞价", n:"文本建议竞价（未打通）", m:"POST", p:"gw: /spKeyword/getSuggestedBidByText（404）  ·  旧: /api/cpcSPManage/{keywords,target}/getSuggestedBidByText.json",
+   d:"直接按关键词文本（而不是已有投放）查建议竞价——用于建活动前的选词估值。",
+   s:"todo", t:["未打通","选词场景"], sec:"—",
+   det:{facts:[
+     ["gw 路径","4 种参数形态全部 HTTP 404（未灰度/不存在）"],
+     ["旧路径 keywords","500 系统异常"],
+     ["旧路径 target","-1 请求参数错误"],
+     ["替代方案","建活动页用 adKeyword/sp/suggestKeywordsByAsin/page 拿推荐词 + 带上 suggested/rangeStart/rangeEnd"]],
+     notes:["若需要「输入任意词查建议价」，可先用 suggestKeywordsByAsin 得到候选词与其建议价。"]}},
+
+  {g:"★ 建议竞价", n:"建议竞价的时间维度（结论）", m:"BOTH", p:"各建议接口的返回字段对照", star:true,
+   d:"「建议竞价有没有时间」的实测结论，避免误用。",
+   s:"ok", t:["★重点","时间维度","结论"], sec:"—",
+   det:{facts:[
+     ["投放建议竞价","<b>无</b>时间字段（实时计算，每次请求即最新）"],
+     ["关键词建议竞价","<b>无</b>时间字段"],
+     ["活动预算建议","<b>有</b> startDate / endDate 统计窗口 + percentTimeInBudget"],
+     ["列表行 suggestBid","无时间；同行 updateTime 是投放最后更新时间"],
+     ["HTTP 响应头","有 Date（服务端时间），可当作「取价时刻」记录"],
+     ["前端展示","建议竞价列 + 「应用」按钮，采纳后写入 bid，随后行 updateTime 变化"]],
+     notes:["若要做「建议价历史趋势」，只能自建快照表：定时请求 + 记录取价时间 + 落库对比。",
+            "Amazon 侧建议竞价是按近期表现实时计算的，本身不带版本时间。"]}},
+
+  {g:"★ 建议竞价", n:"品类 ID 新线索（可解品类定向缺口）", m:"POST", p:GW+"/spTarget/getSuggestedBid（extension.value）", star:true,
+   d:"品类定向查建议竞价时，<code>extension.value</code> 回传了 Amazon <b>品类 ID</b>，正是之前做品类定向缺少的 <code>categoryId</code>。",
+   s:"part", t:["★重点","线索","待验证"], sec:"21",
+   det:{facts:[
+     ["现象","targetId=88059833830792 → extension:[{type:'asinCategorySameAs', value:'223631684051'}]"],
+     ["推断","value 即 Amazon 品类 ID，可作为 ad/sp/create 里 category 的 categoryId"],
+     ["用途","把已有品类定向的 categoryId 挖出来，再复刻到新活动"],
+     ["状态","推断待验证（尚未用它实际建过品类定向）"]],
+     notes:["若验证通过，「品类定向无法复制」这个缺口即可关闭。"]}},
+
+  {g:"★ 建议竞价", n:"多店建议竞价", m:"POST", p:GW+"/spTarget/getSuggestedBidMultiShop  ·  /spKeyword/getSuggestedBidMultiShop",
+   d:"一次查多店铺的建议竞价（源码存在，参数未逐项验证）。",
+   s:"todo", t:["多店","未验证"], sec:"—",
+   det:{facts:[["场景","多店铺账号同时取价，避免逐店循环"],
+              ["状态","接口路径已确认，参数结构未实测"]],
+     notes:["单店批量已可用（逗号拼接 id），多店版本优先度不高。"]}},
+
+  /* ============ ★ 关键词数据（ABA 排名 / 建议词） ============ */
+  {g:"★ 关键词数据", n:"ABA 搜索词排名 + 历史趋势", m:"POST", p:"/api/search/terms/analysis/getTrend.json", star:true,
+   d:"<b>搜索词排名数据源</b>：给一批关键词，返回当前 ABA 排名 + 逐期历史（周 13 期 / 月 12 期）。数字越小越热门。",
+   s:"ok", t:["★重点","ABA","含趋势"], sec:"22.2",
+   det:{facts:[
+     ["多词分隔","<b>6 个 #</b>：<code>词1######词2</code>"],
+     ["必填","<code>departmentNames</code> 与词数一一对应，同样 <code>######</code> 连接（如 Amazon.co.jp）"],
+     ["日期","<code>startDate/endDate</code> 传<b>空串</b>，区间由 periodType 决定"],
+     ["periodType","DAY / WEEK / MONTH / QUARTER（默认 WEEK）"],
+     ["返回","abaRank（最新排名）+ list[]（每期 searchFrequencyRank）"],
+     ["长尾词","无 ABA 记录的词<b>直接不返回</b>，不是报错"],
+     ["实测","チェストリグ 11,000 / プレートキャリア 31,054 / ラジオハーネス 275,361"]],
+     req:"POST /api/search/terms/analysis/getTrend.json\n{\n \"marketplaceId\":\"A1VC38T7YXB528\",\n \"searchTerms\":\"キッチン ラック######収納 ラック######チェストリグ\",\n \"periodType\":\"WEEK\",\n \"startDate\":\"\", \"endDate\":\"\",\n \"departmentNames\":\"Amazon.co.jp######Amazon.co.jp######Amazon.co.jp\"\n}",
+     resp:"{\"code\":0,\"msg\":\"OK\",\"data\":[{\n \"searchTerm\":\"チェストリグ\", \"abaRank\":\"11000\", \"rank\":null,\n \"list\":[{\"startDate\":\"2026-08-02\",\"endDate\":\"2026-08-08\",\n          \"searchFrequencyRank\":15007,\"weekStr\":\"26年第32周\"}, ...]\n}]}",
+     notes:["<b>别用 keywordLib/searchTermGetTrend</b>：那条新网关路径始终返回空数组。",
+            "排名 ≠ 搜索量；要搜索量需 ABA 后台导出或第三方工具。"]}},
+
+  {g:"★ 关键词数据", n:"建议关键词（按 ASIN）", m:"POST", p:GW+"/adKeyword/sp/suggestKeywordsByAsin/page", star:true,
+   d:"给一个或多个广告产品 ASIN，返回系统推荐的关键词（含中文释义与匹配类型）。<b>不含排名</b>，排名要再过 getTrend 补。",
+   s:"ok", t:["★重点","选词","按ASIN"], sec:"22.3",
+   det:{facts:[
+     ["入参","{shopId, asinList:[最多约 20 个], pageNo, pageSize}"],
+     ["字段名坑","是 <code>asinList</code>；传 <code>asins</code> 报「asinList: must not be null」"],
+     ["返回","data.keywordTypeList[{matchType, keywordText, keywordTextCn}]"],
+     ["实测","单个 ASIN 返回 totalSize=200，分页取"],
+     ["前置","页面必须先添加广告产品，否则不返回数据"]],
+     req:"{\"shopId\":\"711811\",\n \"asinList\":[\"B0HQGMTCB3\",\"B0HQRVCQ88\"],\n \"pageNo\":1,\"pageSize\":20}",
+     resp:"{\"code\":0,\"data\":{\"totalSize\":200,\"hasNextPage\":true,\n \"keywordTypeList\":[{\"matchType\":\"broad\",\"keywordText\":\"キッチン ラック\",\"keywordTextCn\":\"厨房架\"}]}}",
+     notes:["拿到的词批量丢给 getTrend，就能一次补齐排名与趋势。"]}},
+
+  {g:"★ 关键词数据", n:"推荐建议竞价（按 ASIN 批量）", m:"POST", p:GW+"/multiple/target/suggestBid/recommendations", star:true,
+   d:"按 ASIN + 投放表达式（含 4 个 theme 群组）批量算建议价，适合建活动前估价。",
+   s:"part", t:["★重点","建议价","批量"], sec:"22.4",
+   det:{facts:[
+     ["入参","{shopId, asins[], placementProductPage/placementTop/placementRestOfSearch, biddingStrategy, targetingExpressions[]}"],
+     ["targetingExpressions","4 个 <code>KEYWORD_GROUP</code>：category / peerbrand / gift / brand"],
+     ["biddingStrategy","AUTO_FOR_SALES / LEGACY_FOR_SALES / MANUAL"],
+     ["与单投放区别","spTarget/getSuggestedBid 按 targetId；本接口按 ASIN 批量"]],
+     req:"{\"shopId\":\"711811\",\"asins\":[\"B0HQGMTCB3\"],\n \"placementProductPage\":null,\"placementTop\":null,\"placementRestOfSearch\":null,\n \"biddingStrategy\":\"AUTO_FOR_SALES\",\n \"targetingExpressions\":[{\"type\":\"KEYWORD_GROUP\",\"value\":\"keyword-group=\\\"category\\\"\"}]}",
+     notes:["字段与 spTarget/getSuggestedBid 不同：这里用 asins（复数、数组）。"]}},
+
+  {g:"★ 关键词数据", n:"关键词库列表（词库 tab）", m:"POST", p:GW+"/keywordLib/pageList",
+   d:"关键词库里保存的词 + `abaRank` / `abaRankTrend` 字段（本店词库为空，实测 totalSize=0）。",
+   s:"part", t:["词库","含 abaRank"], sec:"22.5",
+   det:{facts:[
+     ["真实请求体","{adTagId:[], asin, searchType:'exact', keywordText, searchUid:<用户id>, markupAsin, orderField, orderType, endDate, marketplaceId, source, startDate, shopIdList, pageNo, pageSize}"],
+     ["返回","data.totalSize / keywordCount / data[]"],
+     ["实测","金梧汇辰(711811) totalSize=0（没往词库存词）"]],
+     notes:["前端「搜索词排名」列的取值优先级：abaRank → searchFrequencyRank → rank，都没有显示 -。"]}},
+
+  {g:"★ 关键词数据", n:"废弃路径（勿用）", m:"POST", p:GW+"/keywordLib/searchTermGetTrend  ·  /api/cpc/keywordlib/searchTermGetTrend.json",
+   d:"这两个趋势入口参数再全也<b>始终返回空数组</b>，真实数据在 `/api/search/terms/analysis/getTrend.json`。",
+   s:"todo", t:["坑","勿用"], sec:"22.1",
+   det:{facts:[
+     ["现象","code:0 但 data:[]（四种周期、多组日期、高频词全试过）"],
+     ["真实入口","/api/search/terms/analysis/getTrend.json"],
+     ["教训","前端代码里同时存在新旧两个接口名，看代码≠能跑通，必须实测"]],
+     notes:["若后续有人再搜到 keywordLib/searchTermGetTrend，直接用本文档的真实入口替代。"]}},
+
+  {g:"★ 关键词数据", n:"关键词详情（点排名进详情页）", m:"GET", p:"/api/cpc/keywordlib/keywordDetail/shopList.json",
+   d:"UI 里点排名数字会跳到关键词详情页，该页的数据入口候选（本店无 ABA 数据，返回空数组）。",
+   s:"todo", t:["详情页","待补参数"], sec:"22",
+   det:{facts:[
+     ["已试","{keyword, marketplaceId, shopIdList} → code:0, data:[]"],
+     ["用途","按店铺维度展示该词的排名/表现明细"],
+     ["状态","参数未完全打通，需一次 UI 抓包确认"]],
+     notes:["优先级不高：getTrend 已能满足「排名 + 趋势」需求。"]}},
+
+  /* ---------------- 1. 鉴权与通用 ---------------- */
+  {g:"鉴权与通用", n:"登录 Cookie（直连方式）", m:"GET", p:"CDP: /json/version → Storage.getCookies → 过滤 domain 含 sellfox.com",
+   d:"浏览器调试端口只需开着（无需任何页面）。取到 <code>JSESSIONID</code> 等 Cookie 后，Python/curl 直连即可调用全部接口。",
+   s:"ok", t:["鉴权","无需签名头"], sec:"1",
+   det:{facts:[["取 Cookie","CDP 浏览器级连接 → Storage.getCookies → 过滤 sellfox.com"],
+              ["实测数量","15 个 Cookie，关键为 JSESSIONID"],
+              ["调用方式","Python urllib / curl 直连，无需打开页面"],
+              ["无需","sf-vvv-i / sf-vvv-t / x-request-id 等签名头"]],
+     req:"GET http://127.0.0.1:9333/json/version     # 取 browser webSocketDebuggerUrl\nWS  {id:1, method:'Storage.getCookies'}\n→ 过滤 domain 含 sellfox.com 的 name/value",
+     reqLang:"",
+     notes:["请求头至少带 Cookie / Origin / Referer / Content-Type / X-Language。",
+            "浏览器完全关闭时 CDP 端口不可用，此时需改用已保存的 Cookie 文件。"]}},
+
+  {g:"鉴权与通用", n:"双路径规则（新网关 / 旧接口）", m:"BOTH", p:"新: /api/gw/sellfox/sellfox-cpc/api/sellfox/*  旧: /api/cpcSPManage/*.json、/api/portfolio/*.json",
+   d:"新网关返回 JSON、一般不需要签名头；旧接口多为 form-urlencoded（注意 <code>Folio</code> 大写、<code>.json</code> 后缀）。",
+   s:"ok", t:["通用","form-urlencoded"], sec:"1",
+   det:{facts:[["新网关","/api/gw/sellfox/sellfox-cpc/api/sellfox/...  → application/json"],
+              ["旧接口","/api/cpcSPManage/*.json、/api/portfolio/*.json → form-urlencoded"],
+              ["大小写坑","movePortFolioData 的 Folio 是大写 F"],
+              ["灰度","前端按 grayButtonList 选择走哪条，未开灰度时新路径可能 404"]],
+     notes:["遇到 404 先换另一条路径试，而不是怀疑参数。",
+            "form 接口的参数用 urlencode 平铺；JSON 接口用嵌套对象。"]}},
+
+  {g:"鉴权与通用", n:"部分失败语义", m:"POST", p:"响应 code:0 但 data / errMsgList / targetList[].code 内含逐条错误",
+   d:"批量接口普遍是「部分成功」：必须逐条检查 <code>errMsg</code>；<code>code:0</code> 不等于全部成功。",
+   s:"ok", t:["通用","易踩坑"], sec:"2.2",
+   det:{facts:[["整体","code:0 = 请求被受理"],
+              ["逐条","targetList[].code / errMsg、errMsgList[]"],
+              ["实测案例","23 个商品定向中 3 个 ASIN 成功、20 个品类失败，整体仍 code:0"]],
+     resp:"{\"code\":0,\"data\":{\n  \"campaignResp\":{\"code\":0,\"campaignId\":\"171700059986999\"},\n  \"groupResp\":{\"code\":0,\"adGroupId\":\"27575396567204\"},\n  \"targetResp\":{\"code\":0,\"targetType\":\"productTarget\",\"targetList\":[\n    {\"code\":0,\"index\":1,\"targetId\":\"253124996573031\"},\n    {\"code\":-1,\"index\":0,\"errMsg\":\"Targeting Expression value null is invalid for type ASIN_CATEGORY_SAME_AS\"}\n  ]}}",
+     notes:["创建类接口务必遍历 targetList 统计成功数，否则会误判成功。",
+            "活动/组已创建但投放全失败时，会留下「空活动」，需要另行归档清理。"]}},
+
+  {g:"鉴权与通用", n:"双 id 体系", m:"POST", p:"赛狐内部 id（如 14312600346） vs Amazon id（如 262736104900156）",
+   d:"读列表返回行里 <code>id</code>=内部 id、<code>campaignId</code>=Amazon id。<b>写接口多数要内部 id</b>；否定投放归档要两个 id 同时传。",
+   s:"ok", t:["通用","必读"], sec:"2.2",
+   det:{facts:[["行内 id","赛狐内部 id，如 14312600346（活动）/ 12734272985（组）"],
+              ["campaignId","Amazon id，如 262736104900156"],
+              ["写接口","spCampaign/update 用 dxmCampaignId（数字内部 id）"],
+              ["双 id 必传","否定项归档 vos[] 需 neTargetId + id"]],
+     notes:["列表页 URL 里的 id 一般是内部 id，campaignId 参数才是 Amazon id，容易混。",
+            "拿错 id 的典型报错：对象不存在 / 请求参数错误。"]}},
+
+  /* ---------------- 2. 广告组合 ---------------- */
+  {g:"广告组合 Portfolio", n:"读取组合列表", m:"POST", p:GW+"/multiple/portfolio/getAllPortfolioData",
+   d:"JSON。请求 <code>{shopIdList:[...], pageNo, pageSize}</code>，返回 <code>data.page.rows[{portfolioId, portfolioName, campaignNumber, state}]</code>。",
+   s:"ok", t:["读取"], sec:"12",
+   det:{facts:[["实测","金梧汇辰 6 个组合，字段含 campaignNumber / isHidden"],
+              ["补充","campaignNumber 有缓存，删除模板后立即读可能还是旧值"],
+              ["组合","亚马逊不支持删除组合，只能隐藏"]],
+     req:"{\"shopIdList\":[\"711811\"],\"pageNo\":1,\"pageSize\":100}",
+     resp:"{\"code\":0,\"data\":{\"page\":{\"totalSize\":6,\"rows\":[\n  {\"shopId\":711811,\"portfolioId\":\"29811114365267\",\"portfolioName\":\"自动-当前在跑\",\n   \"state\":\"enabled\",\"isHidden\":0,\"campaignNumber\":132,\"siteName\":\"日本\"}]}}}"}},
+
+  {g:"广告组合 Portfolio", n:"创建组合", m:"POST", p:"/api/portfolio/createPortfolioData.json",
+   d:"form-urlencoded：<code>shopId + portfolioName</code>。返回 <code>data</code> 即新 portfolioId。",
+   s:"ok", t:["写入","form"], sec:"12",
+   det:{facts:[["实测","创建「无用的归档广告活动」→ code:0, data=272708336174144"],
+              ["响应","{\"code\":0,\"msg\":\"success\",\"data\":\"<portfolioId>\"}"],
+              ["编码","必须 form-urlencoded，JSON 不认"]],
+     req:"shopId=711811&portfolioName=无用的归档广告活动",
+     notes:["创建后组合立即出现在列表，但 campaignNumber 为 0。"]}},
+
+  {g:"广告组合 Portfolio", n:"移动活动到组合", m:"POST", p:"/api/portfolio/movePortFolioData.json",
+   d:"form：<code>shopId &amp; portfolioId &amp; campaignIds</code>（逗号分隔 Amazon campaignId，单批 20 个稳定）。",
+   s:"ok", t:["写入","form","批量"], sec:"12/15",
+   det:{facts:[["实测批量","134 个活动 / 7 批（每批 20）全部成功"],
+              ["移入 0","portfolioId=0 报 EntityID does not exist"],
+              ["归档活动","报 Archived entity cannot be modified（亚马逊终态，不可移动）"],
+              ["无返回值","data:null 即成功"]],
+     req:"shopId=711811&portfolioId=29811114365267&campaignIds=262736104900156,151381955464935",
+     resp:"{\"code\":0,\"msg\":\"\",\"data\":null}",
+     notes:["<b>归档活动无法移动</b>：实测 249 个归档活动全部失败，这不是参数问题。",
+            "单批建议 ≤20 个，批间隔 0.6-1s。",
+            "移动前务必确认范围：campaign/getAllCampaignData 的 portfolioIdList 过滤不生效，容易误移。"]}},
+
+  /* ---------------- 3. 广告活动 ---------------- */
+  {g:"广告活动 Campaign", n:"创建活动（自动/手动，含广告组与投放）", m:"POST", p:GW+"/ad/sp/create",
+   d:"三段结构：<code>spCampaignInfo</code> / <code>spGroupInfo</code> / <code>spTargetInfo</code>。<code>campaignId:\"\"</code>=建新活动；非空=给该活动加组。",
+   s:"ok", t:["写入","核心"], sec:"6/10/21",
+   det:{
+     facts:[["自动投放","targetingType=auto + queryHighRelMatchesBid 等 4 个匹配位"],
+            ["手动关键词","targetingType=manual + keywordTarget:true + keywords[]"],
+            ["手动商品","keywordTarget:false + targetings[]（需 categoryId）"],
+            ["实测","手动测试 118611383747187 / ct 155463577175712 / ctt1111 244077946952639"],
+            ["单次规模","42 产品 + 64 关键词一次提交（19KB）"],
+            ["耗时","约 2.0-2.5s"]],
+     req:"{\n \"shopId\":\"711811\", \"marketplaceId\":\"A1VC38T7YXB528\",\n \"spCampaignInfo\":{\"campaignId\":\"\",\"startDateStr\":\"2026-11-07\",\"endDateStr\":\"2026-12-08\",\n   \"dailyBudget\":\"300\",\"targetingType\":\"manual\",\"strategy\":\"autoForSales\",\n   \"placementTop\":\"33\",\"placementRestOfSearch\":\"22\",\"placementProductPage\":\"22\",\n   \"placementSiteAmazonBusiness\":null,\"campaignSite\":\"amazonAll\",\"name\":\"CA_manual_test_1107\",\n   \"portfolioId\":\"29811114365267\"},\n \"spGroupInfo\":{\"groupId\":\"\",\"defaultBid\":\"20\",\"name\":\"GR_manual_test\",\n   \"products\":[{\"id\":56628535,\"sku\":\"abc005\",\"asin\":\"B0HHWBRQNC\",\"mainImage\":\"\"}]},\n \"spTargetInfo\":{\"autoTarget\":false,\"keywordTarget\":true,\n   \"keywords\":[{\"keywordText\":\"dog cage\",\"matchType\":\"exact\",\"bid\":\"15\"}],\n   \"neKeywords\":[],\"neTargetings\":[]}\n}",
+     resp:"{\"code\":0,\"data\":{\n  \"campaignResp\":{\"code\":0,\"campaignId\":\"151381955464935\"},\n  \"groupResp\":{\"code\":0,\"adGroupId\":\"118965466955231\"},\n  \"targetResp\":{\"code\":0,\"targetType\":\"keywordTarget\",\n                 \"targetList\":[{\"code\":0,\"index\":0,\"targetId\":\"178979189835407\"}]}}}",
+     notes:["<b>placement 4 项是字符串</b>（如 \"33\"），与 spCampaign/update 要求数字不同。",
+            "dailyBudget 也是字符串。",
+            "products[] 只需 id/sku/asin/mainImage/spotlightVideos，不需要 marketplaceId/domain。",
+            "spGroupInfo 是对象不是数组，一次只能建 1 组。",
+            "theme 关键词（keyword-group=\"category\" 等 4 个）也会生成 target，但 targetList 排在末尾，回填按 index。",
+            "灰度开关 useSpCreateOrCopyAds 打开时走 ad/sp/createAdsNew。"]}},
+
+  {g:"广告活动 Campaign", n:"修改活动（全量覆盖）", m:"POST", p:GW+"/spCampaign/update",
+   d:"JSON 单层扁平，<code>dxmCampaignId</code> 为数字（内部 id）。<b>没带的字段可能被清空</b>。",
+   s:"ok", t:["写入","全量覆盖"], sec:"7",
+   det:{facts:[["实测1","CA_api_test_11071403 改策略 autoForSales→manual + 3 个广告位→13"],
+              ["实测2","手动测试 开始日期 11-10→11-07，servingStatus 由「尚未开始」变「正在投放」"],
+              ["响应","data:null 即成功，不回传新值"],
+              ["校验","改完必须再查列表确认"]],
+     req:"{\"shopId\":\"711811\",\"dxmCampaignId\":14315373292,\"name\":\"手动测试\",\n \"portfolioId\":\"230512165427632\",\"startDateStr\":\"2026-11-07\",\"endDateStr\":\"2026-11-13\",\n \"dailyBudget\":\"333\",\"targetingType\":\"manual\",\"strategy\":\"autoForSales\",\n \"placementTop\":12,\"placementRestOfSearch\":22,\"placementProductPage\":32,\n \"placementSiteAmazonBusiness\":42,\"creativeBidPercentage\":0,\n \"audienceId\":\"\",\"audienceBidPercentage\":0,\"defaultAudience\":false,\n \"campaignSite\":\"amazonAll\",\"offAmazonBudgetControlStrategy\":null}",
+     notes:["placement 字段这里是<b>数字</b>，与创建时的字符串相反。",
+            "无组合时 portfolioId 传 \"-1\"。",
+            "creativeBidPercentage 传 0、audienceBidPercentage 传 0（创建时是 null/\"\"）。"]}},
+
+  {g:"广告活动 Campaign", n:"暂停 / 启用活动", m:"POST", p:GW+"/spCampaign/updateState",
+   d:"form：<code>shopId &amp; id(内部id) &amp; state=paused|enabled</code>。只切状态不动其他字段。",
+   s:"ok", t:["写入","form","状态"], sec:"8",
+   det:{facts:[["实测","CA_api_test_11071403 暂停 → state=paused / CAMPAIGN_PAUSED"],
+              ["实测","手动testttttt_copy 等批量暂停"],
+              ["反向","再调一次 state=enabled 即恢复"],
+              ["响应","data:null"]],
+     req:"shopId=711811&id=14315373292&state=paused",
+     notes:["id 必须是内部 id（行里的 id 字段），不是 campaignId。"]}},
+
+  {g:"广告活动 Campaign", n:"归档活动", m:"POST", p:GW+"/spCampaign/archive",
+   d:"form：<code>shopId &amp; id(内部id)</code>。归档为终态，不可恢复、不可移动组合。",
+   s:"ok", t:["写入","form","不可逆"], sec:"9",
+   det:{facts:[["实测","CA_test1(id=14312473523) → code:0，state=archived"],
+              ["清理","83111771603839（半成功副本）也是用它归档的"],
+              ["查询","默认视图不再展示，需 statusList:[\"archived\"]"]],
+     req:"shopId=711811&id=14312473523",
+     notes:["归档不可逆：之后不能再改状态、不能移组合、不能加组。",
+            "清理测试数据优先用暂停，仅在确定不要时归档。"]}},
+
+  {g:"★ 日级指标", n:"活动指标（日 / 区间）", m:"POST", p:GW+"/campaign/getAllCampaignData", star:true,
+   d:"<b>日级取数主力接口</b>：<code>startDate=endDate=当天</code> 即当天指标，区间即累计。返回行自带全部指标列（曝光/点击/花费/ACOS/ROAS/订单/销售额…）。",
+   s:"part", t:["日级","★核心","过滤失效"], sec:"19/21",
+   det:{facts:[["实测","全店 602 个活动，7 页拉全"],
+              ["portfolioIdList","<b>传了也不生效</b>，返回与不传完全一致"],
+              ["statusList","传 [\"enabled\"] 仍返回已归档/已暂停行"],
+              ["解法","按行内 portfolioId / state 二次过滤"],
+              ["行字段","id / campaignId / name / state / servingStatus / servingStatusName / portfolioName / dailyBudget / strategy"]],
+     req:"{\"shopIdList\":[\"711811\"],\"adType\":\"sp\",\"statusList\":[\"enabled\",\"paused\"],\n \"startDate\":\"2026-11-01\",\"endDate\":\"2026-11-08\",\"pageNo\":1,\"pageSize\":100,\n \"fromSingle\":true,\"searchType\":\"contains\",\"searchField\":\"name\",\"searchValue\":\"手动测试\"}",
+     resp:"{\"code\":0,\"data\":{\"page\":{\"totalSize\":602,\"rows\":[\n  {\"id\":14315373292,\"campaignId\":\"118611383747187\",\"name\":\"手动测试\",\n   \"state\":\"enabled\",\"servingStatusName\":\"正在投放\",\"portfolioName\":\"技术测试组合\"}]}}}",
+     notes:["<b>最大坑</b>：按组合过滤无效，曾误移全店 134 个活动（93 个本就在目标组合，2 个误移后已还原）。"]}},
+
+  {g:"广告活动 Campaign", n:"读取活动详情", m:"POST", p:GW+"/adCampaign/getInfo",
+   d:"<code>{shopId, campaignId(Amazon), type:\"sp\"}</code>。",
+   s:"ok", t:["读取"], sec:"7/19",
+   det:{facts:[["用于","改活动前先 GET 当前值（避免全量覆盖清空字段）"],
+              ["字段","campaignName / strategy / dailyBudget / startDate / endDate / portfolioId / placement* / state / id"]],
+     req:"{\"shopId\":\"711811\",\"campaignId\":\"151381955464935\",\"type\":\"sp\"}",
+     resp:"{\"data\":{\"campaignName\":\"CA_manual_test_1107\",\"targetingType\":\"manual\",\n \"strategy\":\"autoForSales\",\"dailyBudget\":\"300.00\",\"startDate\":\"2026-11-07\",\n \"endDate\":\"2026-12-08\",\"portfolioId\":\"230512165427632\",\n \"placementTop\":\"\",\"state\":\"paused\",\"id\":14315199610}}",
+     notes:["这里的 campaignId 是 Amazon id，不是内部 id（与写接口相反）。"]}},
+
+  /* ---------------- 4. 广告组 ---------------- */
+  {g:"★ 日级指标", n:"广告组指标（日 / 区间）", m:"POST", p:GW+"/multiple/group/getAllGroupData", star:true,
+   d:"<code>{shopIdList, campaignIdList, adType, startDate, endDate}</code> → <code>data.page.rows</code>，行带全部指标列 + <code>defaultBid</code>/<code>state</code>。",
+   s:"ok", t:["日级","★核心"], sec:"17",
+   det:{facts:[["实测","ctt1111 加组后 totalSize 1→2"],
+              ["行字段","name / adGroupId(Amazon) / id(内部) / defaultBid / state / campaignName"]],
+     req:"{\"shopIdList\":[\"711811\"],\"campaignIdList\":[\"244077946952639\"],\n \"adType\":\"sp\",\"startDate\":\"2026-11-07\",\"endDate\":\"2026-11-07\"}",
+     resp:"{\"data\":{\"page\":{\"totalSize\":2,\"rows\":[\n  {\"name\":\"cttsss\",\"adGroupId\":\"266788419820716\",\"id\":12734272985,\"defaultBid\":222},\n  {\"name\":\"ctt1111\",\"adGroupId\":\"136677466649614\",\"id\":12734142023,\"defaultBid\":22}]}}}"}},
+
+  {g:"广告组 Group", n:"修改组名 / 默认竞价", m:"POST", p:"/api/cpcSPManage/group/update.json",
+   d:"旧接口 JSON：<code>{shopId, dxmGroupId(内部id), name, defaultBid}</code>。",
+   s:"ok", t:["写入","旧接口"], sec:"17",
+   det:{facts:[["实测","GR_test2 → GR_testtttt，默认竞价 20 → 13"],
+              ["校验","读回 getAllGroupData 确认 name/defaultBid=13.0"],
+              ["注意","是旧接口（.json），走 /api/cpcSPManage 前缀"]],
+     req:"{\"shopId\":\"711811\",\"dxmGroupId\":12731284648,\"name\":\"GR_testtttt\",\"defaultBid\":13}",
+     notes:["dxmGroupId 是内部 id；传 Amazon adGroupId 会报对象不存在。"]}},
+
+  {g:"广告组 Group", n:"给已有活动新增广告组", m:"POST", p:GW+"/ad/sp/create",
+   d:"复用建活动接口：<code>campaignId</code> 非空 + 活动层字段空/透传。",
+   s:"ok", t:["写入","复用","实测 42 产品+12 词"], sec:"10.1",
+   det:{facts:[["实测","ctt1111 → 新建组 cttsss（adGroupId 266788419820716，默认竞价 222）"],
+              ["规模","42 个产品 + 12 个关键词（4 theme + 3 broad + 3 phrase + 2 exact）"],
+              ["请求体","9,622 字节，耗时约 2s"],
+              ["响应","campaignResp.campaignId = 原活动 id；新组看 groupResp.adGroupId"],
+              ["行 key","弹窗里关键词行是 _XID（建活动页是 _XROW_KEY），后端忽略"]],
+     req:"{\n \"spCampaignInfo\":{\"campaignId\":\"244077946952639\",\"startDateStr\":\"\",\"endDateStr\":\"\",\n   \"dailyBudget\":\"333.00\",\"targetingType\":\"manual\",\"strategy\":\"autoForSales\",\n   \"placementProductPage\":null,\"placementTop\":null,\"placementRestOfSearch\":null,\n   \"placementSiteAmazonBusiness\":null,\"campaignSite\":\"amazonAll\",\"name\":\"\",\n   \"portfolioId\":\"\",\"offAmazonBudgetControlStrategy\":null},\n \"spGroupInfo\":{\"groupId\":\"\",\"defaultBid\":\"222\",\"name\":\"cttsss\",\"products\":[...42 个]},\n \"spTargetInfo\":{\"autoTarget\":false,\"keywordTarget\":true,\"keywords\":[...12 个]}\n}",
+     resp:"{\"code\":0,\"data\":{\"campaignResp\":{\"campaignId\":\"244077946952639\"},\n \"groupResp\":{\"adGroupId\":\"266788419820716\"},\n \"targetResp\":{\"targetType\":\"keywordTarget\",\"targetList\":[12 条全部 code:0]}}}",
+     notes:["活动层字段只是「带上下文」，填了也不改活动（要改走 spCampaign/update）。",
+            "一次弹窗 = 一次调用 = 1 个组；多组需多次调用。",
+            "本次新确认 offAmazonBudgetControlStrategy 也会显式带 null。"]}},
+
+  /* ---------------- 5. 广告产品 ---------------- */
+  {g:"广告产品 AdProduct", n:"读取组内广告产品", m:"POST", p:GW+"/adCampaign/getGroupProductList",
+   d:"<code>{shopId, adGroupIds:[...], campaignId, type:\"sp\"}</code> → 数组。",
+   s:"ok", t:["读取","参数坑"], sec:"13/21",
+   det:{facts:[["参数坑","adGroupIds 必须是数组；传 adGroupId 字符串报「无广告组信息」"],
+              ["返回","数组（不是 page.rows），元素 id 即建活动用的产品库 id"],
+              ["实测","手动testttttt 6 个 / CA_manual_test_1107 1 个 / 新组 42 个"]],
+     req:"{\"shopId\":\"711811\",\"adGroupIds\":[\"253512964055428\"],\n \"campaignId\":\"113227129783425\",\"type\":\"sp\"}",
+     resp:"[{\"id\":60466706,\"sku\":\"ll053-4フレ一ム-b\",\"asin\":\"B0HQN7NNQS\",\"mainImage\":null}, ...]"}},
+
+  {g:"★ 日级指标", n:"广告产品指标（日 / 区间）", m:"POST", p:GW+"/multiple/adProduct/getAdProductList", star:true,
+   d:"按活动/组/ASIN 过滤，行带曝光点击花费等指标；<code>id</code> 为广告产品实例 id，是分时接口 <code>adIds</code> 的入参。",
+   s:"ok", t:["日级","★核心"], sec:"13",
+   det:{facts:[["行 id","广告产品<b>实例</b> id（11 位，如 79503967439）→ 分时接口 adIds"],
+              ["注意","与建活动用的产品库 id（如 60466706）不是一回事"],
+              ["实测","有花费活动下 4 个产品行，adCost 120.00"]],
+     notes:["建活动/加组要用产品库 id；取分时数据要用这里的实例 id。"]}},
+
+  {g:"★ 日级指标", n:"搜索词指标（日）", m:"POST", p:GW+"/multiple/search/getAllSearchData  ·  /multiple/search/getAllSearchAggregateData", star:true,
+   d:"<code>searchQueryType</code> 两个维度：<code>searchKeyword</code>（搜索词）/ <code>searchAsin</code>（ASIN），数据互相独立，需分别采。",
+   s:"ok", t:["日级","★核心","仅日级"], sec:"—",
+   det:{facts:[["维度","searchKeyword / searchAsin 分别请求，结果不重叠"],
+              ["adType","sp / sb / sd 三种都要分开采"],
+              ["实测","searchQueryType=searchKeyword 返回 data.page 结构"],
+              ["无分时","getAllSearchHourData 等 3 条候选路径均 404，搜索词只有日级"]],
+     req:"{\"orderField\":\"adCost\",\"orderType\":\"desc\",\"shopIdList\":[\"711811\"],\n \"adType\":\"sp\",\"searchQueryType\":\"searchKeyword\",\n \"startDate\":\"2026-11-06\",\"endDate\":\"2026-11-06\",\n \"pageNo\":1,\"pageSize\":200}",
+     notes:["采全店时按 adType × searchQueryType = 2~6 个组合循环。"]}},
+
+  {g:"★ 日级指标", n:"广告日志（日）", m:"POST", p:GW+"/log/sellfoxAndAuto/getPage",
+   d:"操作日志，<code>{shopId, types:[adType], startDate, endDate}</code>。",
+   s:"part", t:["日级","日志"], sec:"—",
+   det:{facts:[["返回","data 直挂 page（与其他接口 data.page 不同）"],
+              ["用途","追踪谁在什么时候改了什么（竞价/状态/预算）"]],
+     notes:["注意响应结构差异：广告日志的 page 直接挂在 data 下。"]}},
+
+  /* ---------------- 6. 投放 Target ---------------- */
+  {g:"★ 日级指标", n:"投放指标（日 / 区间）", m:"POST", p:GW+"/multiple/target/getAllTargetData", star:true,
+   d:"<code>targetType</code>：<code>auto</code> / <code>keyword</code> / <code>targeting</code>（其他值报参数错误）。行带指标 + bid / state。",
+   s:"ok", t:["日级","★核心","targetType 枚举"], sec:"14/21",
+   det:{facts:[["枚举实测","auto / keyword / targeting 有效；product、asin、category 等全部报请求参数错误"],
+              ["商品行","productTargetType: asin|category、targetText、bid、targetId"],
+              ["实测","手动testttttt 23 条（3 asin + 20 category，bid 均 30）"],
+              ["关键词行","targetType=keyword 单独查，CA_manual_test_1107 有 dog cage"]],
+     req:"{\"shopIdList\":[\"711811\"],\"campaignIdList\":[\"113227129783425\"],\n \"groupIdList\":[\"253512964055428\"],\"adType\":\"sp\",\"targetType\":\"targeting\",\n \"matchTypes\":[],\"statusList\":[\"enabled\",\"paused\"],\n \"startDate\":\"2026-11-01\",\"endDate\":\"2026-11-08\",\"pageNo\":1,\"pageSize\":50,\n \"fromSingle\":true,\"useAdvanced\":false}",
+     resp:"{\"data\":{\"page\":{\"totalSize\":23,\"rows\":[\n  {\"id\":\"14324636953\",\"targetId\":\"88059833830792\",\"targetText\":\"レディーススノーブーツ\",\n   \"productTargetType\":\"category\",\"category\":\"レディーススノーブーツ\",\"brandName\":\"全部\",\"bid\":\"30.00\"}]}}}",
+     notes:["productTargetType=category 的行只有名称，<b>没有 categoryId</b>，这正是品类定向无法复刻的根因。"]}},
+
+  {g:"投放 Target", n:"批量改竞价（异步任务）", m:"POST", p:GW+"/target/bid/batchAsyncUpdateBid",
+   d:"JSON：<code>bidUpdateReq:{bidType:\"FIXED_BID\", adjustValue}</code> + 列表同款筛选。",
+   s:"ok", t:["写入","异步","需轮询"], sec:"15",
+   det:{facts:[["实测","GR_test2 下 4 个投放全部改 13，任务 status=3 完成"],
+              ["取整","14.80 落库为 15.00（JPY 只保留整数）"],
+              ["响应","data = 任务 id，需轮询 target/task/list"],
+              ["反向","再调一次改回原值（15/18/17/16）"]],
+     req:"{\n \"shopId\":\"711811\",\"campaignIdList\":[\"262736104900156\"],\n \"groupIdList\":[\"490926517106271\"],\"adType\":\"sp\",\"targetType\":\"auto\",\n \"bidUpdateReq\":{\"bidType\":\"FIXED_BID\",\"adjustValue\":13},\n \"startDate\":\"2026-11-01\",\"endDate\":\"2026-11-08\"\n}",
+     resp:"{\"code\":0,\"data\":\"<taskId>\"}   → 轮询 target/task/list 到 status=3",
+     notes:["adjustValue 是「改成」还是「加减」取决于 bidType，FIXED_BID 为固定值。",
+            "批量接口不回传逐条失败原因，改完必须读回核对。"]}},
+
+  {g:"投放 Target", n:"新增手工定向（关键词/商品）", m:"POST", p:"旧: /api/cpcSPManage/target/createManualTargeting.json",
+   d:"form，payload <code>{shopId, groupId, keywords[], neKeywords[], targetings[], neTargetings[]}</code>。",
+   s:"part", t:["写入","form","品类受限于 ID"], sec:"21",
+   det:{facts:[["新网关","spTarget/createManualTargeting → 404（未灰度）"],
+              ["旧路径","存在，但参数不全时 500 系统异常"],
+              ["前端","createManualTargeting({shopId, groupId, keywords, neKeywords, targetings, neTargetings})"],
+              ["品类行字段","type:\"category\"、category(=path)、categoryId、brandName、minPrice、maxPrice、primeShippingEligible"]],
+     notes:["<b>品类行必须带 categoryId</b>（Amazon 品类 ID），来源 suggestCategory，实测返回 null，故无法构造。"]}},
+
+  /* ---------------- 7. 关键词 Keyword ---------------- */
+  {g:"关键词 Keyword", n:"theme 关键词群组", m:"POST", p:GW+"/ad/sp/create（keywords[].matchType=theme）",
+   d:"4 个固定群组：<code>keyword-group=\"category|peerbrand|gift|brand\"</code>。",
+   s:"ok", t:["新发现","易踩坑"], sec:"21.2.1",
+   det:{facts:[["4 个群组","category=商品类别 / peerbrand=顾客还会考虑品牌 / gift=礼物 / brand=品牌"],
+              ["附加字段","keywordTextCn、legacyKeywordTextCn、tips（长文案）"],
+              ["重要修正","theme <b>也会生成 target</b>，只是排在 targetList 末尾"],
+              ["index 顺序","[4,5,...,21, 0,1,2,3]，回填必须按 index"]],
+     req:"{\"keywordText\":\"keyword-group=\\\"category\\\"\",\n \"keywordTextCn\":\"与您的商品类别相关的关键词\",\"matchType\":\"theme\",\n \"isAdd\":true,\"bid\":\"33\"}",
+     resp:"targetList: 22 条全部 code:0，索引 [4..21, 0,1,2,3]",
+     notes:["<b>修正早期误判</b>：曾记录「theme 不生成 target、响应从 index=4 开始」，实际是排到末尾。",
+            "按数组位置回填 targetId 会全部错位，必须按 index 字段。"]}},
+
+  {g:"关键词 Keyword", n:"新增关键词", m:"POST", p:GW+"/spKeyword/createKeywords  ·  /spKeyword/asyncCreateKeywords",
+   d:"建活动时也可直接在 <code>spTargetInfo.keywords[]</code> 给。",
+   s:"part", t:["写入","建活动内联已实测"], sec:"21.2.1",
+   det:{facts:[["内联实测","ct 活动 22 个关键词一次建全（4 theme + 6+6+6）"],
+              ["独立接口","createKeywords / asyncCreateKeywords 存在，未逐个实测"],
+              ["展开规则","页面输入 8 个词 → 提交 22 条（每词 ×3 匹配 + 4 theme）"]],
+     notes:["接口侧需自己按匹配类型展开，页面不会帮你展开。"]}},
+
+  /* ---------------- 8. 否定投放 ---------------- */
+  {g:"否定投放 Negative", n:"读取否定列表", m:"POST", p:GW+"/multiple/neTarget/getAllNeTargetData",
+   d:"JSON：<code>neType: keyword|target</code>、<code>neLevels:[\"group\"]</code>。",
+   s:"ok", t:["读取"], sec:"16",
+   det:{facts:[["实测","手动testttttt 2 个否定商品；ctt1111 2 个否定词"],
+              ["行字段","targetingValue（词/ASIN）、negativeType、neTargetId、id、adGroupId"],
+              ["参数","neBeforeAfterDay:30, dataFrom:2, useAdvanced:false"]],
+     req:"{\"shopIdList\":[\"711811\"],\"campaignIdList\":[\"113227129783425\"],\"adType\":\"sp\",\n \"neType\":\"target\",\"neLevels\":[\"group\"],\"dataFrom\":2,\"neBeforeAfterDay\":30,\n \"pageNo\":1,\"pageSize\":50}",
+     resp:"{\"rows\":[{\"targetingValue\":\"B0HHWBVHKD\",\"negativeType\":\"asin\",\n \"neTargetId\":\"27628567331379\",\"id\":\"14274108299\",\"state\":\"enabled\"}]}"}},
+
+  {g:"否定投放 Negative", n:"新增否定关键词", m:"POST", p:GW+"/negative/createSpGroupNeKeywords",
+   d:"<code>neKeywords:[{keywordText, keywordTextCn, matchType}]</code>。",
+   s:"ok", t:["写入","部分失败"], sec:"16",
+   det:{facts:[["实测","新增 ggg / ttt / hhh 三个否定精准词"],
+              ["匹配类型","negativeExact / negativePhrase"],
+              ["失败坑","含下划线（如 abc_def）被判「关键词无效」"],
+              ["清理","随后用 updateBatchMultiShop 归档"]],
+     req:"{\"shopId\":\"711811\",\"campaignId\":\"262736104900156\",\"adGroupId\":\"490926517106271\",\n \"neKeywords\":[{\"keywordText\":\"ggg\",\"keywordTextCn\":\"\",\"matchType\":\"negativeExact\"}]}",
+     notes:["部分失败时整体仍 code:0，错误在 errMsgList。"]}},
+
+  {g:"否定投放 Negative", n:"新增否定商品", m:"POST", p:GW+"/spTarget/createNeTargeting",
+   d:"先查 ASIN，再提交 <code>neTargetings[{asin, title, imgUrl, type:\"asin\"}]</code>。",
+   s:"ok", t:["写入","逐个 ASIN"], sec:"16",
+   det:{facts:[["查 ASIN","cpcSPManage/product/searchAsinsForTargeting.json，<b>一次只能一个</b>"],
+              ["实测","B0HJPSQ7TQ / B0HLDV9H1G 两个否定商品"],
+              ["多 ASIN","逗号拼接返回空数组，必须逐个查"]],
+     req:"{\"shopId\":\"711811\",\"campaignId\":\"262736104900156\",\"adGroupId\":\"...\",\n \"neTargetings\":[{\"asin\":\"B0HJPSQ7TQ\",\"title\":\"...\",\"imgUrl\":\"...\",\"type\":\"asin\"}]}"}},
+
+  {g:"否定投放 Negative", n:"归档否定项（双 id 必传）", m:"POST", p:GW+"/multiple/neTarget/updateBatchMultiShop",
+   d:"<code>vos:[{shopId, adType, neLevel, neType, neTargetId, id}]</code>——两个 id 缺一不可。",
+   s:"ok", t:["写入","双 id"], sec:"16",
+   det:{facts:[["实测","3 个否定词 + 2 个否定商品全部归档成功"],
+              ["缺一即错","只传 neTargetId 或只传 id 都会失败"],
+              ["无暂停","否定项没有状态开关，只能归档"]],
+     req:"{\"vos\":[{\"shopId\":\"711811\",\"adType\":\"sp\",\"neLevel\":\"group\",\n \"neType\":\"target\",\"neTargetId\":\"27628567331379\",\"id\":\"14274108299\"}]}"}},
+
+  /* ---------------- 9. 广告位 Placement ---------------- */
+  {g:"广告位 Placement", n:"读取广告位数据", m:"POST", p:GW+"/multiple/placement/getAllPlacementData",
+   d:"返回 4 行，同 <code>id</code>，用 <code>predicate</code> 区分。",
+   s:"ok", t:["读取","4 行同 id"], sec:"19",
+   det:{facts:[["4 行","placementTop / placementRestOfSearch / placementProductPage / offAmazon"],
+              ["同一 id","4 行 id 都是活动内部 id（如 14312600346）"],
+              ["站外","offAmazon 行 isUpdateBid=false，不可调"],
+              ["实测值","顶部 10% / 其余 20% / 详情页 30% / 企业购 40%"]],
+     req:"{\"dxmCampaignId\":\"\",\"campaignSite\":\"\",\"orderField\":\"adCost\",\"orderType\":\"desc\",\n \"adType\":\"sp\",\"campaignIdList\":[\"262736104900156\"],\"predicate\":\"\",\n \"startDate\":\"2026-11-01\",\"endDate\":\"2026-11-08\",\"isCompare\":false,\n \"pageNo\":1,\"pageSize\":20,\"fromSingle\":true}",
+     resp:"{\"data\":{\"page\":{\"rows\":[\n  {\"id\":14312600346,\"predicate\":\"placementTop\",\"percentage\":\"10.0\",\"isUpdateBid\":true},\n  {\"id\":14312600346,\"predicate\":\"offAmazon\",\"percentage\":0,\"isUpdateBid\":false}]}}}",
+     notes:["行上另有 placementTop/RestOfSearch/ProductPage/SiteAmazonBusiness 四个活动级值，每行都一样。"]}},
+
+  {g:"广告位 Placement", n:"单条调整广告位比例", m:"POST", p:"/api/cpcSPManage/campaign/updatePlacementAdjustment.json",
+   d:"form：<code>shopId &amp; id(活动内部id) &amp; placement(predicate) &amp; value(0-900 整数)</code>。",
+   s:"ok", t:["写入","form","百分比整数"], sec:"19.3",
+   det:{facts:[["实测","placementTop 10 → 15，读回 15.0；再改回 10，读回 10.0"],
+              ["取值","0-900 的整数（前端 Number.isInteger 校验）"],
+              ["响应","{\"code\":0}"],
+              ["新网关","spCampaign/updatePlacementAdjustment 同参数"]],
+     req:"shopId=711811&id=14312600346&placement=placementTop&value=15",
+     resp:"{\"code\":0,\"msg\":\"\",\"data\":null}",
+     notes:["value 传小数或字符串会失败；13% 就是 value=13。"]}},
+
+  {g:"广告位 Placement", n:"批量调整广告位（契约未知）", m:"POST", p:"/api/cpcSPManage/campaign/batchUpdatePlacementAdjustment.json",
+   d:"弹窗为懒加载 chunk，5 种形态全部报参数错误。",
+   s:"todo", t:["写入","待破解"], sec:"19.4",
+   det:{facts:[["已试","vos[] / list / ids+placement / vos+dxmCampaignId / 平铺"],
+              ["结果","全部 code:-1 请求参数错误"],
+              ["阻塞","「调整」下拉在 CDP 下无法展开（DOM click / hover / 强制显隐均无效）"],
+              ["替代","逐条调 updatePlacementAdjustment 也能达到目的"]],
+     notes:["若后续要批量，建议先用单条接口循环，或抓一次 UI 的批量弹窗请求。"]}},
+
+  /* ---------------- 10. 策略 Strategy ---------------- */
+  {g:"策略 Strategy", n:"读取策略模板列表", m:"POST", p:GW+"/strategy/getPageTemplate",
+   d:"<code>{shopId, itemType:\"PORTFOLIO\", pageNo, pageSize}</code>。",
+   s:"ok", t:["读取"], sec:"20.3",
+   det:{facts:[["实测","创建后 totalSize=1，删除后返回「当前无数据」"],
+              ["关键字段","id=templateId、usageAmount（已应用对象数）、effectiveStatus"],
+              ["状态","NOT_STARTED（未到生效日）/ ACTIVE（已生效）"]],
+     req:"{\"shopId\":\"711811\",\"itemType\":\"PORTFOLIO\",\"pageNo\":1,\"pageSize\":20}",
+     resp:"{\"data\":{\"rows\":[{\"id\":\"933357\",\"templateName\":\"ttt\",\"type\":\"DAILY\",\n \"usageAmount\":1,\"effectiveStatus\":\"ACTIVE\",\n \"effectiveStartTime\":\"2026-11-07\",\"effectiveEndTime\":\"2026-12-07\"}]}}"}},
+
+  {g:"策略 Strategy", n:"创建分时预算模板", m:"POST", p:GW+"/strategy/insertTemplate",
+   d:"<code>{itemType:\"PORTFOLIO\", type:\"DAILY\", portfolioRuleList[], returnValue}</code>。",
+   s:"ok", t:["写入","套餐限制 1 条"], sec:"20.2",
+   det:{facts:[["实测","9 个模板创建（933343 / 933347 / 933354 / 933356 / 933357）"],
+              ["生效","生效日=今天 → effectiveStatus=ACTIVE；=明天 → NOT_STARTED"],
+              ["套餐限制","免费套餐最多 1 条，第 2 条报 360000「免费套餐最多使用1条」"],
+              ["响应","data = templateId"]],
+     req:"{\"shopId\":\"711811\",\"templateName\":\"ttt\",\"marketplaceId\":\"A1VC38T7YXB528\",\n \"itemType\":\"PORTFOLIO\",\"type\":\"DAILY\",\n \"portfolioRuleList\":[{\"siteDate\":\"0\",\"portfolios\":[{\"amount\":300}]}],\n \"returnValue\":{\"policy\":\"noBudget\",\"amount\":\"\"},\n \"effectiveStartTime\":\"2026-11-07\",\"effectiveEndTime\":\"2026-12-07\"}",
+     resp:"{\"code\":0,\"msg\":\"新增模板:933357\",\"data\":\"933357\"}",
+     notes:["HOUR 模式改传 portfolioHourRuleList（24 小时拖拽格数据），DAILY/WEEKLY 用 portfolioRuleList。",
+            "删除模板可腾出口额，立即可再建。"]}},
+
+  {g:"策略 Strategy", n:"应用策略到组合", m:"POST", p:GW+"/strategy/schedule/submitStrategy",
+   d:"<code>{templateId, itemType, adStrategyStatusVoList:[{policy,itemId,shopId,marketplaceId}]}</code>。",
+   s:"ok", t:["写入","应用"], sec:"20.2",
+   det:{facts:[["实测","PF_api_test_1107_v2 应用后 tabStatus NONE→ENABLED、usageAmount 0→1"],
+              ["响应","data.itemIds = [\"270905298437020\"]"],
+              ["policy","与模板 returnValue.policy 保持一致（如 noBudget）"]],
+     req:"{\"templateId\":\"933357\",\"itemType\":\"PORTFOLIO\",\n \"adStrategyStatusVoList\":[{\"policy\":\"noBudget\",\"itemId\":\"270905298437020\",\n \"shopId\":\"711811\",\"marketplaceId\":\"A1VC38T7YXB528\"}]}",
+     resp:"{\"code\":0,\"msg\":\"success\",\"data\":{\"itemIds\":[\"270905298437020\"]}}"}},
+
+  {g:"策略 Strategy", n:"删除策略模板（连带解除）", m:"POST", p:GW+"/strategy/deleteTemplate",
+   d:"<code>{templateIds:[\"...\"]}</code>（必须数组）。",
+   s:"ok", t:["写入","数组参数","假成功坑"], sec:"20.3",
+   det:{facts:[["坑","传 {templateId} 返回 code:0 但<b>没删</b>（假成功）"],
+              ["正确","{templateIds:[...]} → 立即生效，totalSize 归零"],
+              ["连带","删除已应用模板会一并解除组合策略（tabStatus 回 NONE）"],
+              ["异步","源码里另有 getDeleteTemplateTaskList 任务列表"]],
+     req:"{\"templateIds\":[\"933357\"]}",
+     resp:"{\"code\":0}   # 读回 getPageTemplate → 当前无数据"}},
+
+  {g:"策略 Strategy", n:"策略 tab 状态", m:"POST", p:GW+"/strategy/tabStatus",
+   d:"<code>{shopId, itemId, level:\"portfolio\", adGroupId:\"\"}</code>。",
+   s:"ok", t:["读取","校验用"], sec:"20.5",
+   det:{facts:[["实测","应用前 NONE，应用后 ENABLED，删除模板后又回 NONE"],
+              ["用途","最省事的「是否有策略」探针，比读列表快"]],
+     req:"{\"shopId\":\"711811\",\"itemId\":\"270905298437020\",\"level\":\"portfolio\",\"adGroupId\":\"\"}",
+     resp:"{\"code\":0,\"data\":[{\"tabCode\":\"portfolio\",\"tabName\":\"分时广告组合预算\",\n \"tabStatus\":\"ENABLED\"}]}"}},
+
+  /* ---------------- 11. 已知缺口 ---------------- */
+  {g:"已知缺口", n:"品类定向无法创建", m:"POST", p:GW+"/ad/sp/create（targetings[] 的 category 行）",
+   d:"品类行需要 <code>categoryId</code>，来源 suggestCategory 实测返回 null。",
+   s:"todo", t:["阻塞","需 UI 抓一次"], sec:"21",
+   det:{facts:[["报错","Targeting Expression value null is invalid for type ASIN_CATEGORY_SAME_AS"],
+              ["根因","createManualGroup 里 categoryList 的 categoryId 来自 suggestCategory"],
+              ["接口实测","GET /api/cpcSPManage/target/suggestCategory.json?shopId&groupId → data:null（所有组）"],
+              ["其它失败","spTarget/suggestCategory 404；suggestCategoryByAsin 返回 null"],
+              ["影响范围","仅品类/品牌定向；ASIN 定向 3/3 正常"]],
+     notes:["补齐路径：在页面「添加商品定位 → 品类」手动加一次，抓 categoryId 后即可批量。",
+            "或从亚马逊后台该投放的 expression 里取 category=\"xxx\" 的 id。"]}},
+
+  {g:"已知缺口", n:"关键词列表读取接口未定位", m:"POST", p:"候选 5 种路径均 404",
+   d:"关键词模块的列表读取尚未打通，写接口已从源码整理。",
+   s:"todo", t:["读取","待定位"], sec:"21.3",
+   det:{facts:[["已试","/multiple/keyword/getAllKeywordData 等 5 种，全部 404"],
+              ["已有","写接口 createKeywords/updateBid/updateState/archive 已定位"],
+              ["变通","target/getAllTargetData 传 targetType=keyword 可读关键词投放"]],
+     notes:["用 targetType=keyword 已能满足读需求，独立的 keyword 列表接口优先级可降低。"]}},
+
+  {g:"已知缺口", n:"搜索词 / 提示词 / 广告策略（组级）", m:"BOTH", p:"—",
+   d:"组级模块尚未验证。",
+   s:"todo", t:["未验证"], sec:"18",
+   det:{facts:[["策略","主体已在组合层打通（分时预算模板体系）"],
+              ["搜索词","组 → 搜索词 tab 未验证"],
+              ["提示词","组 → 提示词 tab 未验证"]],
+     notes:["搜索词与「产品视角」的 term 分析可能共用 /api/product/terms 一类接口，后续可优先比对。"]}},
+
+  /* ---------- 补齐：其余接口 ---------- */
+  {g:"广告组合 Portfolio", n:"隐藏组合", m:"POST", p:"/api/portfolio/updatePortfolioHiddenState.json",
+   d:"组合无法删除（亚马逊不支持），只能隐藏。",
+   s:"todo", t:["写入"], sec:"12",
+   det:{facts:[["原因","亚马逊侧组合没有删除能力，赛狐只提供隐藏"],
+              ["影响","隐藏后列表默认不展示，但活动归属不变"]],
+     notes:["清理测试组合时优先考虑隐藏而不是删（删不掉）。"]}},
+
+  {g:"★ 日级指标", n:"活动汇总 KPI / 筛选计数", m:"POST", p:GW+"/campaign/getAllCampaignAggregateData  ·  /campaign/getCampaignAdvanceCount", star:true,
+   d:"同一筛选条件下的合计值（不翻页），用于勾稽「列表求和 = 汇总」。",
+   s:"ok", t:["日级","汇总"], sec:"21",
+   det:{facts:[["实测","getCampaignAdvanceCount 返回 [{id:206208,count:0}, ...]（按筛选标签 id 计数）"],
+              ["用途","列表页左侧「有成交/有点击无成交」等标签数量"]],
+     req:"{\"shopIdList\":[\"711811\"],\"adType\":\"sp\",\"startDate\":\"2026-11-01\",\"endDate\":\"2026-11-08\"}",
+     resp:"{\"code\":0,\"data\":[{\"id\":206208,\"count\":0},{\"id\":206211,\"count\":17}]}"}},
+
+  {g:"广告组 Group", n:"暂停 / 启用广告组", m:"POST", p:"/api/cpcSPManage/group/updateState.json",
+   d:"form：<code>shopId &amp; id(内部id) &amp; state</code>。",
+   s:"ok", t:["写入","form","状态"], sec:"17",
+   det:{facts:[["实测","GR_test2 组状态切换 enabled/paused 均 code:0"],
+              ["恢复","再调一次即可反向"]],
+     req:"shopId=711811&id=12731284648&state=paused",
+     resp:"{\"code\":0,\"msg\":\"success\",\"data\":null}"}},
+
+  {g:"广告组 Group", n:"读取组详情", m:"GET", p:"/api/cpc/group/getInfo.json?shopId=&campaignId=&groupId=&type=sp",
+   d:"旧接口 GET，返回组设置页所需的名称/默认竞价/状态。",
+   s:"ok", t:["读取","旧接口"], sec:"17",
+   det:{facts:[["注意","三个 id 概念：内部 id、Amazon adGroupId、URL 里的上下文 id"],
+              ["用于","组设置页（GroupSetting）首屏加载"]],
+     req:"GET /api/cpc/group/getInfo.json?shopId=711811&campaignId=262736104900156\n   &groupId=490926517106271&type=sp",
+     notes:["URL 上的 id= 是内部 id，groupId 才是 Amazon id。"]}},
+
+  {g:"广告产品 AdProduct", n:"添加广告产品到组", m:"POST", p:"/api/cpcSPManage/product/add.json",
+   d:"form 旧接口；<code>products[].id</code> 取产品库 id。",
+   s:"part", t:["写入","form"], sec:"13",
+   det:{facts:[["产品 id","产品库 id（如 60466706），不是广告产品实例 id"],
+              ["替代","新建组时直接塞进 spGroupInfo.products[] 更省事（已实测 42 个）"]],
+     notes:["往已存在的组追加产品时用这个接口；新建组时优先走 ad/sp/create。"],}},
+
+  {g:"广告产品 AdProduct", n:"产品库搜索（建活动选品）", m:"POST", p:"/api/cpc/batch/spCreate/asinView/list.json  ·  " + GW+"/product/spPageListPost",
+   d:"建活动页选产品用。",
+   s:"part", t:["读取","选品"], sec:"6/21",
+   det:{facts:[["返回","products[].id（如 60508718）即建活动 payload 里要传的值"],
+              ["搜索","支持按 ASIN / SKU / 品名过滤"]],
+     notes:["ad/sp/create 的 products[] 只需要 id/sku/asin/mainImage/spotlightVideos 五个字段。"]}},
+
+  {g:"投放 Target", n:"查询任务进度", m:"POST", p:GW+"/target/task/list",
+   d:"<code>{shopId, taskIds:[...]}</code>，<code>status=3</code> 表示完成。",
+   s:"ok", t:["读取","异步"], sec:"15",
+   det:{facts:[["实测","批量改价后轮询到 status=3，再读列表确认全部生效"],
+              ["注意","status 含义：进行中 < 3，完成 = 3"]],
+     req:"{\"shopId\":\"711811\",\"taskIds\":[\"<taskId>\"]}",
+     resp:"{\"code\":0,\"data\":[{\"taskId\":\"...\",\"status\":3}]}"}},
+
+  {g:"投放 Target", n:"暂停 / 启用投放", m:"POST", p:GW+"/spTarget/updateState",
+   d:"<code>shopId + id(内部id) + state</code>。",
+   s:"ok", t:["写入","状态"], sec:"14",
+   det:{facts:[["实测","同类产品暂停 / 关联产品开启，逐个调用成功"],
+              ["限制","自动投放行若 is--disabled 则不能单独操作"],
+              ["反向","再调一次 state 即恢复"]],
+     req:"{\"shopId\":\"711811\",\"id\":\"14324634422\",\"state\":\"paused\"}"}},
+
+  {g:"投放 Target", n:"修改单个投放竞价", m:"POST", p:GW+"/spTarget/updateBid",
+   d:"<code>shopId + id(内部id) + bid</code>。",
+   s:"ok", t:["写入","form"], sec:"14",
+   det:{facts:[["实测","4 个投放竞价批量改成 13（也可用批量异步接口）"],
+              ["取整","JPY 落库为整数，13 存为 13.0"]],
+     req:"shopId=711811&id=14324634422&bid=13"}},
+
+  {g:"投放 Target", n:"批量修改投放", m:"POST", p:GW+"/spTarget/updateBatch  ·  /spTarget/updateBatchMultiShop",
+   d:"多店版本存在，参数结构未逐项验证。",
+   s:"todo", t:["写入","批量"], sec:"21.3",
+   det:{facts:[["已知","源码中 createManualTargeting 与其并列存在"],
+              ["状态","未实测，优先用 batchAsyncUpdateBid 改价"]],
+     notes:["单条 spTarget/updateBid 循环也能实现批量。"]}},
+
+  {g:"投放 Target", n:"新增自动投放位", m:"POST", p:GW+"/spTarget/createAutoTargeting",
+   d:"自动活动的 4 个匹配位（紧密/宽泛/同类/关联）。",
+   s:"part", t:["写入"], sec:"14",
+   det:{facts:[["替代","建活动时直接在 spTargetInfo 里给 4 个 Bid（queryHighRelMatchesBid 等）"],
+              ["独立接口","createAutoTargeting 存在，未单独实测"]],
+     notes:["自动活动建组时 4 个匹配位默认全开，Bid 可留空串表示用组默认竞价。"]}},
+
+  {g:"关键词 Keyword", n:"新增关键词", m:"POST", p:GW+"/spKeyword/createKeywords  ·  /spKeyword/asyncCreateKeywords",
+   d:"建活动时也可直接在 <code>spTargetInfo.keywords[]</code> 给。",
+   s:"part", t:["写入","建活动内联已实测"], sec:"21.3",
+   det:{facts:[["内联实测","ct 活动 22 个关键词一次建全（4 theme + 6+6+6）"],
+              ["独立接口","createKeywords / asyncCreateKeywords 存在，未逐个实测"],
+              ["展开规则","页面输入 8 个词 → 提交 22 条（每词 ×3 匹配 + 4 theme）"]],
+     notes:["接口侧需自己按匹配类型展开，页面不会帮你展开。"]}},
+
+  {g:"关键词 Keyword", n:"修改关键词竞价", m:"POST", p:GW+"/spKeyword/updateBid",
+   d:"form：<code>shopId + id + bid</code>。",
+   s:"part", t:["写入","form"], sec:"21.3",
+   det:{facts:[["对照","与 spTarget/updateBid 结构一致，只是对象换成关键词"],
+              ["key 值","bid 字符串小数，如 \"61.0\""]]}},
+
+  {g:"关键词 Keyword", n:"暂停 / 启用关键词", m:"POST", p:GW+"/spKeyword/updateState",
+   d:"<code>shopId + id + state</code>。",
+   s:"part", t:["写入","状态"], sec:"21.3",
+   det:{facts:[["对照","与投放状态接口同构"]],
+     notes:["关键词行 id 取 targetType=keyword 列表里的 id 字段。"]}},
+
+  {g:"关键词 Keyword", n:"归档关键词", m:"POST", p:GW+"/spKeyword/archive",
+   d:"移除关键词用（无删除，只有归档）。",
+   s:"part", t:["写入"], sec:"21.3",
+   det:{facts:[["同类","否定项也只有归档，没有删除"]],
+     notes:["归档后不可恢复。"]}},
+
+  {g:"关键词 Keyword", n:"建议竞价 / 关键词推荐", m:"POST", p:GW+"/spKeyword/getSuggestedBid  ·  getSuggestedBidByText  ·  suggestKeywords  ·  suggestKeywordsByAsin",
+   d:"建活动页「建议竞价 / 建议竞价区间」来自这些接口。",
+   s:"part", t:["读取","推荐"], sec:"21.3",
+   det:{facts:[["字段","返回 suggested / rangeStart / rangeEnd（如 77.0 / 39.0 ~ 96.0）"],
+              ["用途","这些值只做展示参考，提交时后端会忽略"]],
+     notes:["抓包里 keywords[] 带的 suggested/rangeStart/rangeEnd 属于前端透传。"]}},
+
+  {g:"广告位 Placement", n:"广告位汇总 / 计数", m:"POST", p:GW+"/multiple/placement/getAllPlacementAggregateData  ·  getPlacementAdvanceCount",
+   d:"广告位页 KPI 与筛选计数。",
+   s:"ok", t:["读取","统计"], sec:"19.2",
+   det:{facts:[["对照","与活动/组的 aggregate 接口同构，字段是曝光/点击/花费等"]]}},
+
+  {g:"策略 Strategy", n:"撤除策略（契约待补）", m:"POST", p:GW+"/strategy/schedule/removeStrategy",
+   d:"参数 <code>{itemType, strategyStatusVoList:[{shopId, statusId, taskId}]}</code>。",
+   s:"todo", t:["写入","缺 statusId"], sec:"20.5",
+   det:{facts:[["源码","cpcStrategyRemove({itemType, strategyStatusVoList:[{shopId,statusId,taskId}]})"],
+              ["阻塞","statusId / taskId 来自界面列表，API 侧未找到获取入口"],
+              ["替代","直接 deleteTemplate 会连带解除组合策略（已验证）"]],
+     notes:["只想解除应用、保留模板时理论上用它，但目前只能通过删模板曲线实现。"]}},
+
+  {g:"策略 Strategy", n:"策略体系全量接口（40+）", m:"BOTH", p:"strategy/{insertTemplate,updateTemplate,deleteTemplate,getPageTemplate,independentPageTemplate,updateTemplateStatus,templateExport} · strategy/schedule/{submitStrategy,updateStrategy,removeStrategy,transferStrategy,executePreview,query*Preview,page*List,independent*} · strategy/task/{pageTaskRecord,processTask,queryTaskHourglass}",
+   d:"模板 CRUD、应用/转移、执行预览、受控对象分页、任务中心。",
+   s:"part", t:["接口全景","策略体系"], sec:"20.4",
+   det:{facts:[["策略类型","budget 分时调预算 / placement 分时调广告位 / time 定时开关 / target 分时调竞价"],
+              ["受控对象","组合 / 活动 / 广告组 / 投放 / 产品 / 空间"],
+              ["预览","executePreview、queryCampaignPreview、queryStartStopPreview 等"],
+              ["任务","task/pageTaskRecord、processTask、queryTaskHourglass"]],
+     notes:["完整清单见文档第 20.4 节表格；本条只做索引。"]}},
+];
+
+/* ============ 渲染 ============ */
+const STATUS = {ok:["已实测","ok"], part:["部分验证","part"], todo:["未验证","todo"]};
+const listEl = document.getElementById("list");
+const catsEl = document.getElementById("cats");
+const qEl = document.getElementById("q");
+const fStatusEl = document.getElementById("fStatus");
+const fMethodEl = document.getElementById("fMethod");
+const fDetailEl = document.getElementById("fDetail");
+const fStarEl = document.getElementById("fStar");
+let activeCat = "";
+let kw = "";
+
+/* 分组顺序：★ 重点分组优先，其余按首次出现顺序 */
+const _seen = [...new Set(DATA.map(x => x.g))];
+const GROUPS = _seen.filter(g=>g.startsWith("★")).concat(_seen.filter(g=>!g.startsWith("★")));
+
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function hi(s){
+  const t = esc(s);
+  if(!kw) return t;
+  try{ return t.replace(new RegExp("("+kw.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"),'<span class="hit">$1</span>'); }
+  catch(e){ return t; }
+}
+function hasDetail(x){ return !!(x.det && (x.det.req || x.det.resp || (x.det.facts&&x.det.facts.length) || (x.det.notes&&x.det.notes.length))); }
+function match(x){
+  if(activeCat && x.g !== activeCat) return false;
+  if(fStatusEl.value && x.s !== fStatusEl.value) return false;
+  if(fMethodEl.value && x.m !== fMethodEl.value && x.m !== "BOTH") return false;
+  if(fDetailEl.checked && !hasDetail(x)) return false;
+  if(fStarEl.checked && !x.star) return false;
+  if(!kw) return true;
+  const blob = [x.g,x.n,x.p,x.d,(x.t||[]).join(" "), hasDetail(x)?JSON.stringify(x.det):""].join(" ").toLowerCase();
+  return blob.includes(kw.toLowerCase());
+}
+
+function renderCats(){
+  const counts = {};
+  GROUPS.forEach(g => counts[g] = DATA.filter(x=>x.g===g).length);
+  const items = [["","全部接口",DATA.length]].concat(GROUPS.map(g=>[g,g,counts[g]]));
+  catsEl.innerHTML = items.map(([v,label,n])=>
+    '<div class="cat '+(activeCat===v?"on":"")+'" data-cat="'+esc(v)+'">'+
+      '<span>'+esc(label)+'</span><span class="n">'+n+'</span></div>').join("");
+  catsEl.querySelectorAll(".cat").forEach(el=>{
+    el.onclick = ()=>{ activeCat = el.dataset.cat; renderCats(); renderList(); };
+  });
+}
+
+function cardHtml(x, idx){
+  const st = STATUS[x.s] || ["未知",""];
+  return '<div class="api">'+
+    '<div class="api-top">'+
+      '<span class="m '+esc(x.m)+'">'+esc(x.m==="BOTH"?"MIX":x.m)+'</span>'+
+      '<div class="api-main">'+
+        '<div class="api-name">'+(x.star?'<span class="st" title="重点接口">★</span>':'')+hi(x.n)+
+          '<span class="tag '+st[1]+'">'+st[0]+'</span>'+
+          (x.star?'<span class="tag star">重点</span>':'')+
+          (x.sec && x.sec!=="—" ?'<span class="tag sec">&sect;'+esc(x.sec)+'</span>':'')+
+        '</div>'+
+        '<div class="path"><span class="t">'+hi(x.p)+'</span>'+
+          '<span class="act">'+
+            (hasDetail(x)?'<span class="mini detail" data-detail="'+idx+'">详情</span>':'')+
+            '<span class="mini" data-path="'+esc(x.p)+'">复制</span>'+
+          '</span>'+
+        '</div>'+
+        '<div class="api-desc">'+x.d+'</div>'+
+        ((x.t&&x.t.length)?'<div class="api-meta">'+x.t.map(t=>'<span class="tag">'+esc(t)+'</span>').join("")+'</div>':'')+
+      '</div>'+
+    '</div></div>';
+}
+
+function renderList(){
+  const rows = DATA.map((x,i)=>({x,i})).filter(o=>match(o.x));
+  document.getElementById("cTotal").textContent = DATA.length;
+  document.getElementById("cOk").textContent = DATA.filter(x=>x.s==="ok").length;
+  document.getElementById("cStar").textContent = DATA.filter(x=>x.star).length;
+  document.getElementById("cDetail").textContent = DATA.filter(hasDetail).length;
+  if(!rows.length){ listEl.innerHTML = '<div class="empty">没有匹配的接口</div>'; return; }
+
+  const byGroup = {};
+  rows.forEach(o => (byGroup[o.x.g] = byGroup[o.x.g] || []).push(o));
+
+  listEl.innerHTML = Object.keys(byGroup)
+    .sort((a,b)=>GROUPS.indexOf(a)-GROUPS.indexOf(b))
+    .map(g=>{
+    const arr = byGroup[g];
+    const ok = arr.filter(o=>o.x.s==="ok").length;
+    return '<section class="group">'+
+      '<div class="ghead"><h2>'+esc(g)+'</h2>'+
+        '<span class="sub">'+arr.length+' 个 · 已实测 '+ok+'</span><span class="line"></span></div>'+
+      arr.map(o=>cardHtml(o.x, o.i)).join("")+
+    '</section>';
+  }).join("");
+
+  listEl.querySelectorAll(".mini.detail").forEach(el=>{
+    el.onclick = ()=> openDetail(Number(el.dataset.detail));
+  });
+  listEl.querySelectorAll(".mini[data-path]").forEach(el=>{
+    el.onclick = ()=> copyText(el.dataset.path, el);
+  });
+}
+
+/* ---------- 详情抽屉 ---------- */
+const maskEl = document.getElementById("mask");
+const drawerEl = document.getElementById("drawer");
+const dTitle = document.getElementById("dTitle");
+const dPath = document.getElementById("dPath");
+const dBody = document.getElementById("dBody");
+const dFoot = document.getElementById("dFoot");
+const dCopy = document.getElementById("dCopy");
+let curPath = "";
+
+function openDetail(idx){
+  const x = DATA[idx];
+  if(!x) return;
+  curPath = x.p;
+  const st = STATUS[x.s] || ["未知",""];
+  dTitle.innerHTML = '<span class="m '+esc(x.m)+'" style="margin-top:0">'+esc(x.m==="BOTH"?"MIX":x.m)+'</span>'+
+    '<span>'+esc(x.n)+'</span><span class="tag '+st[1]+'">'+st[0]+'</span>'+
+    (x.sec && x.sec!=="—" ?'<span class="tag sec">&sect;'+esc(x.sec)+'</span>':'');
+  dPath.textContent = x.p;
+
+  const det = x.det || {};
+  let html = '';
+
+  if(det.facts && det.facts.length){
+    html += '<div class="dsec"><h3>实测记录</h3><table class="facts"><tbody>'+
+      det.facts.map(([k,v])=>'<tr><th>'+esc(k)+'</th><td>'+v+'</td></tr>').join("")+
+      '</tbody></table></div>';
+  }
+  if(det.req){
+    html += '<div class="dsec"><h3>请求示例</h3><pre class="code">'+esc(det.req)+'</pre></div>';
+  }
+  if(det.resp){
+    html += '<div class="dsec"><h3>响应示例</h3><pre class="code json">'+esc(det.resp)+'</pre></div>';
+  }
+  if(det.notes && det.notes.length){
+    html += '<div class="dsec"><h3>注意 / 踩坑</h3><ul class="notes">'+
+      det.notes.map(n=>'<li>'+n+'</li>').join("")+'</ul></div>';
+  }
+  if(!html){
+    html = '<div class="nodata">该接口暂无更多记录，详见文档 '+
+      (x.sec && x.sec!=="—" ? ('&sect;'+esc(x.sec)) : '对应章节')+'。</div>';
+  }
+  dBody.innerHTML = html;
+  dFoot.textContent = '所属分类：' + x.g + (x.sec && x.sec!=="—" ? (' · 文档 §' + x.sec) : '');
+  maskEl.classList.add("on");
+  drawerEl.classList.add("on");
+  drawerEl.setAttribute("aria-hidden","false");
+  dBody.scrollTop = 0;
+}
+function closeDetail(){
+  maskEl.classList.remove("on");
+  drawerEl.classList.remove("on");
+  drawerEl.setAttribute("aria-hidden","true");
+}
+document.getElementById("dClose").onclick = closeDetail;
+maskEl.onclick = closeDetail;
+document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeDetail(); });
+dCopy.onclick = ()=> copyText(curPath, dCopy);
+
+/* ---------- 复制 ---------- */
+async function copyText(txt, el){
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){
+    const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  if(!el) return;
+  const old = el.textContent; el.textContent = "已复制";
+  setTimeout(()=>{ el.textContent = old; }, 1200);
+}
+
+qEl.addEventListener("input", ()=>{ kw = qEl.value.trim(); renderList(); });
+fStatusEl.addEventListener("change", renderList);
+fMethodEl.addEventListener("change", renderList);
+fDetailEl.addEventListener("change", renderList);
+fStarEl.addEventListener("change", renderList);
+renderCats(); renderList();
+</script>
+</body>
+</html>

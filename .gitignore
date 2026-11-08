@@ -18,6 +18,12 @@ explore/*.png
 explore/*.json
 explore/shots/
 explore/**/*.png
+explore/sellfox_hourly/
+explore/sellfox_ref/
+
+# ── 本地 WorkBuddy / CodeBuddy 元数据 ──
+.workbuddy/
+.wbapp_*.genie
 
 # ── 系统/IDE ──
 .DS_Store

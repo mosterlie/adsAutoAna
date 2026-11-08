@@ -1,0 +1,21 @@
+{
+  "shopId": "711811",
+  "dxmCampaignId": 14312600346,
+  "name": "CA_api_test_ttt",
+  "portfolioId": "-1",
+  "startDateStr": "2026-12-01",
+  "endDateStr": "2026-12-05",
+  "dailyBudget": "150",
+  "targetingType": "auto",
+  "strategy": "manual",
+  "placementTop": 15,
+  "placementProductPage": 35,
+  "placementRestOfSearch": 25,
+  "placementSiteAmazonBusiness": 45,
+  "creativeBidPercentage": 0,
+  "audienceId": "",
+  "audienceBidPercentage": 0,
+  "defaultAudience": false,
+  "campaignSite": "amazonAll",
+  "offAmazonBudgetControlStrategy": null
+}

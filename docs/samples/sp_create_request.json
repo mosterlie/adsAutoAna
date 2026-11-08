@@ -1,0 +1,92 @@
+{
+  "shopId": "711811",
+  "marketplaceId": "A1VC38T7YXB528",
+  "spCampaignInfo": {
+    "campaignId": "",
+    "startDateStr": "2026-11-22",
+    "endDateStr": "2026-11-30",
+    "dailyBudget": "300",
+    "targetingType": "auto",
+    "strategy": "autoForSales",
+    "placementProductPage": "30",
+    "placementTop": "10",
+    "placementRestOfSearch": "20",
+    "placementSiteAmazonBusiness": "40",
+    "creativeBidPercentage": null,
+    "campaignSite": "amazonAll",
+    "name": "CA_test1",
+    "portfolioId": "230512165427632",
+    "audienceId": "",
+    "audienceBidPercentage": "",
+    "defaultAudience": false
+  },
+  "spGroupInfo": {
+    "groupId": "",
+    "defaultBid": "30",
+    "name": "GR_test1",
+    "products": [
+      {
+        "id": 56628517,
+        "sku": "abc002-イエロー",
+        "asin": "B0HHHPQQC4",
+        "mainImage": "https://m.media-amazon.com/images/I/41NiT2gwA2L._SL75_.jpg",
+        "spotlightVideos": null
+      },
+      {
+        "id": 56628518,
+        "sku": "abc002-ブルー",
+        "asin": "B0HHHFK7G7",
+        "mainImage": "https://m.media-amazon.com/images/I/41ZM53x9kPL._SL75_.jpg",
+        "spotlightVideos": null
+      }
+    ]
+  },
+  "spTargetInfo": {
+    "autoTarget": true,
+    "keywordTarget": true,
+    "keywords": [],
+    "targetings": [],
+    "neKeywords": [
+      {
+        "keywordText": "测试1",
+        "matchType": "negativeExact",
+        "index": 0,
+        "campaignId": ""
+      },
+      {
+        "keywordText": "测试2",
+        "matchType": "negativeExact",
+        "index": 1,
+        "campaignId": ""
+      }
+    ],
+    "neTargetings": [
+      {
+        "asin": "B0HHDTRJ3H",
+        "title": "",
+        "imgUrl": "https://m.media-amazon.com/images/I/41lOq+ihJ3L._SL75_.jpg",
+        "type": "asin",
+        "index": 0,
+        "campaignId": "",
+        "groupId": ""
+      },
+      {
+        "asin": "B0HHF13X1G",
+        "title": "",
+        "imgUrl": "https://m.media-amazon.com/images/I/41lOq+ihJ3L._SL75_.jpg",
+        "type": "asin",
+        "index": 1,
+        "campaignId": "",
+        "groupId": ""
+      }
+    ],
+    "queryHighRelMatchesState": true,
+    "queryHighRelMatchesBid": "17.0",
+    "queryBroadRelMatchesState": true,
+    "queryBroadRelMatchesBid": "18.0",
+    "asinSubstituteRelatedState": true,
+    "asinSubstituteRelatedBid": "16.0",
+    "asinAccessoryRelatedState": true,
+    "asinAccessoryRelatedBid": "17.0"
+  }
+}

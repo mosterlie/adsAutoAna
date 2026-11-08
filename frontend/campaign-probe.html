@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>活动取数 - 赛狐ERP</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+body{background:var(--bg)}
+.wrap{max-width:1600px;margin:0 auto;padding:0 12px 32px}
+
+/* 查询区 */
+.panel{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px;padding:12px}
+.panel .row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:12px;color:var(--muted)}
+.fld input[type=text],.fld input[type=date],.fld select{height:30px;border:1px solid var(--bd-d);
+  border-radius:4px;padding:0 8px;font-size:13px;background:#fff;color:var(--txt)}
+.fld input[type=text]{width:320px}
+.btn{height:30px;padding:0 14px;border-radius:4px;border:1px solid var(--blue);
+  background:var(--blue);color:#fff;font-size:13px;cursor:pointer}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--blue)}
+.opts{display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--txt-2);margin-top:8px}
+.opts label{display:flex;align-items:center;gap:4px;cursor:pointer}
+
+/* 候选列表 */
+.cands{margin-top:10px;border:1px solid var(--bd);border-radius:4px;max-height:260px;overflow:auto}
+.cand{display:flex;gap:10px;align-items:center;padding:7px 10px;font-size:12.5px;
+  border-bottom:1px solid #f2f4f7;cursor:pointer}
+.cand:last-child{border-bottom:none}
+.cand:hover{background:var(--blue-l)}
+.cand.on{background:var(--blue-l);box-shadow:inset 3px 0 0 var(--blue)}
+.cand .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand .mt{color:var(--muted);white-space:nowrap}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-top:10px}
+.kpi{background:#fff;border:1px solid var(--bd);border-radius:4px;padding:9px 11px}
+.kpi .k{font-size:11.5px;color:var(--muted)}
+.kpi .v{font-size:17px;font-weight:600;margin-top:3px}
+.kpi.hl .v{color:var(--blue)}
+
+/* Tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin-top:12px;border-bottom:1px solid var(--bd)}
+.tab{padding:7px 12px;font-size:13px;color:var(--txt-2);cursor:pointer;border-radius:4px 4px 0 0;
+  border:1px solid transparent;border-bottom:none}
+.tab:hover{color:var(--blue)}
+.tab.on{background:#fff;border-color:var(--bd);color:var(--blue);font-weight:600;margin-bottom:-1px}
+.tab .n{font-size:11px;color:var(--muted);margin-left:4px}
+
+.tbody{background:#fff;border:1px solid var(--bd);border-top:none;border-radius:0 0 4px 4px;
+  padding:10px;min-height:120px}
+table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.dt th,table.dt td{border-bottom:1px solid #f0f2f5;padding:6px 8px;text-align:left;
+  white-space:nowrap}
+table.dt th{background:#fafbfc;color:var(--muted);font-weight:600;position:sticky;top:0}
+table.dt td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.dt tr:hover td{background:#fafcff}
+.wrapx{max-height:560px;overflow:auto}
+pre.raw{margin:0;background:#0f172a;color:#dbe6ff;border-radius:4px;padding:12px;
+  font-size:11.5px;line-height:1.5;max-height:600px;overflow:auto;
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.toolbar .sp{flex:1}
+.tag{font-size:11px;padding:1px 7px;border-radius:9px;background:#f2f4f7;color:var(--txt-2)}
+.tag.err{background:#fdecec;color:#c0392b}
+.tag.ok{background:#e8f7ef;color:#0a7d47}
+.empty{color:var(--muted);font-size:13px;padding:24px;text-align:center}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px}
+@media(max-width:1200px){.kpis{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}.fld input[type=text]{width:100%}}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top">
+    <button class="seg-btn" onclick="location.href='/'">数据表格</button>
+    <button class="seg-btn" onclick="location.href='/?view=product'">产品视角</button>
+    <button class="seg-btn" onclick="location.href='/?view=online'">在线产品</button>
+    <button class="seg-btn" onclick="location.href='/?view=adcreator'">广告管理</button>
+    <button class="seg-btn" onclick="location.href='/?view=bulk'">批量建广告</button>
+    <button class="seg-btn" onclick="location.href='/static/hourly.html'">分时分析</button>
+    <button class="seg-btn" onclick="location.href='/static/api-docs.html'">接口查询</button>
+    <button class="seg-btn" onclick="location.href='/static/daily-probe.html'">广告数据</button>
+  </div>
+  <div class="topbar-right">
+    <span class="muted" id="statusTag">检查登录态…</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- 查询区 -->
+  <div class="panel">
+    <div class="row">
+      <div class="fld">
+        <label>活动名称关键词</label>
+        <input type="text" id="kw" placeholder="输入活动名片段，如 B0HLKZD3MZ 或 自动投放">
+      </div>
+      <div class="fld">
+        <label>开始日期</label>
+        <input type="date" id="start">
+      </div>
+      <div class="fld">
+        <label>结束日期</label>
+        <input type="date" id="end">
+      </div>
+      <button class="btn ghost" id="btnSearch">查询活动</button>
+      <button class="btn" id="btnFetch" disabled>获取全量数据</button>
+      <span id="msg" class="muted" style="font-size:12.5px"></span>
+    </div>
+
+    <div class="opts">
+      <label><input type="checkbox" id="optHourly" checked> 分时（按天，最多10天）</label>
+      <label><input type="checkbox" id="optSearch" checked> 搜索词 / 搜索ASIN</label>
+      <label><input type="checkbox" id="optAba" checked> ABA 排名</label>
+      <label><input type="checkbox" id="optNeg" checked> 否定投放</label>
+      <label><input type="checkbox" id="optLog" checked> 操作日志</label>
+      <label><input type="checkbox" id="optBid" checked> 建议竞价</label>
+    </div>
+
+    <div class="cands" id="cands" style="display:none"></div>
+  </div>
+
+  <!-- 结果 -->
+  <div id="result" style="display:none">
+    <div class="kpis" id="kpis"></div>
+    <div class="tabs" id="tabs"></div>
+    <div class="tbody" id="tbody"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let DATA = null, curCampaign = null, curTab = "", rawMode = false;
+
+/* ---------- 工具 ---------- */
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = (v, d = 0) => (v === null || v === undefined || v === "") ? "-"
+  : Number(v).toLocaleString("zh-CN", {minimumFractionDigits: d, maximumFractionDigits: d});
+const money = v => (v === null || v === undefined || v === "") ? "-" : "¥" + num(v, 2);
+const pct = v => (v === null || v === undefined || v === "") ? "-" : num(v, 2) + "%";
+
+function todayStr(offset = 0) {
+  const d = new Date(); d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+/* ---------- 初始化 ---------- */
+(async function init() {
+  $("start").value = todayStr(-6);
+  $("end").value = todayStr(0);
+  try {
+    const s = await (await fetch("/api/probe/status")).json();
+    $("statusTag").textContent = s.has_cookie
+      ? `登录态 OK（${s.cookie_count} cookies）` : "未找到登录 Cookie";
+    $("statusTag").className = s.has_cookie ? "muted" : "tag err";
+  } catch (e) {
+    $("statusTag").textContent = "无法连接后端";
+  }
+})();
+
+/* ---------- 查询活动 ---------- */
+$("btnSearch").onclick = async () => {
+  const q = $("kw").value.trim(), s = $("start").value, e = $("end").value;
+  if (!s || !e) { $("msg").textContent = "请选择日期区间"; return; }
+  $("msg").textContent = "查询中…";
+  try {
+    const url = `/api/probe/campaigns?q=${encodeURIComponent(q)}&start=${s}&end=${e}`;
+    const d = await (await fetch(url)).json();
+    if (d.detail) throw new Error(d.detail);
+    renderCandidates(d.items || []);
+    $("msg").textContent = `共 ${d.total} 个活动，显示前 ${(d.items||[]).length} 个`;
+  } catch (err) {
+    $("msg").textContent = "查询失败：" + err.message;
+  }
+};
+
+function renderCandidates(items) {
+  const box = $("cands");
+  box.style.display = items.length ? "block" : "none";
+  box.innerHTML = items.map((c, i) => `
+    <div class="cand" data-i="${i}">
+      <span class="nm">${esc(c.name)}</span>
+      <span class="tag">${esc(c.targetingType || "-")}</span>
+      <span class="mt">花费 ${money(c.adCost)}</span>
+      <span class="mt">点击 ${num(c.clicks)}</span>
+      <span class="mt">单 ${num(c.adOrderNum)}</span>
+      <span class="mt mono">${esc(c.campaignId)}</span>
+    </div>`).join("");
+  box.querySelectorAll(".cand").forEach(el => {
+    el.onclick = () => {
+      box.querySelectorAll(".cand").forEach(x => x.classList.remove("on"));
+      el.classList.add("on");
+      curCampaign = items[Number(el.dataset.i)];
+      $("btnFetch").disabled = false;
+      $("msg").textContent = "已选：" + curCampaign.name;
+    };
+  });
+}
+
+/* ---------- 全量取数 ---------- */
+$("btnFetch").onclick = async () => {
+  if (!curCampaign) return;
+  const body = {
+    campaignId: curCampaign.campaignId,
+    startDate: $("start").value, endDate: $("end").value,
+    hourly: $("optHourly").checked, search: $("optSearch").checked,
+    aba: $("optAba").checked, negatives: $("optNeg").checked,
+    logs: $("optLog").checked, suggestedBid: $("optBid").checked,
+  };
+  $("btnFetch").disabled = true;
+  $("msg").textContent = "取数中…（首次约 10-30 秒）";
+  try {
+    const r = await fetch("/api/probe/fetch", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || "取数失败");
+    DATA = d;
+    render();
+    $("msg").textContent = `完成，耗时 ${d.meta.elapsedSec}s`;
+  } catch (e) {
+    $("msg").textContent = "失败：" + e.message;
+  } finally {
+    $("btnFetch").disabled = false;
+  }
+};
+
+/* ---------- 渲染 ---------- */
+function render() {
+  $("result").style.display = "";
+  const m = DATA.meta, r = DATA.campaign.range || {}, c = DATA.counts;
+  const kpi = [
+    ["曝光", num(r.impressions)], ["点击", num(r.clicks)],
+    ["CTR", pct(r.ctr)], ["花费", money(r.adCost)],
+    ["CPC", money(r.adCostPerClick)], ["订单", num(r.adOrderNum)],
+    ["销售额", money(r.adSale)], ["ACOS", pct(r.acos)],
+  ];
+  $("kpis").innerHTML = kpi.map(([k, v], i) =>
+    `<div class="kpi ${i < 2 ? "hl" : ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`
+  ).join("");
+
+  const tabs = [
+    ["overview", "概览", 1],
+    ["daily", "逐日", DATA.campaign.daily.length],
+    ["hourly", "分时", DATA.hourly.length],
+    ["groups", "广告组", c.groups],
+    ["targets", "投放", c.targets_auto + c.targets_keyword + c.targets_targeting],
+    ["products", "广告产品", c.products],
+    ["placements", "广告位", c.placements],
+    ["kw", "搜索词", c.search_keyword],
+    ["asin", "搜索ASIN", c.search_asin],
+    ["aba", "ABA排名", c.aba_week + c.aba_month],
+    ["negatives", "否定", c.negatives_keyword + c.negatives_target],
+    ["bid", "建议竞价", c.suggested_bid],
+    ["logs", "日志", c.logs],
+    ["raw", "原始JSON", 1],
+  ];
+  $("tabs").innerHTML = tabs.map(([k, label, n]) =>
+    `<div class="tab ${k === (curTab || "overview") ? "on" : ""}" data-k="${k}">
+       ${label}<span class="n">${n}</span></div>`).join("");
+  $("tabs").querySelectorAll(".tab").forEach(el => {
+    el.onclick = () => { curTab = el.dataset.k; render(); };
+  });
+  curTab = curTab || "overview";
+  $("tbody").innerHTML = buildTab(curTab);
+  if (curTab === "raw") {
+    const pre = $("tbody").querySelector("pre.raw");
+    if (pre) $("tbody").querySelector(".btn-copy").onclick = () =>
+      navigator.clipboard.writeText(pre.textContent);
+    const dl = $("tbody").querySelector(".btn-dl");
+    if (dl) dl.onclick = downloadJson;
+  }
+}
+
+function tbl(cols, rows, emptyText = "无数据") {
+  if (!rows || !rows.length) return `<div class="empty">${emptyText}</div>`;
+  const head = cols.map(c => `<th>${esc(c.t)}</th>`).join("");
+  const body = rows.map(r => "<tr>" + cols.map(c => {
+    const v = c.f ? c.f(r) : (r[c.k] ?? "-");
+    return `<td class="${c.num ? "num" : ""}">${v}</td>`;
+  }).join("") + "</tr>").join("");
+  return `<div class="wrapx"><table class="dt"><thead><tr>${head}</tr></thead>
+          <tbody>${body}</tbody></table></div>`;
+}
+
+const M = (label, key, f = num) => ({t: label, k: key, num: true, f: r => f(r[key])});
+const T = (label, key) => ({t: label, k: key, f: r => esc(r[key] ?? "-")});
+
+function buildTab(k) {
+  if (k === "overview") return buildOverview();
+  if (k === "daily") return buildDaily();
+  if (k === "hourly") return buildHourly();
+  if (k === "groups") return tbl([
+    T("广告组", "name"), M("默认竞价", "defaultBid", money), M("曝光", "impressions"),
+    M("点击", "clicks"), M("CTR", "ctr", pct), M("花费", "adCost", money),
+    M("订单", "adOrderNum"), T("状态", "state"),
+  ], DATA.groups);
+  if (k === "targets") return buildTargets();
+  if (k === "products") return tbl([
+    T("ASIN", "asin"), T("SKU", "sku"), M("曝光", "impressions"), M("点击", "clicks"),
+    M("CTR", "ctr", pct), M("花费", "adCost", money), M("CPC", "adCostPerClick", money),
+    M("订单", "adOrderNum"), M("销售额", "adSale", money), T("状态", "state"),
+  ], DATA.products);
+  if (k === "placements") return tbl([
+    T("广告位", "predicate"), M("加价%", "percentage", num),
+    M("曝光", "impressions"), M("点击", "clicks"), M("CTR", "ctr", pct),
+    M("花费", "adCost", money), M("订单", "adOrderNum"),
+    {t: "可调", f: r => r.isUpdateBid ? "是" : "否"},
+  ], DATA.placements);
+  if (k === "kw") return tbl([
+    T("搜索词", "query"), T("匹配", "matchType"), M("曝光", "impressions"),
+    M("点击", "clicks"), M("CTR", "ctr", pct), M("花费", "adCost", money),
+    M("订单", "adOrderNum"), M("加购", "addToCart"), M("建议价", "suggested", money),
+  ], DATA.search.keyword);
+  if (k === "asin") return tbl([
+    T("ASIN", "query"), T("匹配", "matchType"), M("曝光", "impressions"),
+    M("点击", "clicks"), M("CTR", "ctr", pct), M("花费", "adCost", money),
+    M("订单", "adOrderNum"), M("竞品价", "price", money),
+    M("评分", "asinRating", v => num(v, 1)),
+  ], DATA.search.asin);
+  if (k === "aba") return buildAba();
+  if (k === "negatives") return buildNeg();
+  if (k === "bid") return tbl([
+    T("targetId", "targetId"),
+    {t: "类型", f: r => esc(((r.extension || [{}])[0] || {}).type || "-")},
+    M("建议价", "suggested", money), M("区间下限", "rangeStart", money),
+    M("区间上限", "rangeEnd", money),
+    M("预估曝光低", "estimatedImpressionLower"), M("预估曝光高", "estimatedImpressionUpper"),
+  ], DATA.suggestedBid);
+  if (k === "logs") return tbl([
+    T("时间(站点)", "siteOperationTime"), T("动作", "action"), T("对象", "target"),
+    T("前后值", "newValue"), T("来源", "logType"), T("操作人", "userName"),
+  ], DATA.logs, "该区间无操作日志");
+  if (k === "raw") return `<div class="toolbar">
+      <span class="tag ok">完整响应</span><span class="sp"></span>
+      <button class="btn ghost btn-copy" style="height:26px;font-size:12px">复制 JSON</button>
+      <button class="btn ghost btn-dl" style="height:26px;font-size:12px">下载 JSON</button>
+    </div><pre class="raw">${esc(JSON.stringify(DATA, null, 2))}</pre>`;
+  return "";
+}
+
+function buildOverview() {
+  const m = DATA.meta, info = DATA.campaign.info || {}, r = DATA.campaign.range || {};
+  const kv = [
+    ["活动名", info.campaignName || info.name], ["campaignId", m.campaignId],
+    ["内部 id", info.id], ["定向类型", info.targetingType],
+    ["日预算", money(info.dailyBudget)], ["竞价策略", info.strategy],
+    ["组合", info.portfolioName], ["状态", info.state],
+    ["开始日期", info.startDate], ["结束日期", info.endDate || "无"],
+    ["广告位加价", ["placementTop", "placementRestOfSearch", "placementProductPage"]
+      .map((k, i) => `${["顶部", "其余", "详情页"][i]} ${(info[k] === "" || info[k] == null) ? 0 : info[k]}%`)
+      .join(" / ")],
+    ["取数时间", m.fetchedAt],
+  ];
+  const errs = DATA.errors || [];
+  return `<div class="toolbar">
+      <span class="tag ${errs.length ? "err" : "ok"}">${errs.length ? errs.length + " 层失败" : "全部层级成功"}</span>
+      <span class="tag">耗时 ${m.elapsedSec}s</span>
+      <span class="tag">区间 ${m.startDate} ~ ${m.endDate}</span>
+    </div>
+    ${errs.length ? `<div style="margin-bottom:8px;font-size:12.5px;color:#c0392b">
+      ${errs.map(e => `· ${esc(e.layer)}：${esc(e.msg)}`).join("<br>")}</div>` : ""}
+    <table class="dt"><tbody>
+      ${kv.map(([k, v]) => `<tr><th style="width:130px">${esc(k)}</th>
+        <td>${esc(v ?? "-")}</td></tr>`).join("")}
+    </tbody></table>`;
+}
+
+function buildDaily() {
+  const list = DATA.campaign.daily || [];
+  if (!list.length) return `<div class="empty">无逐日数据</div>`;
+  const rows = list.map(x => {
+    const r = x.row || {};
+    return {
+      date: x.date, err: x.error || "",
+      imp: r.impressions, clk: r.clicks, ctr: r.ctr, cost: r.adCost,
+      cpc: r.adCostPerClick, ord: r.adOrderNum, sale: r.adSale, acos: r.acos,
+    };
+  });
+  return tbl([
+    T("日期", "date"),
+    {t: "曝光", f: r => num(r.imp), num: true},
+    {t: "点击", f: r => num(r.clk), num: true},
+    {t: "CTR", f: r => pct(r.ctr), num: true},
+    {t: "花费", f: r => money(r.cost), num: true},
+    {t: "CPC", f: r => money(r.cpc), num: true},
+    {t: "订单", f: r => num(r.ord), num: true},
+    {t: "销售额", f: r => money(r.sale), num: true},
+    {t: "ACOS", f: r => pct(r.acos), num: true},
+    {t: "备注", f: r => r.err ? `<span class="tag err">${esc(r.err)}</span>` : ""},
+  ], rows);
+}
+
+function buildHourly() {
+  if (!DATA.hourly.length) return `<div class="empty">未取分时（或区间为空）</div>`;
+  return DATA.hourly.map(day => {
+    const cols = day.metrics || {};
+    const imp = cols.impressions || [], clk = cols.clicks || [], cost = cols.adCost || [];
+    const rows = Array.from({length: 24}, (_, h) => ({
+      h: String(h).padStart(2, "0") + ":00",
+      imp: imp[h] ?? 0, clk: clk[h] ?? 0, cost: cost[h] ?? 0,
+    }));
+    return `<div style="margin-bottom:12px">
+      <div class="toolbar"><b style="font-size:13px">${esc(day.date)}</b>
+        ${day.error ? `<span class="tag err">${esc(day.error)}</span>` : ""}</div>
+      ${tbl([
+        T("时段", "h"),
+        {t: "曝光", f: r => num(r.imp), num: true},
+        {t: "点击", f: r => num(r.clk), num: true},
+        {t: "花费", f: r => money(r.cost), num: true},
+      ], rows)}
+    </div>`;
+  }).join("");
+}
+
+function buildTargets() {
+  const t = DATA.targets || {};
+  const groups = [["auto", "自动投放位"], ["keyword", "关键词"], ["targeting", "商品定向"]];
+  let html = "";
+  groups.forEach(([k, label]) => {
+    const rows = t[k] || [];
+    html += `<div class="toolbar"><b style="font-size:13px">${label}</b>
+      <span class="tag">${rows.length}</span></div>`;
+    html += tbl([
+      T("对象", "targetText"), T("匹配", "matchType"), M("竞价", "bid", money),
+      M("曝光", "impressions"), M("点击", "clicks"), M("CTR", "ctr", pct),
+      M("花费", "adCost", money), M("订单", "adOrderNum"),
+      M("建议价", "suggestBid", money), T("状态", "state"),
+    ], rows);
+  });
+  if (t._errors) html += `<div class="tag err">${esc(t._errors.join("; "))}</div>`;
+  return html;
+}
+
+function buildAba() {
+  const w = DATA.aba.week || [], mo = DATA.aba.month || [];
+  const pick = (arr, period) => arr.map(x => ({
+    term: x.searchTerm, rank: x.abaRank, period,
+    trend: (x.list || []).slice(-3).map(y =>
+      `${y.weekStr || y.startDate}:${y.searchFrequencyRank ?? "-"}`).join(" → "),
+  }));
+  const rows = pick(w, "周").concat(pick(mo, "月"));
+  if (!rows.length) return `<div class="empty">无 ABA 记录（长尾词不在 ABA 榜单内）</div>`;
+  return tbl([
+    T("搜索词", "term"), T("周期", "period"),
+    {t: "当前排名", f: r => num(r.rank), num: true},
+    {t: "近期趋势", f: r => `<span class="mono">${esc(r.trend)}</span>`},
+  ], rows);
+}
+
+function buildNeg() {
+  const n = DATA.negatives || {};
+  const kw = n.keyword || [], tg = n.target || [];
+  if (!kw.length && !tg.length) return `<div class="empty">无否定项</div>`;
+  let html = "";
+  if (kw.length) {
+    html += `<div class="toolbar"><b style="font-size:13px">否定关键词</b></div>` +
+      tbl([T("关键词", "targetingValue"), T("类型", "negativeType"), T("状态", "state")], kw);
+  }
+  if (tg.length) {
+    html += `<div class="toolbar"><b style="font-size:13px">否定商品</b></div>` +
+      tbl([T("ASIN", "targetingValue"), T("类型", "negativeType"), T("状态", "state")], tg);
+  }
+  return html;
+}
+
+function downloadJson() {
+  const blob = new Blob([JSON.stringify(DATA, null, 2)], {type: "application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `campaign_${DATA.meta.campaignId}_${DATA.meta.startDate}_${DATA.meta.endDate}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>

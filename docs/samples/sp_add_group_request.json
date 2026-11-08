@@ -1,0 +1,107 @@
+{
+  "shopId": "711811",
+  "marketplaceId": "A1VC38T7YXB528",
+  "spCampaignInfo": {
+    "campaignId": "262736104900156",
+    "startDateStr": "",
+    "endDateStr": "",
+    "dailyBudget": "300.00",
+    "targetingType": "auto",
+    "strategy": "autoForSales",
+    "placementProductPage": null,
+    "placementTop": null,
+    "placementRestOfSearch": null,
+    "placementSiteAmazonBusiness": null,
+    "creativeBidPercentage": null,
+    "campaignSite": "amazonAll",
+    "name": "",
+    "portfolioId": "",
+    "audienceId": "",
+    "audienceBidPercentage": "",
+    "defaultAudience": false,
+    "offAmazonBudgetControlStrategy": null
+  },
+  "spGroupInfo": {
+    "groupId": "",
+    "defaultBid": "22",
+    "name": "GR_test2",
+    "products": [
+      {
+        "id": 56628535,
+        "sku": "abc005-A-10個セット",
+        "asin": "B0HHWBRQNC",
+        "mainImage": "https://m.media-amazon.com/images/I/41oNVSQEoLL._SL75_.jpg",
+        "spotlightVideos": null
+      },
+      {
+        "id": 56628536,
+        "sku": "abc005-A-20個セット",
+        "asin": "B0HHWBW4N7",
+        "mainImage": "https://m.media-amazon.com/images/I/41oNVSQEoLL._SL75_.jpg",
+        "spotlightVideos": null
+      },
+      {
+        "id": 56628537,
+        "sku": "abc005-A-30個セット",
+        "asin": "B0HHWNGD1S",
+        "mainImage": "https://m.media-amazon.com/images/I/41oNVSQEoLL._SL75_.jpg",
+        "spotlightVideos": null
+      },
+      {
+        "id": 56628538,
+        "sku": "abc005-A-50個セット",
+        "asin": "B0HHWM14MF",
+        "mainImage": "https://m.media-amazon.com/images/I/41oNVSQEoLL._SL75_.jpg",
+        "spotlightVideos": null
+      }
+    ]
+  },
+  "spTargetInfo": {
+    "autoTarget": true,
+    "keywordTarget": true,
+    "keywords": [],
+    "targetings": [],
+    "neKeywords": [
+      {
+        "keywordText": "ggg",
+        "matchType": "negativeExact",
+        "index": 0,
+        "campaignId": "262736104900156"
+      },
+      {
+        "keywordText": "ccc",
+        "matchType": "negativeExact",
+        "index": 1,
+        "campaignId": "262736104900156"
+      }
+    ],
+    "neTargetings": [
+      {
+        "asin": "B0HHWBV6N1",
+        "title": null,
+        "imgUrl": "https://m.media-amazon.com/images/I/51YAMfc4TNL._SL75_.jpg",
+        "type": "asin",
+        "index": 0,
+        "campaignId": "262736104900156",
+        "groupId": ""
+      },
+      {
+        "asin": "B0HHWQT377",
+        "title": null,
+        "imgUrl": "https://m.media-amazon.com/images/I/51YAMfc4TNL._SL75_.jpg",
+        "type": "asin",
+        "index": 1,
+        "campaignId": "262736104900156",
+        "groupId": ""
+      }
+    ],
+    "queryHighRelMatchesState": true,
+    "queryHighRelMatchesBid": "13.0",
+    "queryBroadRelMatchesState": true,
+    "queryBroadRelMatchesBid": "13.0",
+    "asinSubstituteRelatedState": true,
+    "asinSubstituteRelatedBid": "12.0",
+    "asinAccessoryRelatedState": true,
+    "asinAccessoryRelatedBid": "15.0"
+  }
+}

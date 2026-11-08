@@ -1,0 +1,70 @@
+{
+  "code": 0,
+  "msg": "",
+  "data": {
+    "campaignResp": {
+      "code": 0,
+      "campaignId": "8908866945446"
+    },
+    "groupResp": {
+      "code": 0,
+      "adGroupId": "433001404372202"
+    },
+    "targetResp": {
+      "code": 0,
+      "targetType": "autoTarget",
+      "targetList": [
+        {
+          "code": 0,
+          "targetId": "196983110900088",
+          "matchTypeForAutoTarget": "queryHighRelMatches"
+        },
+        {
+          "code": 0,
+          "targetId": "183637358601276",
+          "matchTypeForAutoTarget": "queryBroadRelMatches"
+        },
+        {
+          "code": 0,
+          "targetId": "168432866904570",
+          "matchTypeForAutoTarget": "asinAccessoryRelated"
+        },
+        {
+          "code": 0,
+          "targetId": "235778305768262",
+          "matchTypeForAutoTarget": "asinSubstituteRelated"
+        }
+      ]
+    },
+    "neKeywordResp": {
+      "code": 0,
+      "neKeywords": [
+        {
+          "code": 0,
+          "index": 0,
+          "neKeywordTargetId": "176511974561082"
+        },
+        {
+          "code": 0,
+          "index": 1,
+          "neKeywordTargetId": "242243382436867"
+        }
+      ]
+    },
+    "neTargetResp": {
+      "code": 0,
+      "neTargets": [
+        {
+          "code": 0,
+          "index": 0,
+          "neProductTargetId": "216406590507107"
+        },
+        {
+          "code": 0,
+          "index": 1,
+          "neProductTargetId": "220458804566982"
+        }
+      ]
+    }
+  }
+}

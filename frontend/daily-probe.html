@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>广告数据 - 赛狐ERP</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+body{background:var(--bg)}
+.wrap{max-width:1680px;margin:0 auto;padding:0 12px 40px}
+.panel{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px;padding:12px}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:12px;color:var(--muted)}
+.fld input{height:30px;border:1px solid var(--bd-d);border-radius:4px;padding:0 8px;font-size:13px}
+.fld input[type=text]{width:300px}
+.btn{height:30px;padding:0 14px;border-radius:4px;border:1px solid var(--blue);
+  background:var(--blue);color:#fff;font-size:13px;cursor:pointer}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--blue)}
+.opts{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;margin-top:8px;color:var(--txt-2)}
+.opts label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.cands{margin-top:10px;border:1px solid var(--bd);border-radius:4px;max-height:220px;overflow:auto}
+.cand{display:flex;gap:10px;padding:7px 10px;font-size:12.5px;border-bottom:1px solid #f2f4f7;cursor:pointer}
+.cand:hover{background:var(--blue-l)}
+.cand.on{background:var(--blue-l);box-shadow:inset 3px 0 0 var(--blue)}
+.cand .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand .mt{color:var(--muted);white-space:nowrap}
+
+.modebar{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.mbtn{height:28px;padding:0 13px;border:1px solid var(--bd-d);background:#fff;
+  border-radius:14px;font-size:12.5px;color:var(--txt-2);cursor:pointer}
+.mbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.pbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.pbar:empty{display:none}
+.pcard{display:flex;gap:12px;align-items:center;padding:10px 14px 10px 10px;
+  border:1px solid var(--bd);border-radius:6px;background:#fff;width:100%;box-sizing:border-box}
+.pbar{flex-direction:column}
+.pcard img{width:64px;height:64px;object-fit:contain;border-radius:4px;background:#f6f7f9;
+  cursor:zoom-in;flex:none}
+.pcard .pv{min-width:0;flex:1}
+.pcard .pcamp{font-size:12px;color:#4a6fa5;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.pcard .pcamp:hover{color:var(--blue)}
+.pcard .pt{font-size:13.5px;color:var(--txt);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;line-height:1.5;cursor:pointer}
+.pcard .pt:hover{color:var(--blue)}
+.pcard .pm{font-size:12px;color:var(--muted);margin-top:5px;display:flex;gap:14px;
+  flex-wrap:wrap}
+.pcard .pm b{color:var(--txt);font-weight:600}
+.cp{cursor:pointer}
+.cp:hover{color:var(--blue)}
+.tip{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#0f172a;
+  color:#fff;font-size:12.5px;padding:6px 14px;border-radius:14px;z-index:200;
+  opacity:0;transition:opacity .18s;pointer-events:none}
+.tip.on{opacity:.92}
+.pagetabs{display:flex;align-items:center;gap:6px;margin-top:10px;
+  border-bottom:1px solid var(--bd)}
+.pagetabs .sp{flex:1}
+.ptab{padding:8px 18px;font-size:13.5px;color:var(--txt-2);cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;user-select:none}
+.ptab:hover{color:var(--blue)}
+.ptab.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue)}
+#dbRun{width:100%;height:30px;border:1px solid var(--bd-d);border-radius:4px;
+  font-size:12.5px;padding:0 6px;background:#fff}
+.dbdate{height:28px;border:1px solid var(--bd-d);border-radius:4px;font-size:12.5px;
+  padding:0 6px;background:#fff;color:var(--txt)}
+.prog{display:none;margin-top:10px}
+.bar{height:8px;background:#eef1f5;border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--blue);transition:width .3s}
+.prog .txt{font-size:12.5px;color:var(--txt-2);margin-top:6px}
+
+.days{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.day{padding:5px 12px;border:1px solid var(--bd-d);border-radius:14px;font-size:12.5px;cursor:pointer}
+.day.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+.levels{display:flex;gap:4px;margin-top:12px;border-bottom:1px solid var(--bd)}
+.lv{padding:7px 13px;font-size:13px;color:var(--txt-2);cursor:pointer;border-radius:4px 4px 0 0;
+  border:1px solid transparent;border-bottom:none}
+.lv.on{background:#fff;border-color:var(--bd);color:var(--blue);font-weight:600;margin-bottom:-1px}
+
+.card{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px}
+.card>h3{margin:0;padding:9px 12px;font-size:13px;border-bottom:1px solid var(--bd);
+  background:#fafbfc;display:flex;align-items:center;gap:8px}
+.card>h3 .sp{flex:1}
+.card>h3 .tag{font-weight:400}
+.pad{padding:10px}
+.tag{font-size:11px;padding:1px 7px;border-radius:9px;background:#f2f4f7;color:var(--txt-2)}
+.tag.ok{background:#e8f7ef;color:#0a7d47}
+.tag.err{background:#fdecec;color:#c0392b}
+details.card>summary{cursor:pointer;padding:9px 12px;font-size:13px;background:#fafbfc;
+  border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;list-style:none}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::before{content:"▸";color:var(--muted);font-size:11px}
+details.card[open]>summary::before{content:"▾"}
+details.card>summary .sp{flex:1}
+.kpis{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;padding:10px}
+.kpi{border:1px solid var(--bd);border-radius:4px;padding:8px 10px}
+.kpi .k{font-size:11.5px;color:var(--muted)}
+.kpi .v{font-size:16px;font-weight:600;margin-top:2px}
+table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.dt th,table.dt td{border-bottom:1px solid #f0f2f5;padding:5px 8px;text-align:left;white-space:nowrap}
+table.dt th{background:#fafbfc;color:var(--muted);font-weight:600}
+table.dt td.num{text-align:right;font-variant-numeric:tabular-nums}
+.wrapx{max-height:420px;overflow:auto}
+.hbar{display:inline-block;height:9px;background:#cfe0ff;border-radius:2px;vertical-align:middle}
+.empty{color:var(--muted);font-size:13px;padding:18px;text-align:center}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px}
+img.pthumb{width:34px;height:34px;object-fit:contain;border-radius:3px;background:#f6f7f9;
+  display:block}
+
+/* 浮框：表结构与 SQL 说明 */
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;z-index:99}
+.mask.on{display:block}
+.sheet{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(940px,94vw);max-height:88vh;background:#fff;border-radius:6px;z-index:100;
+  display:none;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+.sheet.on{display:flex}
+.sheet header{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px}
+.sheet header b{font-size:14px}
+.sheet header .sp{flex:1}
+.sheet .close{border:none;background:none;font-size:20px;line-height:1;color:var(--muted);cursor:pointer}
+.sheet .content{padding:14px 16px;overflow:auto}
+.hsec{margin-bottom:16px}
+.hsec h4{margin:0 0 6px;font-size:13px;color:var(--blue)}
+.hsec p{margin:0 0 8px;font-size:12.5px;color:var(--txt-2);line-height:1.65}
+.tblspec{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px;
+  table-layout:fixed}
+.tblspec th,.tblspec td{border:1px solid var(--bd);padding:5px 7px;text-align:left;
+  vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
+.tblspec th{background:#fafbfc;color:var(--muted);font-weight:600}
+.tblspec code{background:#f4f6f9;padding:1px 4px;border-radius:3px;font-size:11px;
+  word-break:break-word;white-space:normal}
+.sqlbox{position:relative;margin-bottom:10px}
+.sqlbox .sqlttl{font-size:12px;color:var(--txt-2);margin-bottom:4px;font-weight:600}
+.sqlbox pre{margin:0;background:#0f172a;color:#dbe6ff;padding:10px 12px;border-radius:4px;
+  font-size:11.5px;line-height:1.55;overflow:auto;max-height:230px;
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.klist{border:1px solid var(--bd);border-radius:4px;overflow:hidden}
+.krow{display:grid;grid-template-columns:200px 1fr;gap:10px;padding:7px 10px;
+  border-bottom:1px solid #f0f2f5;font-size:12.5px;line-height:1.6}
+.krow:last-child{border-bottom:none}
+.krow .k{color:var(--txt);font-weight:600}
+.krow .v{color:var(--txt-2);word-break:break-word}
+.copy{position:absolute;right:8px;top:0;height:22px;padding:0 8px;font-size:11px;
+  border:1px solid var(--bd-d);background:#fff;border-radius:3px;cursor:pointer;color:var(--blue)}
+table.dt td a{color:var(--blue);text-decoration:none}
+table.dt td a:hover{text-decoration:underline}
+.sub{font-size:12px;color:var(--muted);padding:6px 12px;background:#fcfdff;border-bottom:1px solid #f2f4f7}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top">
+    <button class="seg-btn" onclick="location.href='/'">数据表格</button>
+    <button class="seg-btn" onclick="location.href='/?view=product'">产品视角</button>
+    <button class="seg-btn" onclick="location.href='/?view=online'">在线产品</button>
+    <button class="seg-btn" onclick="location.href='/?view=adcreator'">广告管理</button>
+    <button class="seg-btn" onclick="location.href='/?view=bulk'">批量建广告</button>
+    <button class="seg-btn" onclick="location.href='/static/hourly.html'">分时分析</button>
+    <button class="seg-btn" onclick="location.href='/static/api-docs.html'">接口查询</button>
+    <button class="seg-btn active">广告数据</button>
+  </div>
+  <div class="topbar-right"><span class="muted" id="statusTag"></span></div>
+</header>
+
+<div class="wrap">
+  <!-- 页签：查询 / 采集 -->
+  <div class="pagetabs">
+    <div class="ptab on" id="tabQuery" onclick="switchTab('query')">查询数据</div>
+    <div class="ptab" id="tabCollect" onclick="switchTab('collect')">采集数据</div>
+    <span class="sp"></span>
+    <button class="mbtn" onclick="openSchema()">表结构 &amp; SQL 说明</button>
+  </div>
+
+  <!-- ========== 查询面板 ========== -->
+  <div class="panel" id="panelQuery">
+    <div class="row">
+      <div class="fld" style="min-width:420px"><label>广告活动</label>
+        <select id="dbRun"></select></div>
+      <div class="fld"><label>查询开始</label>
+        <input type="date" id="dbStart" class="dbdate"></div>
+      <div class="fld"><label>查询结束</label>
+        <input type="date" id="dbEnd" class="dbdate"></div>
+      <button class="btn" id="btnQuery">查询</button>
+      <span class="muted" id="dbInfo" style="font-size:12.5px"></span>
+    </div>
+    <div class="pbar" id="parentBar"></div>
+  </div>
+
+  <!-- ========== 采集面板 ========== -->
+  <div class="panel" id="panelCollect" style="display:none">
+    <div class="row">
+      <div class="fld"><label>活动名称关键词</label>
+        <input type="text" id="kw" placeholder="如 B0HLKZD3MZ"></div>
+      <div class="fld" id="fldStart"><label>采集开始</label><input type="date" id="start"></div>
+      <div class="fld" id="fldEnd"><label>采集结束</label><input type="date" id="end"></div>
+      <button class="btn ghost" id="btnSearch">查询活动</button>
+      <button class="btn" id="btnStart" disabled>开始采集</button>
+      <span class="muted" id="msg" style="font-size:12.5px"></span>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="oPlacement" checked> 广告位分时(4)</label>
+      <label><input type="checkbox" id="oTarget" checked> 投放分时</label>
+      <label><input type="checkbox" id="oProduct" checked> 产品三体系</label>
+      <label><input type="checkbox" id="oSearch" checked> 搜索词(日)</label>
+      <label><input type="checkbox" id="oInfo" checked> 产品基础信息</label>
+      <label><input type="checkbox" id="oBid" checked> 建议竞价</label>
+      <label><input type="checkbox" id="oComp" checked> 竞品页抓取(慢)</label>
+    </div>
+    <div class="cands" id="cands" style="display:none"></div>
+    <div class="prog" id="prog">
+      <div class="bar"><i id="barI"></i></div>
+      <div class="txt" id="progTxt"></div>
+    </div>
+  </div>
+
+  <div id="result" style="display:none">
+    <div class="days" id="days"></div>
+    <div class="levels" id="levels"></div>
+    <div id="body"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtN = (v, d = 0) => (v === null || v === undefined || v === "") ? "-"
+  : Number(v).toLocaleString("zh-CN", {minimumFractionDigits: d, maximumFractionDigits: d});
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = v => (v === null || v === undefined || v === "") ? "-" : "¥" + fmtN(v, 2);
+
+let CUR_CAMPAIGN = null, TASK = null, META = null, CONTEXT = null, DAYS = [], DATA = null;
+let curDay = "", curLevel = "campaign";
+let MODE = "db", DB_RUN = "", TREND = null, HOURAVG = null;
+let ALL_DATES = [], TREND_ALL = [], SEL = "", CAMPS = [];
+let COMP_TERMS = null, COMP_TERM = "", COMP_ITEMS = null;
+
+async function loadComp(term) {
+  if (term) COMP_TERM = term;
+  const s = $("dbStart")?.value || "", e = $("dbEnd")?.value || "";
+  const d = await (await fetch(
+    `/api/daily/store/competitor/terms?campaignId=${DB_RUN}&start=${s}&end=${e}`)).json();
+  COMP_TERMS = d.items || [];
+  if (!COMP_TERMS.length) { renderBody(); return; }
+  if (!COMP_TERM || !COMP_TERMS.some(x => x.term === COMP_TERM)) COMP_TERM = COMP_TERMS[0].term;
+  const it = await (await fetch(
+    `/api/daily/store/competitor/items?term=${encodeURIComponent(COMP_TERM)}`)).json();
+  COMP_ITEMS = it.items || [];
+  renderBody();
+}
+
+function ourAvgPrice() {
+  const vs = Object.values(CONTEXT?.productInfo || {})
+    .map(v => +v.landedPrice || +v.standardPrice || 0).filter(v => v > 0);
+  return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : 0;
+}
+
+function compTermsTable(terms, our) {
+  const rows = terms.map(t => {
+    const cheaper = (our && t.median) ? "" : "";
+    return `<tr class="${t.term === COMP_TERM ? "on" : ""}" data-term="${esc(t.term)}"
+      style="cursor:pointer${t.term === COMP_TERM ? ";background:#f0f6ff" : ""}">
+      <td>${esc(t.term)}</td>
+      <td class="num">${fmtN(t.count)}</td>
+      <td class="num">${money(t.median)}</td>
+      <td class="num">${money(t.min)} ~ ${money(t.max)}</td>
+      <td class="num">${fmtN(t.avgReviews)}</td>
+      <td class="num">${our && t.median ? money(t.median - our) : "-"}</td></tr>`;
+  }).join("");
+  return `<div class="wrapx"><table class="dt"><thead><tr>
+    <th>搜索词（点击切换）</th><th>记录数</th><th>中位价</th><th>价格区间</th>
+    <th>平均评论</th><th>中位价 − 我方价</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function compItemsTable(items, our) {
+  if (!items || !items.length) return `<div class="empty">无数据</div>`;
+  const ps = items.map(x => +x.price).filter(v => v > 0).sort((a, b) => a - b);
+  const cheaper = our ? ps.filter(p => p < our).length : 0;
+  const withBadge = items.filter(x => x.badges).length;
+  const withPromo = items.filter(x => x.coupon || x.discount).length;
+  const head = `<div class="sub"><b>${esc(COMP_TERM)}</b> · 共 ${items.length} 条 · 中位价 ${
+    ps.length ? money(ps[Math.floor(ps.length / 2)]) : "-"}`
+    + (our ? ` · 比我方便宜 <b>${cheaper}/${ps.length}</b>（我方 ¥${fmtN(our)}）` : "")
+    + (withBadge ? ` · 带徽标 ${withBadge}` : "")
+    + (withPromo ? ` · 有促销 ${withPromo}` : "")
+    + `</div>`;
+  const rows = items.map(x => {
+    const promo = [x.coupon, x.discount].filter(Boolean).join(" / ");
+    const fast = /明日|翌日/.test(x.delivery_secondary || "") ? "最快次日" : "";
+    return `<tr>
+      <td><img class="pthumb" loading="lazy" src="${esc(x.image || "")}" alt=""></td>
+      <td class="num">${x.position ?? "-"}</td>
+      <td class="mono">${x.url
+        ? `<a href="${esc(x.url)}" target="_blank" rel="noreferrer">${esc(x.asin)}</a>`
+        : esc(x.asin)}</td>
+      <td title="${esc(x.title || "")}">${esc((x.title || "").slice(0, 40))}</td>
+      <td class="num">${money(x.price)}${x.list_price && x.list_price > (x.price || 0)
+        ? `<div class="muted" style="font-size:11px;text-decoration:line-through">${money(x.list_price)}</div>` : ""}</td>
+      <td class="num">${x.rating ? (+x.rating).toFixed(1) : "-"}</td>
+      <td class="num">${fmtN(x.reviews)}</td>
+      <td>${esc(x.delivery || "-")}${fast ? `<div class="tag" style="font-size:10px">${fast}</div>` : ""}</td>
+      <td>${x.badges ? `<span class="tag ok">${esc(x.badges)}</span>` : ""}</td>
+      <td>${promo ? `<span class="tag err">${esc(promo)}</span>` : ""}</td>
+      <td>${x.bought_recently ? `<span class="tag">${esc(x.bought_recently)}</span>` : ""}</td>
+      <td>${x.stock ? esc(x.stock) : ""}</td>
+      <td>${x.sponsored ? '<span class="tag">广告</span>' : ""}
+          ${x.has_video ? '<span class="tag">视频</span>' : ""}</td></tr>`;
+  }).join("");
+  return head + `<div class="wrapx" style="max-height:640px"><table class="dt"><thead><tr>
+    <th>图</th><th>#</th><th>ASIN</th><th>标题</th><th>价格</th><th>评分</th><th>评论</th>
+    <th>到货</th><th>徽标</th><th>促销</th><th>销量信号</th><th>库存</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------- 模式切换 ---------- */
+function switchTab(t) {
+  const isQuery = (t === "query");
+  MODE = isQuery ? "db" : "live";
+  $("tabCollect").classList.toggle("on", !isQuery);
+  $("tabQuery").classList.toggle("on", isQuery);
+  $("panelCollect").style.display = isQuery ? "none" : "block";
+  $("panelQuery").style.display = isQuery ? "block" : "none";
+  if (isQuery) {
+    if (!$("btnQuery").dataset.bound) {
+      $("btnQuery").dataset.bound = "1";
+      $("btnQuery").onclick = () => loadByRange();
+    }
+    if (!$("dbStart").dataset.bound) {
+      $("dbStart").dataset.bound = "1";
+      $("dbStart").onchange = onRangeChange;
+      $("dbEnd").onchange = onRangeChange;
+    }
+    loadDbRuns();
+  } else {
+    $("dbInfo").textContent = "";
+    $("result").style.display = "none";
+  }
+}
+
+// 兼容旧调用
+function switchMode(m) { switchTab(m === "db" ? "query" : "collect"); }
+
+async function loadDbRuns() {
+  $("dbInfo").textContent = "读取已落库活动…";
+  const d = await (await fetch("/api/daily/store/campaigns")).json();
+  const items = (d.items || []).filter(x => x.days > 0);
+  if (!items.length) {
+    $("dbInfo").textContent = "还没有落库数据（跑一次「实时任务」即可自动落库）";
+    $("result").style.display = "none";
+    return;
+  }
+  CAMPS = items;
+  DB_RUN = items[0].campaign_id;
+  $("dbRun").innerHTML = items.map(r =>
+    `<option value="${r.campaign_id}">${esc(r.name || r.campaign_id)} · ${r.first_date}~${r.last_date} · ${r.days}天 · 花费 ${money(r.total_cost)}</option>`
+  ).join("");
+  $("dbInfo").textContent = `共 ${items.length} 个活动`;
+  $("dbRun").onchange = async (e) => { DB_RUN = e.target.value; await loadParents(); await loadDbMeta(); };
+  await loadDbMeta();
+}
+
+async function loadParents() {
+  if (!DB_RUN) return;
+  const c = (CAMPS || []).find(x => String(x.campaign_id) === String(DB_RUN));
+  const campName = (c && c.name) || DB_RUN;
+  const bar = $("parentBar");
+  bar.innerHTML = "";
+  try {
+    const d = await (await fetch(`/api/daily/store/parents?campaignId=${DB_RUN}`)).json();
+    const items = d.items || [];
+    if (!items.length) return;
+    bar.innerHTML = items.map(x => {
+      const pr = (x.priceMin && x.priceMax)
+        ? (x.priceMin === x.priceMax ? money(x.priceMin) : `${money(x.priceMin)} ~ ${money(x.priceMax)}`)
+        : "-";
+      return `<div class="pcard">
+        <img src="${esc(x.image || "")}" alt="" data-big="${esc(x.bigImage || x.image || "")}"
+             onclick="openImg(this.dataset.big)" title="点击查看大图">
+        <div class="pv">
+          <div class="pcamp cp" data-copy="${esc(campName)}" data-label="活动名称"
+            title="点击复制活动名称">${esc(campName)}</div>
+          <div class="pt cp" data-copy="${esc(x.title || "")}" data-label="标题" title="点击复制标题"
+            >${esc(x.title || "(无标题)")}</div>
+          <div class="pm">
+            <span>父ASIN <b class="cp" data-copy="${esc(x.parentAsin)}" data-label="父ASIN"
+              title="点击复制">${esc(x.parentAsin)}</b></span>
+            <span>父SKU <b class="cp" data-copy="${esc(x.sku || "")}" data-label="父SKU"
+              title="点击复制">${esc(x.sku || "-")}</b></span>
+            ${x.label ? `<span>商品标识 <b>${esc(x.label)}</b></span>` : ""}
+            <span>子体 <b>${fmtN(x.childCount)}</b></span>
+            <span>价格 <b>${pr}</b></span>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (e) { /* 静默 */ }
+}
+
+function toast(msg) {
+  let t = document.getElementById("tip");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "tip"; t.className = "tip";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(window.__tipTimer);
+  window.__tipTimer = setTimeout(() => t.classList.remove("on"), 1300);
+}
+
+function copyText(txt, label) {
+  const s = String(txt || "").trim();
+  if (!s) { toast("没有可复制的内容"); return; }
+  const done = () => toast(`已复制${label ? " " + label : ""}：`
+    + `${s.slice(0, 34)}${s.length > 34 ? "…" : ""}`);
+  const fallback = () => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = s; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+      done();
+    } catch (e) { toast("复制失败，请手动选择"); }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(s).then(done).catch(fallback);
+  } else { fallback(); }
+}
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-copy]");
+  if (!el) return;
+  e.stopPropagation();
+  copyText(el.dataset.copy, el.dataset.label || "");
+});
+
+function openImg(src) {
+  if (!src) return;
+  $("imgBig").src = src;
+  $("imgMask").style.display = "block";
+}
+function closeImg() { $("imgMask").style.display = "none"; }
+
+async function loadDbMeta() {
+  TREND = null; HOURAVG = null; CONTEXT = { productInfo: {} };
+  const [dt, tr, ha, pds] = await Promise.all([
+    fetch(`/api/daily/store/dates?campaignId=${DB_RUN}`).then(r => r.json()),
+    fetch(`/api/daily/store/trend?campaignId=${DB_RUN}`).then(r => r.json()),
+    fetch(`/api/daily/store/hourly?campaignId=${DB_RUN}`).then(r => r.json()),
+    fetch(`/api/daily/store/products?campaignId=${DB_RUN}`).then(r => r.json()).catch(() => ({})),
+  ]);
+  ALL_DATES = dt.dates || [];
+  loadParents();
+  if (!ALL_DATES.length) {
+    $("dbInfo").textContent = "该活动无落库数据";
+    $("result").style.display = "none";
+    return;
+  }
+  TREND_ALL = tr.items || []; HOURAVG = ha.items || [];
+  (pds.items || []).forEach(p => {
+    CONTEXT.productInfo[p.asin] = {
+      asin: p.asin, sku: p.sku, title: p.title,
+      standardPrice: p.price, landedPrice: p.landed_price,
+      onlineStatus: p.online_status, quantity: p.quantity,
+      rating: p.rating, ratingCount: p.rating_count,
+    };
+  });
+  // 默认区间 = 该活动全部已落库日期
+  if (!$("dbStart").value) $("dbStart").value = ALL_DATES[0];
+  if (!$("dbEnd").value) $("dbEnd").value = ALL_DATES[ALL_DATES.length - 1];
+  $("result").style.display = "block";
+  renderLevels();
+  await loadByRange();
+}
+
+/* 日期区间变化 → 重新查询当前视图 */
+function onRangeChange() { /* 由「查询」按钮触发，改日期不自动查 */ }
+
+async function loadByRange() {
+  const start = $("dbStart").value, end = $("dbEnd").value;
+  if (!start || !end) return;
+  if (end < start) { $("dbInfo").textContent = "结束日期不能早于开始日期"; return; }
+  DAYS = ALL_DATES.filter(d => d >= start && d <= end);
+  const expected = enumerateDays(start, end);
+  const missing = expected.filter(d => !ALL_DATES.includes(d));
+  $("dbInfo").textContent = DAYS.length
+    ? `区间 ${start} ~ ${end}：有数据 ${DAYS.length} 天`
+      + (missing.length ? `，缺 ${missing.length} 天（${missing.join(", ")}）` : "，数据完整")
+    : `区间 ${start} ~ ${end} 无数据`;
+
+  if (!DAYS.length) {
+    $("days").style.display = "none";
+    $("body").innerHTML = `<div class="card"><div class="empty">该区间无数据</div></div>`;
+    return;
+  }
+  // 趋势始终只保留所选区间
+  TREND = TREND_ALL.filter(d => d.date >= start && d.date <= end);
+  // 默认「按天」：选中区间内最后一天
+  if (!DAYS.includes(SEL)) SEL = DAYS[DAYS.length - 1];
+  $("days").style.display = "flex";
+  renderDays();
+  await loadSel();
+}
+
+/* 日期球：汇总 + 每一天 */
+function renderDays() {
+  const chips = [`<div class="day ${SEL === "__range__" ? "on" : ""}" data-sel="__range__">汇总</div>`]
+    .concat(DAYS.map(d =>
+      `<div class="day ${SEL === d ? "on" : ""}" data-sel="${d}">${d.slice(5)}</div>`));
+  $("days").innerHTML = chips.join("");
+  $("days").querySelectorAll(".day").forEach(el => {
+    el.onclick = async () => {
+      SEL = el.dataset.sel;
+      renderDays();
+      await loadSel();
+    };
+  });
+}
+
+/* 按当前选中项（汇总 / 某天）取数 */
+async function loadSel() {
+  const start = $("dbStart").value, end = $("dbEnd").value;
+  if (SEL === "__range__") {
+    const r = await fetch(
+      `/api/daily/store/range?campaignId=${DB_RUN}&start=${start}&end=${end}`);
+    DATA = await r.json();
+    TREND = TREND_ALL.filter(d => d.date >= start && d.date <= end);
+    HOURAVG = (DATA.campaign?.hours || []).map(h => ({
+      hour: h.hour,
+      impressions: h.metrics?.impressions || 0,
+      clicks: h.metrics?.clicks || 0,
+      cost: h.metrics?.adCost || 0,
+      orders: h.metrics?.adOrderNum || 0,
+      days: DAYS.length,
+    }));
+    renderBody();
+  } else {
+    curDay = SEL;
+    await loadDay();
+  }
+}
+
+function enumerateDays(a, b) {
+  const out = [];
+  const d = new Date(a + "T00:00:00Z");
+  const end = new Date(b + "T00:00:00Z");
+  while (d <= end) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+function todayStr(o = 0) { const d = new Date(); d.setDate(d.getDate() + o); return d.toISOString().slice(0, 10); }
+
+(async function init() {
+  $("start").value = todayStr(-1); $("end").value = todayStr(-1);
+  try {
+    const s = await (await fetch("/api/probe/status")).json();
+    $("statusTag").textContent = s.has_cookie ? `登录态 OK（${s.cookie_count}）` : "未找到 Cookie";
+    $("statusTag").className = s.has_cookie ? "muted" : "tag err";
+  } catch (e) { $("statusTag").textContent = "后端未连接"; }
+  // 默认进入「查询数据」页签
+  switchTab("query");
+})();
+
+/* 查活动 */
+$("btnSearch").onclick = async () => {
+  const q = $("kw").value.trim(), s = $("start").value, e = $("end").value;
+  if (!s || !e) return $("msg").textContent = "请选日期";
+  $("msg").textContent = "查询中…";
+  const d = await (await fetch(`/api/probe/campaigns?q=${encodeURIComponent(q)}&start=${s}&end=${e}`)).json();
+  if (d.detail) return $("msg").textContent = "失败：" + d.detail;
+  const items = d.items || [];
+  const box = $("cands"); box.style.display = items.length ? "block" : "none";
+  box.innerHTML = items.map((c, i) => `<div class="cand" data-i="${i}">
+      <span class="nm">${esc(c.name)}</span>
+      <span class="tag">${esc(c.targetingType || "-")}</span>
+      <span class="mt">花费 ${money(c.adCost)}</span>
+      <span class="mt">单 ${fmtN(c.adOrderNum)}</span>
+      <span class="mono mt">${esc(c.campaignId)}</span></div>`).join("");
+  box.querySelectorAll(".cand").forEach(el => el.onclick = () => {
+    box.querySelectorAll(".cand").forEach(x => x.classList.remove("on"));
+    el.classList.add("on");
+    CUR_CAMPAIGN = items[+el.dataset.i];
+    $("btnStart").disabled = false;
+    $("msg").textContent = "已选：" + CUR_CAMPAIGN.name;
+  });
+  $("msg").textContent = `共 ${d.total} 个，显示 ${items.length}`;
+};
+
+/* 启动 */
+$("btnStart").onclick = async () => {
+  if (!CUR_CAMPAIGN) return;
+  const body = {
+    campaignId: CUR_CAMPAIGN.campaignId, campaignName: CUR_CAMPAIGN.name,
+    startDate: $("start").value, endDate: $("end").value,
+    placement: $("oPlacement").checked, target: $("oTarget").checked,
+    product: $("oProduct").checked, search: $("oSearch").checked,
+    productInfo: $("oInfo").checked, suggestedBid: $("oBid").checked,
+    competitor: $("oComp").checked, competitorTerms: 8,
+  };
+  $("btnStart").disabled = true;
+  $("prog").style.display = "block";
+  $("msg").textContent = "";
+  const r = await fetch("/api/daily/start", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const d = await r.json();
+  if (!r.ok) { $("msg").textContent = "启动失败：" + (d.detail || ""); $("btnStart").disabled = false; return; }
+  TASK = d.taskId;
+  poll();
+};
+
+async function poll() {
+  const t = await (await fetch(`/api/daily/task/${TASK}`)).json();
+  $("barI").style.width = (t.progress || 0) + "%";
+  $("progTxt").textContent = `[${t.status}] ${t.current || ""}  天 ${t.doneDays || 0}/${t.totalDays || 0}`
+    + (t.errors && t.errors.length ? `  错误 ${t.errors.length}` : "");
+  if (t.status === "done") {
+    $("progTxt").textContent += "  正在落库…";
+    try {
+      const p = await (await fetch(`/api/daily/db/persist/${TASK}`, {method: "POST"})).json();
+      $("progTxt").textContent = `[done] 完成并已落库：${p.days} 天 / ${p.seriesRows} 条序列`;
+    } catch (e) {
+      $("progTxt").textContent = "[done] 完成，但落库失败：" + e.message;
+    }
+    await loadResult();
+    $("btnStart").disabled = false;
+    return;
+  }
+  if (t.status === "error") { $("progTxt").textContent += " —— 失败：" + JSON.stringify((t.errors||[])[0]||{}); $("btnStart").disabled = false; return; }
+  setTimeout(poll, 2000);
+}
+
+async function loadResult() {
+  const d = await (await fetch(`/api/daily/result/${TASK}`)).json();
+  META = d.meta; CONTEXT = d.context || {}; DAYS = d.days || [];
+  $("result").style.display = "block";
+  curDay = DAYS[0] || "";
+  SEL = curDay;
+  renderDays();
+  renderLevels(); await loadDay();
+}
+
+function renderLevels() {
+  const lv = [["campaign", "广告活动"], ["groups", "广告组"], ["products", "广告产品"],
+              ["search", "搜索词"], ["competitor", "竞品(落库)"], ["context", "基础信息/建议价"]];
+  $("levels").innerHTML = lv.map(([k, t]) =>
+    `<div class="lv ${k === curLevel ? "on" : ""}" data-k="${k}">${t}</div>`).join("");
+  $("levels").querySelectorAll(".lv").forEach(el => el.onclick = async () => {
+    curLevel = el.dataset.k; renderLevels();
+    if (curLevel === "competitor" && MODE === "db") await loadComp();
+    else renderBody();
+  });
+}
+async function loadDay() {
+  if (!curDay) return;
+  if (MODE === "db") {
+    const r = await fetch(`/api/daily/store/day?campaignId=${DB_RUN}&date=${curDay}`);
+    DATA = await r.json();
+  } else {
+    const r = await fetch(`/api/daily/result/${TASK}?date=${curDay}`);
+    DATA = await r.json();
+  }
+  renderBody();
+}
+
+/* ---------- 渲染 ---------- */
+const SUMCOLS = [
+  ["曝光", "impressions", v => fmtN(v)],
+  ["点击", "clicks", v => fmtN(v)],
+  ["花费", "adCost", v => money(v)],
+  ["订单", "adOrderNum", v => fmtN(v)],
+  ["加购", "addToCart", v => fmtN(v)],
+];
+
+function kpis(sum) {
+  if (!sum) return "";
+  return `<div class="kpis">${SUMCOLS.map(([k, key, f]) =>
+    `<div class="kpi"><div class="k">${k}</div><div class="v">${f(sum[key])}</div></div>`).join("")}
+    <div class="kpi"><div class="k">CPC</div><div class="v">${
+      sum.clicks ? money(sum.adCost / sum.clicks) : "-"}</div></div>
+    <div class="kpi"><div class="k">CTR</div><div class="v">${
+      sum.impressions ? (sum.clicks / sum.impressions * 100).toFixed(2) + "%" : "-"}</div></div>
+    <div class="kpi"><div class="k">ACOS</div><div class="v">${
+      sum.adSale ? (sum.adCost / sum.adSale * 100).toFixed(1) + "%" : "-"}</div></div>
+  </div>`;
+}
+
+function hourTable(hours, title) {
+  if (!hours || !hours.length) return `<div class="empty">无分时数据</div>`;
+  const maxCost = Math.max(...hours.map(h => +(h.metrics?.adCost || 0)), 1);
+  const tot = hours.reduce((a, h) => a + (+(h.metrics?.adCost || 0)), 0);
+  const rows = hours.map(h => {
+    const m = h.metrics || {};
+    const w = Math.round(+(m.adCost || 0) / maxCost * 70);
+    return `<tr>
+      <td>${esc(h.hour)}</td>
+      <td class="num">${fmtN(m.impressions)}</td>
+      <td class="num">${fmtN(m.clicks)}</td>
+      <td class="num">${money(m.adCost)}</td>
+      <td><span class="hbar" style="width:${w}px"></span>
+          <span class="muted" style="font-size:11px;margin-left:6px">${
+            tot ? (m.adCost / tot * 100).toFixed(1) + "%" : "-"}</span></td>
+      <td class="num">${fmtN(m.adOrderNum)}</td></tr>`;
+  }).join("");
+  return `<div class="wrapx"><table class="dt">
+    <thead><tr><th>${title || "时段"}</th><th>曝光</th><th>点击</th><th>花费</th>
+    <th title="该时段花费占当日合计的比例">花费占比</th><th>订单</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function sumTable(items) {
+  const rows = items.map(([name, sum]) => `<tr>
+    <td>${esc(name)}</td>
+    <td class="num">${fmtN(sum.impressions)}</td>
+    <td class="num">${fmtN(sum.clicks)}</td>
+    <td class="num">${money(sum.adCost)}</td>
+    <td class="num">${sum.clicks ? money(sum.adCost / sum.clicks) : "-"}</td>
+    <td class="num">${sum.impressions ? (sum.clicks / sum.impressions * 100).toFixed(2) + "%" : "-"}</td>
+    <td class="num">${fmtN(sum.adOrderNum)}</td></tr>`).join("");
+  return `<table class="dt"><thead><tr><th>维度</th><th>曝光</th><th>点击</th><th>花费</th>
+    <th>CPC</th><th>CTR</th><th>订单</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function card(title, inner, tags = "") {
+  return `<div class="card"><h3>${esc(title)}<span class="sp"></span>${tags}</h3>${inner}</div>`;
+}
+
+function trendTable(rows) {
+  const maxCost = Math.max(...rows.map(r => +r.cost || 0), 1);
+  const totCost = rows.reduce((a, x) => a + (+x.cost || 0), 0);
+  return `<div class="wrapx"><table class="dt"><thead><tr>
+    <th>日期</th><th>曝光</th><th>点击</th><th>CTR</th><th>花费</th>
+    <th title="该行花费占所选区间总花费的比例">花费占比</th>
+    <th>CPC</th><th>订单</th><th>加购</th></tr></thead><tbody>${
+    rows.map(r => `<tr>
+      <td>${r.date}</td>
+      <td class="num">${fmtN(r.impressions)}</td>
+      <td class="num">${fmtN(r.clicks)}</td>
+      <td class="num">${r.impressions ? (r.clicks / r.impressions * 100).toFixed(2) + "%" : "-"}</td>
+      <td class="num">${money(r.cost)}</td>
+      <td><span class="hbar" style="width:${Math.round(r.cost / maxCost * 70)}px"></span>
+          <span class="muted" style="font-size:11px;margin-left:6px">${
+            totCost ? (r.cost / totCost * 100).toFixed(1) + "%" : "-"}</span></td>
+      <td class="num">${r.clicks ? money(r.cost / r.clicks) : "-"}</td>
+      <td class="num">${fmtN(r.orders)}</td>
+      <td class="num">${fmtN(r.add_to_cart)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function hourAggTable(rows) {
+  const maxCost = Math.max(...rows.map(r => +r.cost || 0), 1);
+  const totCost = rows.reduce((a, x) => a + (+x.cost || 0), 0);
+  return `<div class="wrapx"><table class="dt"><thead><tr>
+    <th>时段</th><th>曝光</th><th>点击</th><th>花费</th>
+    <th title="该时段花费占区间合计的比例">花费占比</th><th>订单</th><th>覆盖天数</th>
+    </tr></thead><tbody>${
+    rows.map(r => `<tr>
+      <td>${esc(r.hour)}</td>
+      <td class="num">${fmtN(r.impressions)}</td>
+      <td class="num">${fmtN(r.clicks)}</td>
+      <td class="num">${money(r.cost)}</td>
+      <td><span class="hbar" style="width:${Math.round(r.cost / maxCost * 70)}px"></span>
+          <span class="muted" style="font-size:11px;margin-left:6px">${
+            totCost ? (r.cost / totCost * 100).toFixed(1) + "%" : "-"}</span></td>
+      <td class="num">${fmtN(r.orders)}</td>
+      <td class="num">${fmtN(r.days)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderBody() {
+  const d = DATA || {};
+  const out = [];
+  if (MODE === "db" && curLevel === "campaign") {
+    if (TREND && TREND.length) out.push(card("跨天趋势（所选区间）", trendTable(TREND)));
+    if (SEL === "__range__" && HOURAVG && HOURAVG.length)
+      out.push(card("区间小时聚合（找最烧钱时段）", hourAggTable(HOURAVG)));
+  }
+  if (curLevel === "campaign") {
+    const c = d.campaign || {};
+    out.push(card(`广告活动 24 小时 · ${d.date}`, kpis(c.sum) + hourTable(c.hours, "小时")));
+    if (c.placements) {
+      const items = Object.entries(c.placements).map(([k, v]) => [v.label || k, v.sum]);
+      out.push(card("活动 × 广告位（当日）", `<div class="pad">${sumTable(items)}</div>`));
+      for (const [k, v] of Object.entries(c.placements)) {
+        out.push(card(`活动 · ${v.label || k} · 24h`, hourTable(v.hours, "小时"),
+          `<span class="tag">${money(v.sum.adCost)}</span>`));
+      }
+    }
+    if (c.targets) {
+      const items = Object.entries(c.targets).map(([k, v]) => [v.label || k, v.sum]);
+      out.push(card("活动 × 投放（当日）", `<div class="pad">${sumTable(items)}</div>`));
+      for (const [k, v] of Object.entries(c.targets)) {
+        out.push(card(`活动 · 投放 ${v.label || k} · 24h`, hourTable(v.hours, "小时"),
+          `<span class="tag">${money(v.sum.adCost)}</span>`));
+      }
+    }
+  }
+
+  if (curLevel === "groups") {
+    (d.groups || []).forEach(g => {
+      out.push(card(`广告组 · ${g.name}`, kpis(g.sum) + hourTable(g.hours, "小时"),
+        `<span class="tag">id ${g.id}</span>`));
+      if (g.placements) {
+        const items = Object.entries(g.placements).map(([k, v]) => [v.label || k, v.sum]);
+        out.push(card(`组 · 广告位（当日）`, `<div class="pad">${sumTable(items)}</div>`));
+        for (const [k, v] of Object.entries(g.placements)) {
+          out.push(card(`组 · ${v.label || k} · 24h`, hourTable(v.hours, "小时")));
+        }
+      }
+      if (g.targets && Object.keys(g.targets).length) {
+        const items = Object.entries(g.targets).map(([k, v]) => [v.label || k, v.sum]);
+        out.push(card(`组 · 投放（当日）`, `<div class="pad">${sumTable(items)}</div>`));
+        for (const [k, v] of Object.entries(g.targets)) {
+          out.push(card(`组 · 投放 ${v.label || k} · 24h`, hourTable(v.hours, "小时")));
+        }
+      }
+    });
+    if (!(d.groups || []).length) out.push(card("广告组", `<div class="empty">无数据</div>`));
+  }
+
+  if (curLevel === "products") {
+    (d.products || []).forEach(p => {
+      const sum = p.sum || {};
+      const pl = p.placements || [], mt = p.match || [];
+      let inner = kpis(p.sum);
+      inner += `<div class="sub">广告总量 · 24 小时</div>${hourTable(p.total, "小时")}`;
+      if (pl.length) {
+        inner += `<div class="sub">广告位（${pl.length}）汇总</div>
+          <div class="pad">${sumTable(pl.map(x => [x.label || x.code, x.sum]))}</div>`;
+        pl.forEach(x => {
+          inner += `<div class="sub">广告位 · ${esc(x.label || x.code)} · 24 小时</div>`
+            + hourTable(x.hours, "小时");
+        });
+      }
+      if (mt.length) {
+        inner += `<div class="sub">投放（${mt.length}）汇总</div>
+          <div class="pad">${sumTable(mt.map(x => [x.label || x.code, x.sum]))}</div>`;
+        mt.forEach(x => {
+          inner += `<div class="sub">投放 · ${esc(x.label || x.code)} · 24 小时</div>`
+            + hourTable(x.hours, "小时");
+        });
+      }
+      out.push(`<details class="card"><summary>
+        <b>${esc(p.asin)}</b> <span class="muted">${esc(p.sku || "")}</span>
+        <span class="sp"></span>
+        <span class="tag">点击 ${fmtN(sum.clicks)}</span>
+        <span class="tag">花费 ${money(sum.adCost)}</span>
+        <span class="tag">加购 ${fmtN(sum.addToCart)}</span>
+      </summary>${inner}</details>`);
+    });
+    if (!(d.products || []).length) out.push(card("广告产品", `<div class="empty">无数据</div>`));
+  }
+
+  if (curLevel === "search") {
+    const s = d.search || {};
+    const kw = s.keyword || [];
+    out.push(card(`活动级搜索词（${kw.length}）`, kwTable(kw)));
+    const byG = s.byGroup || {};
+    for (const [gid, v] of Object.entries(byG)) {
+      out.push(card(`组级搜索词 · ${gid}（${(v.keyword || []).length}）`, kwTable(v.keyword || [])));
+    }
+    const asin = s.asin || [];
+    out.push(card(`搜索 ASIN（${asin.length}）`, asinTable(asin)));
+  }
+
+  if (curLevel === "competitor") {
+    if (MODE !== "db") {
+      out.push(card("竞品", `<div class="empty">竞品数据在「已落库」模式下查看</div>`));
+    } else if (!COMP_TERMS || !COMP_TERMS.length) {
+      out.push(card("竞品（落库）", `<div class="empty">
+        该任务还没有竞品记录。<br>可点下方按钮落库（复用本地缓存，不重复抓取）。</div>
+        <div class="pad"><button class="btn" onclick="importStore()">回填数据</button></div>`));
+    } else {
+      const our = ourAvgPrice();
+      out.push(card(`竞品词概览（${COMP_TERMS.length} 个词 · 全量记录）`,
+        `<div class="pad">${compTermsTable(COMP_TERMS, our)}</div>`));
+      out.push(card(`竞品明细 · ${COMP_TERM}`, compItemsTable(COMP_ITEMS, our)));
+    }
+  }
+
+  if (curLevel === "context") {
+    const info = CONTEXT.productInfo || {};
+    const rows = Object.entries(info).map(([asin, v]) => `<tr><td>${esc(asin)}</td>
+      <td>${esc(v.title || "").slice(0, 50)}</td>
+      <td class="num">${money(v.standardPrice)}</td>
+      <td class="num">${money(v.landedPrice)}</td>
+      <td>${esc(v.dxmState || "-")}</td></tr>`).join("");
+    out.push(card("产品基础信息（在线产品接口）",
+      rows ? `<table class="dt"><thead><tr><th>ASIN</th><th>标题</th><th>标准价</th>
+        <th>到手价</th><th>状态</th></tr></thead><tbody>${rows}</tbody></table>`
+        : `<div class="empty">未取（勾选「产品基础信息」后重跑）</div>`));
+    const bids = CONTEXT.suggestedBid || [];
+    out.push(card(`建议竞价（${bids.length}）`, bids.length
+      ? `<table class="dt"><thead><tr><th>targetId</th><th>类型</th><th>建议价</th>
+         <th>区间</th><th>预估曝光</th></tr></thead><tbody>${
+        bids.map(b => `<tr><td class="mono">${esc(b.targetId)}</td>
+          <td>${esc(((b.extension || [{}])[0] || {}).type || "-")}</td>
+          <td class="num">${money(b.suggested)}</td>
+          <td class="num">${money(b.rangeStart)} ~ ${money(b.rangeEnd)}</td>
+          <td class="num">${fmtN(b.estimatedImpressionLower)} ~ ${fmtN(b.estimatedImpressionUpper)}</td></tr>`
+        ).join("")}</tbody></table>` : `<div class="empty">未取</div>`));
+    const comp = CONTEXT.competitor || {};
+    const terms = Object.keys(comp);
+    const ourPrice = (() => {
+      const vs = Object.values(info || {}).map(v => +v.landedPrice || +v.standardPrice || 0)
+        .filter(v => v > 0);
+      return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : 0;
+    })();
+    const src = CONTEXT.competitorSource ? `<span class="tag">${esc(CONTEXT.competitorSource)}</span>` : "";
+    out.push(card(`竞品页（${terms.length} 个词）`,
+      terms.length ? terms.map(t => {
+        const items = comp[t] || [];
+        return `<div class="sub"><b>${esc(t)}</b> · ${compSummary(items, ourPrice)}</div>`
+          + `<div class="pad">${tbl(items)}</div>`;
+      }).join("")
+      : `<div class="empty">未取（勾选「竞品页抓取」后重跑，较慢）</div>`, src));
+  }
+
+  $("body").innerHTML = out.join("");
+  if (curLevel === "competitor") {
+    $("body").querySelectorAll("tr[data-term]").forEach(tr => {
+      tr.onclick = () => loadComp(tr.dataset.term);
+    });
+  }
+}
+
+async function importStore() {
+  const r = await fetch("/api/daily/store/import", {method: "POST"});
+  const d = await r.json();
+  if (d.detail) { alert("失败：" + d.detail); return; }
+  $("dbInfo").textContent =
+    `回填完成：${d.files} 个日文件 / ${d.product} 产品序列`;
+  await loadDbMeta();
+}
+
+function kwTable(rows) {
+  if (!rows || !rows.length) return `<div class="empty">当日无搜索词</div>`;
+  return `<div class="wrapx"><table class="dt"><thead><tr>
+    <th>搜索词</th><th>匹配</th><th>曝光</th><th>点击</th><th>CTR</th>
+    <th>花费</th><th>订单</th><th>加购</th></tr></thead><tbody>${
+    rows.map(r => `<tr>
+      <td>${esc(r.query)}</td><td>${esc(r.matchType || "-")}</td>
+      <td class="num">${fmtN(r.impressions)}</td><td class="num">${fmtN(r.clicks)}</td>
+      <td class="num">${r.ctr ? (+r.ctr).toFixed(2) + "%" : "-"}</td>
+      <td class="num">${money(r.adCost)}</td><td class="num">${fmtN(r.adOrderNum)}</td>
+      <td class="num">${fmtN(r.addToCart)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function asinTable(rows) {
+  if (!rows || !rows.length) return `<div class="empty">当日无搜索 ASIN</div>`;
+  return `<div class="wrapx"><table class="dt"><thead><tr>
+    <th>ASIN</th><th>匹配</th><th>曝光</th><th>点击</th><th>花费</th>
+    <th>竞品价</th><th>评分</th></tr></thead><tbody>${
+    rows.map(r => `<tr><td class="mono">${esc(r.query)}</td><td>${esc(r.matchType || "-")}</td>
+      <td class="num">${fmtN(r.impressions)}</td><td class="num">${fmtN(r.clicks)}</td>
+      <td class="num">${money(r.adCost)}</td><td class="num">${money(r.price)}</td>
+      <td class="num">${r.asinRating ? (+r.asinRating).toFixed(1) : "-"}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function compSummary(items, ourPrice) {
+  const ps = (items || []).map(x => +x.price).filter(v => v > 0).sort((a, b) => a - b);
+  if (!ps.length) return `<span class="muted">无价格数据</span>`;
+  const med = ps[Math.floor(ps.length / 2)];
+  const cheaper = ourPrice ? ps.filter(p => p < ourPrice).length : 0;
+  const hot = (items || []).filter(x => x.reviews >= 50).length;
+  return `中位价 ${money(med)} · 区间 ${money(ps[0])} ~ ${money(ps[ps.length - 1])}`
+    + (ourPrice ? ` · 比我方便宜 <b>${cheaper}/${ps.length}</b>` : "")
+    + (hot ? ` · 评论 50+ 的 ${hot} 个` : "");
+}
+
+function tbl(items) {
+  if (!items || !items.length) return `<div class="empty">无数据</div>`;
+  return `<div class="wrapx"><table class="dt"><thead><tr><th>#</th><th>ASIN</th><th>标题</th>
+    <th>价格</th><th>评分</th><th>评论</th><th>到货</th></tr></thead><tbody>${
+    items.map(x => `<tr><td>${x.position}</td><td class="mono">${esc(x.asin)}</td>
+      <td>${esc((x.title || "").slice(0, 34))}</td>
+      <td class="num">${money(x.price)}</td>
+      <td class="num">${x.rating ?? "-"}</td><td class="num">${fmtN(x.reviews)}</td>
+      <td>${esc(x.delivery || "-")}</td></tr>`).join("")}</tbody></table></div>`;
+}
+</script>
+<div class="mask" id="imgMask" onclick="closeImg()"
+     style="z-index:120;display:none;background:rgba(0,0,0,.72)">
+  <img id="imgBig" alt=""
+       style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+              max-width:92vw;max-height:88vh;border-radius:6px;background:#fff;
+              box-shadow:0 20px 60px rgba(0,0,0,.5)">
+</div>
+<div class="mask" id="mask" onclick="closeSchema()"></div>
+<div class="sheet" id="sheet">
+  <header>
+    <b>表结构 &amp; SQL 查询说明</b>
+    <span class="muted" style="font-size:12px">按「活动 + 日期区间」查全部素材与指标</span>
+    <span class="sp"></span>
+    <button class="close" onclick="closeSchema()">×</button>
+  </header>
+  <div class="content" id="schemaBody"></div>
+</div>
+
+<script>
+const TBL_SPEC = [
+  ["dim_campaign", "维度 · 广告活动", "campaign_id",
+   "name / daily_budget / strategy / status / targeting_type / placement_top·rest·product",
+   "一个活动一行；改名后本地同步"],
+  ["dim_group", "维度 · 广告组", "group_id（赛狐内部 id）",
+   "amazon_group_id / campaign_id / name / default_bid",
+   "Amazon 组 id 用于投放与搜索词关联，内部 id 用于分时接口"],
+  ["dim_product", "维度 · 广告产品", "asin",
+   "sku / parent_asin / title / price / landed_price / fulfillment / quantity",
+   "父 ASIN 用来关联「商品标识」与竞品"],
+  ["dim_target", "维度 · 投放", "target_id",
+   "group_id / campaign_id / target_type / target_text / match_type",
+   "auto / keyword / targeting 三类，target_text 是中文语义名"],
+  ["dim_search_term", "维度 · 广告词", "term",
+   "first_seen / last_seen / seen_days / aba_week_rank",
+   "按词只存一份，跨活动共享"],
+  ["fact_campaign", "事实 · 活动", "campaign_id + date + hour + placement",
+   "impressions / clicks / cost / orders / sales / add_to_cart / dpv / metrics_json",
+   "24 小时 + 当日汇总(hour=-1) + 4 个广告位(placement)"],
+  ["fact_group", "事实 · 广告组", "group_id + date + hour + placement",
+   "同上（含 campaign_id 便于按活动筛）",
+   "与活动表同构，可逐层勾稽"],
+  ["fact_product", "事实 · 广告产品", "asin + campaign_id + date + hour + system + code",
+   "同上",
+   "system = total / placement / match（产品三体系）"],
+  ["fact_target", "事实 · 投放", "target_id + date + hour",
+   "同上",
+   "自动位 4 个 / 关键词 / 商品定向 各自一行"],
+  ["fact_search_term", "事实 · 搜索词（日级）", "date + scope + owner_id + query_type + term + match_type",
+   "impressions / clicks / cost / orders / add_to_cart / extra_json",
+   "scope = campaign / group；无分时"],
+  ["fact_competitor", "事实 · 竞品（按词）", "term + asin",
+   "position / price / list_price / rating / reviews / delivery / fastest_delivery / badges / coupon / bought_recently / stock / image / url",
+   "与日期、活动都无关，一个词只存一份"],
+  ["v_campaign_daily 等视图", "查询视图", "—",
+   "v_campaign_daily / v_group_daily / v_product_daily / v_campaign_hourly",
+   "已内置 hour=-1 与 placement='' 过滤，避免混算"],
+];
+
+const KEYPOINTS = [
+  ["<code>hour = -1</code> = 当日汇总",
+   "查日/区间用 <code>hour = -1</code>；查 24 小时分布用 <code>hour &gt;= 0</code>（0~23）。两者混着 SUM 会翻倍。"],
+  ["按「活动 + 日期」查，不再有 task_id",
+   "同一活动不同天分别采集 → 落在同一批表里，靠 <code>date</code> 区分。<br>区间汇总直接 <code>WHERE date BETWEEN ? AND ?</code> 再 SUM。"],
+  ["重复采集是幂等的",
+   "主键包含实体与时间，写入走 <code>INSERT … ON CONFLICT DO UPDATE</code>；同一天采集多次只覆盖，不会翻倍。补某一天不影响其他天。"],
+  ["产品三体系 = <code>system</code>",
+   "<code>total</code>（产品整体）/ <code>placement</code>（× 4 个广告位）/ <code>match</code>（× 3 类投放），<code>code</code> 存具体广告位或投放大类。"],
+  ["搜索词按日、竞品按词",
+   "搜索词是日级（无分时）；竞品表没有日期与活动，同一个词在多个活动里共享一份。"],
+  ["指标列 + metrics_json",
+   "<code>impressions / clicks / cost / orders / sales / add_to_cart / dpv</code> 是独立数值列可直接 SUM；其余 60+ 指标在 <code>metrics_json</code>，用 <code>json_extract(metrics_json,'$.指标名')</code> 取。"],
+];
+
+const COLLECT_STEPS = [
+  ["① 选活动 + 区间",
+   "活动下拉来自 <code>dim_campaign</code>；区间默认该活动已落库的首末日，可手改。<b>只有本地已有的天能查</b>。"],
+  ["② 按天采集（采集页签）",
+   "每天调用约 35 个接口：活动/组/产品/投放/广告位分时 + 搜索词 + 基础信息 + 建议竞价 + 竞品。<br>结果先落 <code>data/probe_daily/&lt;taskId&gt;/day_&lt;date&gt;.json</code>（原始备份），再 UPSERT 进上述 6 张事实表。"],
+  ["③ 幂等与补数",
+   "同一天重复采集 → 覆盖；只补某天 → 其他天不受影响；竞品按词覆盖。"],
+  ["④ 查询（查询页签）",
+   "「汇总」= 区间内 SUM；「按天」= 单日 <code>date = ?</code>；两者都从同一批事实表出，不重复请求赛狐。"],
+];
+
+const SQLS = [
+  ["① 活动区间汇总（曝光/点击/CTR/CPC/ACOS）",
+   `SELECT SUM(impressions) AS 曝光,
+       SUM(clicks) AS 点击,
+       ROUND(SUM(clicks)*100.0/NULLIF(SUM(impressions),0), 2) AS CTR百分比,
+       ROUND(SUM(cost), 2) AS 花费,
+       ROUND(SUM(cost)/NULLIF(SUM(clicks),0), 2) AS CPC,
+       SUM(orders) AS 订单,
+       ROUND(SUM(sales), 2) AS 销售额,
+       ROUND(SUM(cost)*100.0/NULLIF(SUM(sales),0), 1) AS ACOS百分比
+FROM fact_campaign
+WHERE campaign_id = '<campaignId>'
+  AND hour = -1 AND placement = ''
+  AND date BETWEEN '2026-11-01' AND '2026-11-07';`],
+
+  ["② 活动每日（趋势）",
+   `SELECT date AS 日期,
+       SUM(impressions) 曝光, SUM(clicks) 点击,
+       ROUND(SUM(cost),2) 花费, SUM(orders) 订单,
+       ROUND(SUM(cost)*1.0/NULLIF(SUM(clicks),0), 2) 单次点击成本
+FROM fact_campaign
+WHERE campaign_id = '<campaignId>'
+  AND hour = -1 AND placement = ''
+  AND date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY date ORDER BY date;`],
+
+  ["③ 活动某天的 24 小时分布",
+   `SELECT hour AS 时段,
+       impressions 曝光, clicks 点击, ROUND(cost,2) 花费, orders 订单
+FROM fact_campaign
+WHERE campaign_id = '<campaignId>' AND date = '2026-11-06'
+  AND hour >= 0 AND placement = ''
+ORDER BY hour;`],
+
+  ["④ 广告组（区间汇总，带名称）",
+   `SELECT g.name AS 广告组,
+       SUM(f.impressions) 曝光, SUM(f.clicks) 点击,
+       ROUND(SUM(f.cost),2) 花费, SUM(f.orders) 订单
+FROM fact_group f
+LEFT JOIN dim_group g ON g.group_id = f.group_id
+WHERE f.campaign_id = '<campaignId>'
+  AND f.hour = -1 AND f.placement = ''
+  AND f.date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY g.name ORDER BY 花费 DESC;`],
+
+  ["⑤ 活动 × 广告位（4 个位，区间）",
+   `SELECT placement AS 广告位,
+       SUM(impressions) 曝光, SUM(clicks) 点击,
+       ROUND(SUM(cost),2) 花费, SUM(orders) 订单
+FROM fact_campaign
+WHERE campaign_id = '<campaignId>'
+  AND hour = -1 AND placement <> ''
+  AND date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY placement ORDER BY 花费 DESC;`],
+
+  ["⑥ 产品三体系：产品 × 广告位（4）",
+   `SELECT f.asin, d.sku, f.code AS 广告位,
+       SUM(f.clicks) 点击, ROUND(SUM(f.cost),2) 花费, SUM(f.orders) 订单
+FROM fact_product f
+LEFT JOIN dim_product d ON d.asin = f.asin
+WHERE f.campaign_id = '<campaignId>'
+  AND f.system = 'placement' AND f.hour = -1
+  AND f.date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY f.asin, f.code ORDER BY f.asin, 花费 DESC;`],
+
+  ["⑦ 产品三体系：产品 × 投放大类（3）",
+   `SELECT f.asin, f.code AS 投放大类,
+       SUM(f.impressions) 曝光, SUM(f.clicks) 点击,
+       ROUND(SUM(f.cost),2) 花费, SUM(f.orders) 订单
+FROM fact_product f
+WHERE f.campaign_id = '<campaignId>'
+  AND f.system = 'match' AND f.hour = -1
+  AND f.date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY f.asin, f.code ORDER BY f.asin, 花费 DESC;`],
+
+  ["⑧ 产品整体（区间）+ 该产品的每日",
+   `-- 区间
+SELECT asin, SUM(clicks) 点击, ROUND(SUM(cost),2) 花费, SUM(orders) 订单
+FROM fact_product
+WHERE campaign_id = '<campaignId>' AND system = 'total' AND hour = -1 AND code = ''
+  AND date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY asin ORDER BY 花费 DESC;
+
+-- 该产品每天
+SELECT date, SUM(clicks) 点击, ROUND(SUM(cost),2) 花费
+FROM fact_product
+WHERE asin = '<asin>' AND system = 'total' AND hour = -1 AND code = ''
+GROUP BY date ORDER BY date;`],
+
+  ["⑨ 投放明细（自动位/关键词/商品定向）",
+   `SELECT COALESCE(t.target_text, f.target_id) AS 投放,
+       t.target_type AS 类型,
+       SUM(f.impressions) 曝光, SUM(f.clicks) 点击,
+       ROUND(SUM(f.cost),2) 花费, SUM(f.orders) 订单
+FROM fact_target f
+LEFT JOIN dim_target t ON t.target_id = f.target_id
+WHERE f.campaign_id = '<campaignId>' AND f.hour = -1
+  AND f.date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY f.target_id ORDER BY 花费 DESC;`],
+
+  ["⑩ 搜索词（活动级，按天 + 区间）",
+   `-- 区间累计
+SELECT term AS 搜索词, match_type AS 匹配,
+       SUM(impressions) 曝光, SUM(clicks) 点击,
+       ROUND(SUM(cost),2) 花费, SUM(orders) 订单, SUM(add_to_cart) 加购
+FROM fact_search_term
+WHERE campaign_id = '<campaignId>'
+  AND scope = 'campaign' AND query_type = 'keyword'
+  AND date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY term, match_type ORDER BY 花费 DESC;
+
+-- 按天
+SELECT date, term, SUM(clicks) 点击, ROUND(SUM(cost),2) 花费
+FROM fact_search_term
+WHERE campaign_id = '<campaignId>' AND scope = 'campaign' AND query_type = 'keyword'
+GROUP BY date, term ORDER BY date, 花费 DESC;`],
+
+  ["⑪ 搜索词（组级）",
+   `SELECT g.name AS 广告组, f.term AS 搜索词, f.match_type,
+       SUM(f.clicks) 点击, ROUND(SUM(f.cost),2) 花费
+FROM fact_search_term f
+LEFT JOIN dim_group g ON g.group_id = f.owner_id
+WHERE f.campaign_id = '<campaignId>' AND f.scope = 'group'
+  AND f.date BETWEEN '2026-11-01' AND '2026-11-07'
+GROUP BY f.owner_id, f.term, f.match_type ORDER BY 花费 DESC;`],
+
+  ["⑫ 竞品（按词，全局共享）",
+   `-- 某词全部竞品
+SELECT position AS 位次, asin, title, price, rating, reviews,
+       delivery, fastest_delivery AS 最快到货,
+       badges AS 徽标, coupon AS 优惠券, bought_recently AS 销量信号
+FROM fact_competitor WHERE term = 'チェストリグ' ORDER BY position;
+
+-- 词级价格带 + 比我方便宜几条（我方价 10786）
+SELECT term AS 搜索词, COUNT(*) 条数,
+       ROUND(MIN(price),0) 最低价, ROUND(AVG(price),0) 均价, ROUND(MAX(price),0) 最高价,
+       SUM(CASE WHEN price < 10786 THEN 1 ELSE 0 END) AS 比我方便宜
+FROM fact_competitor WHERE price IS NOT NULL
+GROUP BY term ORDER BY 条数 DESC;`],
+
+  ["⑬ 跨层勾稽校验（活动 vs 组 vs 产品 vs 广告位）",
+   `SELECT '活动' AS 层级, ROUND(SUM(cost),2) 花费 FROM fact_campaign
+ WHERE campaign_id='<campaignId>' AND date='2026-11-06'
+   AND hour=-1 AND placement=''
+UNION ALL
+SELECT '组汇总', ROUND(SUM(cost),2) FROM fact_group
+ WHERE campaign_id='<campaignId>' AND date='2026-11-06'
+   AND hour=-1 AND placement=''
+UNION ALL
+SELECT '产品汇总', ROUND(SUM(cost),2) FROM fact_product
+ WHERE campaign_id='<campaignId>' AND date='2026-11-06'
+   AND hour=-1 AND system='total' AND code=''
+UNION ALL
+SELECT '广告位汇总', ROUND(SUM(cost),2) FROM fact_campaign
+ WHERE campaign_id='<campaignId>' AND date='2026-11-06'
+   AND hour=-1 AND placement<>'';`],
+
+  ["⑭ 采集完整性检查（哪些天缺数据）",
+   `-- 该活动已落库的日期
+SELECT campaign_id, date, COUNT(*) 行数
+FROM fact_campaign
+WHERE campaign_id = '<campaignId>' AND hour = -1
+GROUP BY date ORDER BY date;
+
+-- 索引建议：按活动+日期查询走这两个索引
+-- fact_campaign(campaign_id, date)  已建（主键前缀）
+-- fact_group(campaign_id, date) / fact_product(campaign_id, date) / fact_target(campaign_id, date) 已建`],
+];
+
+function openSchema() {
+  const tbl = `<table class="tblspec">
+    <thead><tr><th style="width:150px">表</th><th style="width:120px">含义</th>
+    <th style="width:230px">主键</th><th>关键字段</th></tr></thead><tbody>
+    ${TBL_SPEC.map(([t, desc, pk, cols, note]) => `<tr>
+      <td><code>${t}</code></td><td>${desc}</td><td><code>${pk}</code></td>
+      <td><code>${cols}</code><div class="muted" style="font-size:11.5px;margin-top:3px">${note}</div></td>
+    </tr>`).join("")}
+  </tbody></table>`;
+
+  const keys = `<div class="klist">
+    ${KEYPOINTS.map(([k, v]) => `<div class="krow"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}
+  </div>
+  <p style="margin-top:8px">表关系：<code>dim_campaign</code> 1 → N <code>dim_group</code> 1 → N
+  <code>dim_target</code>；<code>dim_product</code> 通过 asin 关联 <code>fact_product</code>；
+  <code>dim_search_term</code> 1 → N <code>fact_search_term</code>；
+  <code>fact_competitor</code> 按 <code>term</code> 与搜索词表关联。
+  <br>查「某活动某区间」= 直接在事实表按 <code>campaign_id</code> + <code>date BETWEEN ? AND ?</code> 过滤，
+  <b>不需要先拿 task_id</b>。</p>`;
+
+  const sqlHtml = SQLS.map(([title, sql], i) => `
+    <div class="sqlbox">
+      <div class="sqlttl">${title}
+        <button class="copy" onclick="copySql(${i},this)">复制</button></div>
+      <pre id="sql_${i}">${esc(sql)}</pre>
+    </div>`).join("");
+
+  const flow = `<div class="klist">
+    ${COLLECT_STEPS.map(([k, v]) => `<div class="krow"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}
+  </div>`;
+
+  $("schemaBody").innerHTML = `
+    <div class="hsec"><h4>一、表清单（维度 5 张 + 事实 6 张 + 视图 4 个）</h4>${tbl}</div>
+    <div class="hsec"><h4>二、必须先搞懂的 6 个约定</h4>${keys}</div>
+    <div class="hsec"><h4>三、采集与查询逻辑（按天采集 → 按活动+区间查询）</h4>${flow}</div>
+    <div class="hsec"><h4>四、常用 SQL 样例（把 &lt;campaignId&gt; 换成你的活动 id）</h4>${sqlHtml}</div>`;
+
+  $("mask").classList.add("on");
+  $("sheet").classList.add("on");
+}
+
+function closeSchema() {
+  $("mask").classList.remove("on");
+  $("sheet").classList.remove("on");
+}
+
+function copySql(i, btn) {
+  const txt = $("sql_" + i).innerText;
+  const done = () => {
+    const old = btn.textContent;
+    btn.textContent = "已复制";
+    setTimeout(() => btn.textContent = old, 1200);
+  };
+  const fallback = () => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      done();
+    } catch (e) { alert("复制失败，请手动选择文本复制"); }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(txt).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSchema(); });
+</script>
+</body>
+</html>

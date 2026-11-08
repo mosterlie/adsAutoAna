@@ -1,0 +1,26 @@
+{
+  "shopId": "711811",
+  "groupIds": [
+    "490926517106271"
+  ],
+  "products": [
+    {
+      "id": 60427897,
+      "shopId": 711811,
+      "sku": "ll058-B-71*46*46cm",
+      "asin": "B0HQGMTCB3",
+      "onlineStatus": "Active",
+      "title": "小型犬用ゲージ 犬ケージ トレイ付き メッシュ床板付き 対流循環式 空気が通り 轻量 分離型 PP製 頑丈耐久性 テディ ポメラニアンに適 自宅 リビング 寝室 玄関 手入れ簡単 (B,71*46*46cm)",
+      "imgUrl": "https://m.media-amazon.com/images/I/4113xHVRFUL._SL75_.jpg",
+      "domain": "www.amazon.co.jp",
+      "isMeetConditions": true,
+      "price": "11499.00",
+      "batchCreateParentAsin": "B0HQGMTCB3",
+      "keyId": 1794034469182,
+      "href": "https://www.amazon.co.jp/dp/B0HQGMTCB3",
+      "isAdd": true,
+      "variantAdd": true,
+      "type": "parent"
+    }
+  ]
+}

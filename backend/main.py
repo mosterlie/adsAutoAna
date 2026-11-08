@@ -23,6 +23,8 @@ from backend import database as db                # noqa: E402
 from backend.ad_creator_api import router as ad_creator_router  # noqa: E402
 from backend.ads_fact_api import router as ads_fact_router  # noqa: E402
 from backend.api import router                    # noqa: E402
+from backend.campaign_probe_api import router as probe_router  # noqa: E402
+from backend.daily_probe_api import router as daily_router  # noqa: E402
 
 FRONTEND_DIR = os.path.join(config.BASE_DIR, "frontend")
 
@@ -34,6 +36,8 @@ db.init_db()
 app.include_router(router)
 app.include_router(ad_creator_router)      # 广告创建(自 autoAds 平移)
 app.include_router(ads_fact_router)        # 广告产品级分时查询
+app.include_router(probe_router)           # 活动全量取数（各层级）
+app.include_router(daily_router)           # 按天全量取数（三体系+分时+搜索词）
 
 if os.path.isdir(FRONTEND_DIR):
     class NoCacheStatic(StaticFiles):

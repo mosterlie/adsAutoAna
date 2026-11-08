@@ -85,6 +85,11 @@ async function boot() {
   await loadFilterMeta();
   await loadAmzCached();        // 先拿到"哪些搜索词本地已有", 表格才能标出可直读的词
   await loadAll();
+  // 支持从独立页面(分时分析/接口查询)带 ?view=product 之类跳回来时直接定位视图
+  const wantView = sp.get("view");
+  if (wantView && ["table", "product", "online", "adcreator", "bulk"].includes(wantView)) {
+    showView(wantView);
+  }
   tick();
   setInterval(tick, 1000);
   setInterval(() => { if (state.polling) pollCrawl(); }, 1200);
@@ -1417,7 +1422,7 @@ function renderProducts() {
         title: "点击按父 ASIN 排序" })}
       ${sortableTh(sort1, { cls: "col-sku", label: "父SKU", field: "sku",
         title: "点击按父 SKU 排序" })}
-      <th class="col-name" title="该父体的「品名」= 模型解析商品标题得到的中文短语（≤5 词）；模型可在右上角「配置」里切换">品名</th>
+      <th class="col-name" title="该父体的「商品标识」= 模型解析商品标题得到的中文短语（≤5 词）；模型可在右上角「配置」里切换">商品标识</th>
       <th class="col-fetch" title="竞品素材拉取进度：该父体的搜索词是否已把亚马逊竞品结果拉到本地。
 全部拉完 = 拉取完成；拉了一部分 = 部分拉取；一个没拉 = 未拉取。括号内为 已拉取/搜索词总数">素材拉取<span class="th-en">(Assets)</span></th>
       <th class="col-mark" title="人工打标进度：该父体的搜索词是否已在搜索词详情页打过相关度标。
@@ -2288,8 +2293,8 @@ const OL_COLUMNS = [
   { key: "onlineStatus", label: "状态", fields: ["onlineStatus"], type: "status" },
   { key: "image", label: "图片", fields: ["mainBigImage"], type: "image" },
   { key: "asinSku", label: "ASIN/MSKU", fields: ["asin", "sku"], type: "asinlink" },
-  // 品名 = 本地 Ollama 解析标题得到的「这是什么」(≤5 个词), 展示在标题列之前
-  { key: "aiTitle", label: "品名", fields: [], type: "ai" },
+  // 商品标识 = 本地 Ollama 解析标题得到的「这是什么」(≤5 个词), 展示在标题列之前
+  { key: "aiTitle", label: "商品标识", fields: [], type: "ai" },
   // 打标 = 操作列「通过 / 不通过」按钮写入的人工标记(按父 ASIN), 紧跟品名显示
   { key: "mark", label: "打标", fields: [], type: "mark" },
   // 来源链接(店小秘 parents CSV 关联): 1=亚马逊商品链接, 2=采购源链接(带站点图标)
@@ -2434,7 +2439,7 @@ function olCell(col, r) {
       const a = esc(r.asin || "");
       const lab = (ol.aiLabels || {})[r.asin];
       return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${a}"
-        title="${lab ? esc(lab) : "正在解析品名(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
+        title="${lab ? esc(lab) : "正在解析商品标识(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
     }
     case "amazonlink": {
       // 店小秘没导出亚马逊链接时, 退回用 ASIN 拼详情页 —— 与点 ASIN/MSKU 跳的是同一个地址
@@ -2821,7 +2826,7 @@ function ensurePvLabels(asins) {
 function pvAiHtml(asin) {
   const lab = (pv.aiLabels || {})[asin];
   return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${esc(asin)}"
-    title="${lab ? esc(lab) : "正在解析品名(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
+    title="${lab ? esc(lab) : "正在解析商品标识(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
 }
 
 function olPager() {
