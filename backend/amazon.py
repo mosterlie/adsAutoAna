@@ -3,7 +3,7 @@
 
 约束与设计:
   * **不调用任何接口**。亚马逊对非浏览器请求返回 503, 需求要求"页面加载后再取"。
-  * 优先连接现成调试 Chrome(CDP), 失败则自起 Chromium; DOM 渲染完成后在页面上下文抽取。
+  * 只连接现成调试 Chrome(CDP), 不退回 headless Chromium; DOM 渲染完成后在页面上下文抽取。
   * **频率控制**: (a) 同一搜索词在 TTL 内直接返回库中缓存, 不再打开浏览器;
                 (b) 两次「真实抓取」之间强制最小间隔, 防触发风控;
                 (c) 全局互斥锁串行化, 避免并发抢浏览器。
@@ -37,6 +37,35 @@ MARKET: Dict[str, str] = {
 _LOCK = threading.Lock()
 # 上一次「真实抓取」的时间戳 (用于最小间隔限流)
 _LAST_REAL_FETCH = 0.0
+# 撞到人机校验后的全局冷却截止时间
+_BLOCK_UNTIL = 0.0
+
+
+def blocked_remaining() -> float:
+    """距离全局冷却结束还剩多少秒。"""
+    return max(0.0, _BLOCK_UNTIL - time.time())
+
+
+def mark_blocked(seconds: Optional[float] = None) -> None:
+    """标记全局冷却，期间不再打开新的 Amazon 搜索页。"""
+    global _BLOCK_UNTIL
+    wait = config.AMAZON_BLOCK_COOLDOWN_SEC if seconds is None else seconds
+    _BLOCK_UNTIL = max(_BLOCK_UNTIL, time.time() + max(0.0, float(wait)))
+
+
+def _is_cdp_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(x in text for x in (
+        "connect_over_cdp", "setdownloadbehavior",
+        "browser context management", "browser closed",
+        "target closed", "websocket"))
+
+
+def _restart_disconnected_cdp(cdp: str) -> None:
+    """CDP 连不上时做一次自愈：端口断开才启动，端口在但协议坏则不盲目杀进程。"""
+    if not cdp_alive(cdp):
+        ensure_cdp(cdp)
+    time.sleep(1.0)
 
 # 在页面上下文执行: 从「渲染后」的 DOM 抽取搜索结果
 #
@@ -427,6 +456,72 @@ def force_jpy(ctx, page) -> str:
         return ""
 
 
+def _try_simple_challenge(page) -> bool:
+    """只处理简单确认页，不处理图片/字符验证码。
+
+    当前 Amazon 日本站常见页面：
+        We're noticing unusual browser activity
+        Check the box to confirm you're human.
+        [x] 私は人間です
+        [ Continue ]
+
+    只勾选确认框并点击 Continue；图片验证码、字符输入和手机验证绝不自动处理。
+    """
+    try:
+        body = (page.inner_text("body") or "")[:8000]
+    except Exception:       # noqa: BLE001
+        return False
+    low = body.lower()
+    # 图片/字符验证码：不要尝试自动点击或识别
+    if any(x in low for x in (
+            "enter the characters", "表示されている文字",
+            "画像に表示", "文字を入力")):
+        return False
+    is_simple_page = any(x in low for x in (
+        "unusual browser activity", "confirm you're human",
+        "confirm you’re human", "check the box",
+        "continue shopping", "ショッピングを続ける",
+        "ロボットではない", "not a robot", "私はロボットではありません",
+        "私は人間です"))
+    if not is_simple_page:
+        return False
+
+    # 当前站点结构：checkbox#continueCheck + button "Continue"
+    clicked = False
+    for sel in ("#continueCheck", "input[type='checkbox']"):
+        try:
+            el = page.locator(sel).first
+            if el.is_visible(timeout=800):
+                if not el.is_checked():
+                    el.check(timeout=3000)
+                clicked = True
+                break
+        except Exception:   # noqa: BLE001
+            continue
+
+    for sel in (
+            "button:has-text('Continue')",
+            "input[type='submit'][value='Continue']",
+            "button:has-text('続行')",
+            "button:has-text('Continue shopping')",
+            "a:has-text('Continue shopping')",
+            "button:has-text('ショッピングを続ける')"):
+        try:
+            el = page.locator(sel).first
+            if el.is_visible(timeout=800):
+                el.click(timeout=3000)
+                clicked = True
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=12000)
+                except Exception:   # noqa: BLE001
+                    pass
+                page.wait_for_timeout(random.randint(800, 1600))
+                break
+        except Exception:   # noqa: BLE001
+            continue
+    return clicked
+
+
 def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
                 timeout_ms: int, domain: str = "co.jp") -> Dict[str, Any]:
     """真正打开浏览器加载页面并抽取 (不加缓存/不落库)
@@ -450,18 +545,14 @@ def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
             browser = pw.chromium.connect_over_cdp(cdp, timeout=15000)
             via = f"cdp:{cdp}"
         except Exception as e:      # noqa: BLE001
-            try:                    # 退路: 自起 Chromium(需已 playwright install chromium)
-                browser = pw.chromium.launch(headless=True)
-                via = "headless-chromium"
-            except Exception as e2:     # noqa: BLE001
-                raise RuntimeError(
-                    f"连不上调试 Chrome({cdp}): {str(e)[:60]}; 且自带 Chromium 不可用: "
-                    f"{str(e2)[:60]}。请先启动调试 Chrome"
-                    f"(--remote-debugging-port=9222 --user-data-dir=C:\\ChromeDebugUser)"
-                    f"后重试") from e2
+            raise RuntimeError(
+                f"连不上调试 Chrome({cdp}): {str(e)[:80]}。"
+                "当前已启用 CDP-only，请先启动已登录的调试 Chrome："
+                "--remote-debugging-port=9222 "
+                "--user-data-dir=C:\\ChromeDebugUser"
+            ) from e
 
-        connected = via.startswith("cdp")
-        if connected and browser.contexts:
+        if browser.contexts:
             ctx = browser.contexts[0]
         else:
             ctx = browser.new_context(
@@ -498,6 +589,18 @@ def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
 
             data = page.evaluate(EXTRACT_JS)
             low = data.get("bodyText") or ""
+            challenge_clicked = False
+            blocked_now = ("ロボットではない" in low or "Enter the characters" in low
+                           or "unusual browser activity" in low
+                           or "check the box to confirm" in low
+                           or "api-services-support@amazon.com" in low)
+            if blocked_now:
+                # 简单 "Continue shopping" / 确认框尝试一次；图片码不处理。
+                challenge_clicked = _try_simple_challenge(page)
+                if challenge_clicked:
+                    page.wait_for_timeout(random.randint(1000, 1800))
+                    data = page.evaluate(EXTRACT_JS)
+                    low = data.get("bodyText") or ""
             # 币种兜底: 还是美元就再补一次(页面级 cookie)并刷新一次
             if "USD" in low and "￥" not in low:
                 try:
@@ -518,11 +621,16 @@ def _live_fetch(query: str, url: str, cdp: str, scrolls: int, screenshot: bool,
                 "item_count": data.get("count"),
                 "items": items,
                 "blocked": ("ロボットではない" in low or "Enter the characters" in low
+                            or "unusual browser activity" in low
+                            or "check the box to confirm" in low
                             or "api-services-support@amazon.com" in low),
                 "via": via,
                 "jpy": jpy,
                 "usd": ("USD" in low),          # 记录是否仍是美元(便于排查)
+                "challenge_clicked": challenge_clicked,
             })
+            if out["blocked"]:
+                mark_blocked()
             if screenshot:
                 shot = amazon_store.shot_path(query)
                 page.screenshot(path=shot)
@@ -561,11 +669,11 @@ def fetch(query: str, domain: str = "co.jp", cdp: Optional[str] = None,
 
     if want_cache:
         hit = amazon_store.find(query)
-        if hit:
+        if hit and not hit.get("blocked"):
             return hit
         if ttl > 0:
             cached = db.get_cached_amazon_search(query, domain, ttl)
-            if cached:
+            if cached and not cached.get("blocked"):
                 cached["from_local"] = False
                 return cached
 
@@ -573,19 +681,39 @@ def fetch(query: str, domain: str = "co.jp", cdp: Optional[str] = None,
         # 双检: 等锁期间可能已被其它请求抓取并落盘
         if want_cache:
             hit = amazon_store.find(query)
-            if hit:
+            if hit and not hit.get("blocked"):
                 return hit
             if ttl > 0:
                 cached = db.get_cached_amazon_search(query, domain, ttl)
-                if cached:
+                if cached and not cached.get("blocked"):
                     cached["from_local"] = False
                     return cached
 
+        remaining = blocked_remaining()
+        if remaining > 0:
+            raise RuntimeError(
+                f"Amazon 抓取全局冷却中，剩余 {int(remaining)} 秒；"
+                "请等待冷却结束，期间只使用本地缓存")
         pace()                  # 最小间隔 + 随机抖动
-        out = _live_fetch(query, url, cdp, scrolls, screenshot, timeout_ms, domain)
+        # CDP 偶发断连/协议错误时先自愈并重试一次，避免一个词毁掉整批。
+        try:
+            out = _live_fetch(query, url, cdp, scrolls, screenshot, timeout_ms, domain)
+        except Exception as exc:            # noqa: BLE001
+            if not _is_cdp_error(exc):
+                raise
+            _restart_disconnected_cdp(cdp)
+            out = _live_fetch(query, url, cdp, scrolls, screenshot, timeout_ms, domain)
         out["fetched_at"] = db.now()
         out["from_cache"] = False
         out["from_local"] = False
+
+        # 人机校验页不是有效搜索结果，绝不落本地/落库，避免后续缓存命中导致一直拿到验证码页。
+        if out.get("blocked"):
+            out["local_paths"] = {}
+            out["local_path"] = None
+            out["search_id"] = None
+            out["cache_skipped"] = "blocked"
+            return out
 
         try:                    # 先落本地文件(预抓取的成果), 再落库
             saved = amazon_store.save_result(query, parents or [], out)

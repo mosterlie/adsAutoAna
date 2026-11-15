@@ -1,0 +1,534 @@
+{
+ "windows": {
+  "90709676806138": {
+   "name": "CA_排水沟_B0HJCLZPM4",
+   "dxmCampaignId": 13804946433,
+   "campaignId": "90709676806138",
+   "dailyBudget": "200.0000",
+   "strategy": "legacyForSales",
+   "targetingType": "auto",
+   "placementTop": "0",
+   "placementProductPage": "0",
+   "placementRestOfSearch": "0",
+   "portfolioName": "自动-当前在跑",
+   "portfolioId": "29811114365267",
+   "state": "enabled",
+   "servingStatus": "正在投放"
+  },
+  "113908165179926": {
+   "name": "CA_W型防撞角_B0HJ274S14",
+   "dxmCampaignId": 13804825329,
+   "campaignId": "113908165179926",
+   "dailyBudget": "300.0000",
+   "strategy": "legacyForSales",
+   "targetingType": "auto",
+   "placementTop": "0",
+   "placementProductPage": "0",
+   "placementRestOfSearch": "0",
+   "portfolioName": "自动-当前在跑",
+   "portfolioId": "29811114365267",
+   "state": "enabled",
+   "servingStatus": "正在投放"
+  }
+ },
+ "zero": {
+  "57452546140024": {
+   "name": "CA_匹克球网_B0HJPDD8XV",
+   "dxmCampaignId": 13804946428,
+   "campaignId": "57452546140024",
+   "adCost": "400.00",
+   "clicks": 20,
+   "dailyBudget": "200.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "169999519387603": {
+   "name": "CA_木制猫屋_B0HKN42H6R",
+   "dxmCampaignId": 13804955697,
+   "campaignId": "169999519387603",
+   "adCost": "342.81",
+   "clicks": 21,
+   "dailyBudget": "200.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "234162204808225": {
+   "name": "CA_厨房燃气灶_B0HJYG85BK",
+   "dxmCampaignId": 13804946435,
+   "campaignId": "234162204808225",
+   "adCost": "336.00",
+   "clicks": 17,
+   "dailyBudget": "200.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "200747849489161": {
+   "name": "CA_壁挂式收纳壁架_B0HLDP321N",
+   "dxmCampaignId": 13805071187,
+   "campaignId": "200747849489161",
+   "adCost": "328.10",
+   "clicks": 11,
+   "dailyBudget": "300.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "276956384537792": {
+   "name": "CA_旅行用背包_B0HLD2DCST",
+   "dxmCampaignId": 13805071184,
+   "campaignId": "276956384537792",
+   "adCost": "300.00",
+   "clicks": 10,
+   "dailyBudget": "250.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "88247362850188": {
+   "name": "CA_战术胸挂_B0HLKZ1DLM",
+   "dxmCampaignId": 13805083570,
+   "campaignId": "88247362850188",
+   "adCost": "298.90",
+   "clicks": 10,
+   "dailyBudget": "250.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "135554617647734": {
+   "name": "CA_纯钛盖杯_B0HJ276G99",
+   "dxmCampaignId": 13804838324,
+   "campaignId": "135554617647734",
+   "adCost": "210.00",
+   "clicks": 7,
+   "dailyBudget": "300.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "69875152037809": {
+   "name": "CA_高尔夫练习网_B0HJFVVBHB",
+   "dxmCampaignId": 13804838333,
+   "campaignId": "69875152037809",
+   "adCost": "202.00",
+   "clicks": 7,
+   "dailyBudget": "300.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  },
+  "253177867055866": {
+   "name": "CA_焚火台_B0HKV72L28",
+   "dxmCampaignId": 13804926607,
+   "campaignId": "253177867055866",
+   "adCost": "148.33",
+   "clicks": 5,
+   "dailyBudget": "300.0000",
+   "strategy": "legacyForSales",
+   "state": "enabled"
+  }
+ },
+ "groups": [
+  {
+   "campaignId": "57452546140024",
+   "campaignName": "CA_匹克球网_B0HJPDD8XV",
+   "dxmGroupId": 11818153629,
+   "adGroupId": "327413487230726",
+   "name": "GR_匹克球网_B0HJPDD8XV",
+   "defaultBid": 13.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "169999519387603",
+   "campaignName": "CA_木制猫屋_B0HKN42H6R",
+   "dxmGroupId": 11818171810,
+   "adGroupId": "344009799311911",
+   "name": "GR_木制猫屋_B0HKN42H6R",
+   "defaultBid": 20.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "234162204808225",
+   "campaignName": "CA_厨房燃气灶_B0HJYG85BK",
+   "dxmGroupId": 11818153636,
+   "adGroupId": "542628564947475",
+   "name": "GR_厨房燃气灶_B0HJYG85BK",
+   "defaultBid": 20.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "200747849489161",
+   "campaignName": "CA_壁挂式收纳壁架_B0HLDP321N",
+   "dxmGroupId": 11818521228,
+   "adGroupId": "542981936748011",
+   "name": "GR_壁挂式收纳壁架_B0HLDP321N",
+   "defaultBid": 30.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "276956384537792",
+   "campaignName": "CA_旅行用背包_B0HLD2DCST",
+   "dxmGroupId": 11818521225,
+   "adGroupId": "317143391264480",
+   "name": "GR_旅行用背包_B0HLD2DCST",
+   "defaultBid": 25.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "88247362850188",
+   "campaignName": "CA_战术胸挂_B0HLKZ1DLM",
+   "dxmGroupId": 11818533116,
+   "adGroupId": "519453497930516",
+   "name": "GR_战术胸挂_B0HLKZ1DLM",
+   "defaultBid": 25.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "135554617647734",
+   "campaignName": "CA_纯钛盖杯_B0HJ276G99",
+   "dxmGroupId": 11817748790,
+   "adGroupId": "421619531834214",
+   "name": "GR_纯钛盖杯_B0HJ276G99",
+   "defaultBid": 30.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "69875152037809",
+   "campaignName": "CA_高尔夫练习网_B0HJFVVBHB",
+   "dxmGroupId": 11817748799,
+   "adGroupId": "321471066433690",
+   "name": "GR_高尔夫练习网_B0HJFVVBHB",
+   "defaultBid": 30.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "253177867055866",
+   "campaignName": "CA_焚火台_B0HKV72L28",
+   "dxmGroupId": 11818047227,
+   "adGroupId": "472539939221871",
+   "name": "GR_焚火台_B0HKV72L28",
+   "defaultBid": 30.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "113908165179926",
+   "campaignName": "CA_W型防撞角_B0HJ274S14",
+   "dxmGroupId": 11817682331,
+   "adGroupId": "365274561841613",
+   "name": "GR_W型防撞角_B0HJ274S14",
+   "defaultBid": 30.0,
+   "state": "enabled"
+  },
+  {
+   "campaignId": "90709676806138",
+   "campaignName": "CA_排水沟_B0HJCLZPM4",
+   "dxmGroupId": 11818153634,
+   "adGroupId": "445880107588200",
+   "name": "GR_排水沟_B0HJCLZPM4",
+   "defaultBid": 20.0,
+   "state": "enabled"
+  }
+ ],
+ "placements": {
+  "90709676806138": [
+   {
+    "predicate": "placementTop",
+    "percentage": "0",
+    "id": 13804946433,
+    "strategy": "legacyForSales",
+    "adCost": "0.00",
+    "clicks": 0
+   },
+   {
+    "predicate": "placementRestOfSearch",
+    "percentage": "0",
+    "id": 13804946433,
+    "strategy": "legacyForSales",
+    "adCost": "0.00",
+    "clicks": 0
+   },
+   {
+    "predicate": "placementProductPage",
+    "percentage": "0",
+    "id": 13804946433,
+    "strategy": "legacyForSales",
+    "adCost": "20.00",
+    "clicks": 1
+   },
+   {
+    "predicate": "offAmazon",
+    "percentage": "0",
+    "id": 13804946433,
+    "strategy": "legacyForSales",
+    "adCost": "0.00",
+    "clicks": 0
+   }
+  ],
+  "113908165179926": [
+   {
+    "predicate": "placementTop",
+    "percentage": "0",
+    "id": 13804825329,
+    "strategy": "legacyForSales",
+    "adCost": "0.00",
+    "clicks": 0
+   },
+   {
+    "predicate": "placementRestOfSearch",
+    "percentage": "0",
+    "id": 13804825329,
+    "strategy": "legacyForSales",
+    "adCost": "0.00",
+    "clicks": 0
+   },
+   {
+    "predicate": "placementProductPage",
+    "percentage": "0",
+    "id": 13804825329,
+    "strategy": "legacyForSales",
+    "adCost": "30.00",
+    "clicks": 1
+   },
+   {
+    "predicate": "offAmazon",
+    "percentage": "0",
+    "id": 13804825329,
+    "strategy": "legacyForSales",
+    "adCost": "0.00",
+    "clicks": 0
+   }
+  ]
+ },
+ "negatives": {},
+ "zero_targets": {
+  "CA_匹克球网_B0HJPDD8XV": [
+   {
+    "id": "14313810906",
+    "targetId": "238186418407943",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810903",
+    "targetId": "43656253172388",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810904",
+    "targetId": "135721791851979",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810902",
+    "targetId": "129405644611506",
+    "bid": "20.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_木制猫屋_B0HKN42H6R": [
+   {
+    "id": "14313811041",
+    "targetId": "242655897448196",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313811037",
+    "targetId": "183187137715501",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313811040",
+    "targetId": "278083808786439",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313811039",
+    "targetId": "181869335135212",
+    "bid": "20.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_厨房燃气灶_B0HJYG85BK": [
+   {
+    "id": "14313810895",
+    "targetId": "167979998137255",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810893",
+    "targetId": "268312981591223",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810907",
+    "targetId": "235812952092979",
+    "bid": "20.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810892",
+    "targetId": "206455016867315",
+    "bid": "20.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_壁挂式收纳壁架_B0HLDP321N": [
+   {
+    "id": "14313812087",
+    "targetId": "242298224317105",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812088",
+    "targetId": "89181959614245",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812077",
+    "targetId": "88207937809256",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812086",
+    "targetId": "214571397496598",
+    "bid": "30.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_旅行用背包_B0HLD2DCST": [
+   {
+    "id": "14313812075",
+    "targetId": "194035837860233",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812051",
+    "targetId": "52298021749468",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812074",
+    "targetId": "272463642104240",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812049",
+    "targetId": "142618529430288",
+    "bid": "30.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_战术胸挂_B0HLKZ1DLM": [
+   {
+    "id": "14313812143",
+    "targetId": "100938922420319",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812144",
+    "targetId": "223502674305912",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812141",
+    "targetId": "33635758732733",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313812145",
+    "targetId": "33392799191881",
+    "bid": "30.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_纯钛盖杯_B0HJ276G99": [
+   {
+    "id": "14313809743",
+    "targetId": "122917653641331",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313809731",
+    "targetId": "13111618785894",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313809734",
+    "targetId": "61531548873309",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313809733",
+    "targetId": "193908051166559",
+    "bid": "30.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_高尔夫练习网_B0HJFVVBHB": [
+   {
+    "id": "14313809741",
+    "targetId": "173416639635709",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313809739",
+    "targetId": "49986921195373",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313809737",
+    "targetId": "184861328134719",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313809742",
+    "targetId": "127449384285080",
+    "bid": "30.00",
+    "state": "enabled"
+   }
+  ],
+  "CA_焚火台_B0HKV72L28": [
+   {
+    "id": "14313810700",
+    "targetId": "242636047349433",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810681",
+    "targetId": "31939940451023",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810699",
+    "targetId": "172607721193296",
+    "bid": "30.00",
+    "state": "enabled"
+   },
+   {
+    "id": "14313810705",
+    "targetId": "163890003358149",
+    "bid": "30.00",
+    "state": "enabled"
+   }
+  ]
+ }
+}

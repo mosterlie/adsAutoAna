@@ -45,6 +45,25 @@ def _ai_cfg() -> Dict[str, Any]:
         return {}
 
 
+def _env_value(name: str) -> str:
+    """从配置的 .env 读取单个值；不打印/记录 Key。"""
+    p = env_file()
+    if not p:
+        return ""
+    try:
+        with open(p, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == name:
+                    return v.strip().strip("'\"")
+    except OSError:
+        return ""
+    return ""
+
+
 def api_key(explicit: str = "") -> str:
     """解析 API Key; 都拿不到时返回空串(客户端会报「缺少 API Key」)"""
     k = (explicit or os.environ.get("WORKBUDDY_API_KEY") or "").strip()
@@ -53,7 +72,8 @@ def api_key(explicit: str = "") -> str:
     k = str(_ai_cfg().get("workbuddy_key") or "").strip()
     if k:
         return k
-    return ""               # 最后回落到 .env(客户端内部会读)
+    # 兼容已有的 testApi/.env：配置页可能没有把 Key 写入 app_settings。
+    return _env_value("WORKBUDDY_API_KEY")
 
 
 def base_url() -> str:

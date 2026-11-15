@@ -136,11 +136,16 @@ def _live_fetch(asin: str, url: str, cdp: str, timeout_ms: int,
         try:
             browser = pw.chromium.connect_over_cdp(cdp, timeout=15000)
             via = f"cdp:{cdp}"
-        except Exception:       # noqa: BLE001
-            browser = pw.chromium.launch(headless=True)
-            via = "headless-chromium"
+        except Exception as e:  # noqa: BLE001
+            # CDP-only：商品页也不允许退回 headless Chromium。
+            raise RuntimeError(
+                f"连不上调试 Chrome({cdp}): {str(e)[:80]}。"
+                "当前已启用 CDP-only，请先启动已登录的调试 Chrome："
+                "--remote-debugging-port=9222 "
+                "--user-data-dir=C:\\\\ChromeDebugUser"
+            ) from e
 
-        if via.startswith("cdp") and browser.contexts:
+        if browser.contexts:
             ctx = browser.contexts[0]
         else:
             ctx = browser.new_context(locale="ja-JP", user_agent=UA,

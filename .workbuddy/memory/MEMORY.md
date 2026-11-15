@@ -153,6 +153,22 @@ PY
   线上只剩纯规则文本分——加新的 AI 功能时务必保持「拿不到就降级」而不是抛异常。
 - 链接**无鉴权**，任何拿到的人都能看全部经营数据（已告知用户并获确认）。
 
+## ⚠ 广告操作铁律（2026-11-10 用户明确约定）
+- **一切涉及广告的操作，一律走赛狐接口。禁止任何「文件导入亚马逊」的方式**——
+  包括生成 Amazon Bulk Operations Excel 后上传后台、下载报表改完回传等。
+- 因此 `backend/bulk_generator.py`、`backend/ad_creator/*`（bulk_generator/db_source/parser）、
+  `backend/bulk_data.py` 已全部标注**已废弃**，只作历史参考，新流程禁止调用。
+- 统一入口：`backend/ads_ops/`（`actions.json` 动作注册表 + `registry.py` 自描述）。
+  创建广告 → `create_campaign`（直连 `ad/sp/create`）；调整 → `set_*` 系列。
+- **智能体如何感知这些能力**：① `python3 -m backend.ads_ops.registry describe`
+  拿机器可读清单；② skill 的 description 做语义触发；③ 本文件常驻兜底。
+  三者缺一，智能体就会「想不到有这个能力」而去自己拼 HTTP 或走旧的 Bulk 路径。
+- 动作分三级：L1 单值可逆（8 个，可自动）/ L2 结构变更（8 个，需报告）/
+  L3 新建不可逆（2 个，必须人工确认）。
+- **接口 Wiki 在 `docs/wiki/`**（14 页，由 `docs/sellfox_sp_create_api.md` 编译）。
+  查接口先看 wiki：`12-动作速查` 是动作↔接口映射，`11-踩坑总表` 按现象索引，
+  `02-接口总表` 是全量路径+实测状态。改 wiki 标题要同步改锚点。
+
 ## 已知遗留
 - 性能债：`get_stats` 全表 JSON 扫描、keyword LIKE 全表、JSON 排序无索引 → 建议抽实体列+索引。
 - CORS `allow_origins=["*"]`、Cookie 明文、接口无鉴权。

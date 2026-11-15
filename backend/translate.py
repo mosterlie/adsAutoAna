@@ -6,6 +6,7 @@
 - 生成走后台线程串行(推理型模型单条约 8 秒), 前端用 /api/translate/status 轮询
 - 「父SKU品名」的翻译(ai_label)也同步写入同一张表(kind=product_name)
 """
+import re
 import threading
 from typing import Any, Dict, List, Tuple
 
@@ -34,9 +35,9 @@ _PROMPT = (
 
 
 def is_asin(s: Any) -> bool:
-    """ASIN 形态(10 位大写字母/数字)——搜索词页签里混着 ASIN 定位行, 不需要翻译"""
+    """ASIN 形态(10 位 ASCII 大写字母/数字)——日文 10 字词不能误判为 ASIN。"""
     s = str(s or "").strip()
-    return len(s) == 10 and s.isalnum() and s == s.upper()
+    return bool(re.fullmatch(r"[A-Z0-9]{10}", s))
 
 
 def clean_zh(text: str, limit: int = 20) -> str:

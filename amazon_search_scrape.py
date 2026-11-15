@@ -8,7 +8,7 @@
     python3 amazon_search_scrape.py                 # 默认样例 ガスコンロ
     python3 amazon_search_scrape.py --list          # 列出库中搜索词候选(按花费降序)
     python3 amazon_search_scrape.py --query 地球儀
-    python3 amazon_search_scrape.py --query 地球儀 --headless   # 不用现成Chrome
+    python3 amazon_search_scrape.py --query 地球儀            # 必须使用 CDP Chrome
 """
 import argparse
 import json
@@ -37,7 +37,8 @@ def main():
     ap.add_argument("--query", default="ガスコンロ")
     ap.add_argument("--domain", default="co.jp")
     ap.add_argument("--cdp", default=None, help="调试 Chrome 的 CDP 地址, 默认取 config.CDP_URL")
-    ap.add_argument("--headless", action="store_true", help="不使用现有 Chrome, 自起 Chromium")
+    ap.add_argument("--headless", action="store_true",
+                    help="已禁用；必须使用 CDP Chrome")
     ap.add_argument("--scrolls", type=int, default=1)
     ap.add_argument("--refresh", action="store_true", help="忽略缓存, 强制重新抓取")
     ap.add_argument("--no-cache", action="store_true", help="不使用缓存(仍会写库)")
@@ -45,12 +46,17 @@ def main():
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
 
+    if args.headless:
+        raise SystemExit(
+            "--headless 已禁用：当前采集为 CDP-only，必须连接已登录的调试 Chrome "
+            "(--remote-debugging-port=9222 --user-data-dir=C:\\ChromeDebugUser)")
+
     if args.list:
         for r in pick_terms():
             print(f"  {r.get('query')}\t曝光={r.get('impressions')}\t花费={r.get('adCost')}")
         return
 
-    cdp = None if args.headless else args.cdp
+    cdp = args.cdp
     res = amazon.fetch(args.query, domain=args.domain, cdp=cdp, scrolls=args.scrolls,
                        screenshot=True, refresh=args.refresh, ttl=args.ttl,
                        use_cache=not args.no_cache)

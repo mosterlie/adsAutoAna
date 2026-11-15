@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>指令任务 - 广告数据</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+body{background:var(--bg)}
+.wrap{max-width:1600px;margin:0 auto;padding:0 12px 40px}
+.panel{background:#fff;border:1px solid var(--bd);border-radius:4px;margin-top:10px;padding:12px}
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toolbar .sp{flex:1}
+.btn{height:30px;padding:0 12px;border-radius:4px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-size:12.5px;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--blue)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.searchbox{width:min(440px,100%);height:30px;border:1px solid var(--bd-d);border-radius:5px;padding:0 9px;font:inherit;font-size:12.5px;background:#fff}
+.task-table-wrap{border:1px solid var(--bd);border-radius:5px;background:#fff;margin-top:10px;overflow:auto;max-height:calc(100vh - 230px)}
+.task-table{width:100%;border-collapse:collapse;font-size:12px}
+.task-table th{position:sticky;top:0;z-index:2;background:#f8fafc;text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap;color:var(--muted);font-weight:600}
+.task-table td{padding:8px 10px;border-bottom:1px solid #f0f2f5;vertical-align:top}
+.task-row{cursor:pointer}
+.task-row:hover td{background:#f5f8ff}
+.task-row.open td{background:#eef4ff}
+.task-row.open .caret{transform:rotate(90deg)}
+.exec-btn{height:24px;padding:0 10px;font-size:11.5px}
+.task-actions{display:flex;gap:4px;align-items:center;white-space:nowrap}
+.mini{height:24px;padding:0 8px;font-size:11px;border-radius:3px}
+.mini.danger{background:#fff;color:#c0392b;border-color:#f1a7a0}
+.mini.danger:hover{background:#fff1f0}
+.mini.danger:disabled{color:#c7ced8;border-color:#e4e7ec;background:#fafafa;cursor:not-allowed}
+.detail-modal{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;
+  padding:18px;background:rgba(15,23,42,.42);backdrop-filter:blur(2.5px)}
+.detail-modal.on{display:flex;animation:fadeIn .16s ease-out}
+.detail-modal-card{width:min(1520px,98vw);height:min(92vh,980px);max-height:94vh;background:#fff;
+  border-radius:10px;box-shadow:0 24px 70px rgba(15,23,42,.30);display:flex;flex-direction:column;
+  animation:popIn .22s cubic-bezier(.2,.85,.3,1.2);position:relative;top:-1.5vh}
+.detail-modal-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.detail-modal-head .sp{flex:1}
+.detail-modal-body{padding:14px 18px 22px;overflow:auto;min-height:0;background:#f8fafc}
+.modal-empty{padding:40px;text-align:center;color:var(--muted)}
+.detail-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.detail-summary .item{background:#fff;border:1px solid var(--bd);border-radius:6px;padding:8px 10px}
+.detail-summary label{display:block;color:var(--muted);font-size:10.5px;margin-bottom:3px}
+.detail-summary b{font-size:12px;color:var(--txt)}
+.ins-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.ins-card{background:#fff;border:1px solid var(--bd);border-radius:7px;overflow:hidden}
+.ins-card-head{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#fbfcfe;border-bottom:1px solid #f0f2f5;flex-wrap:wrap}
+.ins-card-head .no{width:20px;height:20px;border-radius:50%;background:#eef2ff;color:#3b5bdb;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.ins-card-head .sp{flex:1}
+.ins-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 14px;padding:10px 12px 2px}
+.ins-grid .field{min-width:0}
+.ins-grid label{display:block;color:var(--muted);font-size:10.5px;margin-bottom:2px}
+.ins-grid .val{font-size:11.5px;color:var(--txt);line-height:1.5;word-break:break-word}
+.ins-detail{margin:8px 12px 0;padding:9px 10px;background:#f8fbff;border-left:3px solid #9db7e8;
+  border-radius:3px;font-size:12px;line-height:1.7;color:#344054;white-space:pre-wrap}
+.ins-json{margin:8px 12px 10px}
+.ins-json summary{cursor:pointer;font-size:11px;color:var(--blue);user-select:none}
+.ins-json pre{margin:6px 0 0;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-all;
+  font-size:10.5px;line-height:1.5;background:#0f172a;color:#dbeafe;padding:8px 10px;border-radius:4px}
+.ins-error{margin:8px 12px 10px;color:#c0392b;font-size:11.5px}
+.act-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.act-badge.neg{background:#fff1f0;color:#c0392b}
+.act-badge.create{background:#f3e8ff;color:#7c3aed}
+.act-badge.group{background:#e8f8ef;color:#087f5b}
+.ins-card.tone-neg{border-left:3px solid #e28b82}
+.ins-card.tone-create{border-left:3px solid #8b5cf6}
+.ins-card.tone-group{border-left:3px solid #5ec49e}
+.ins-card.tone-neg .ins-card-head{background:#fff8f7}
+.ins-card.tone-create .ins-card-head{background:#faf5ff}
+.ins-card.tone-group .ins-card-head{background:#f7fdfa}
+.retry-btn{height:22px;padding:0 8px;font-size:10.5px;border-radius:3px;
+  background:#fff7e6;color:#b26a00;border-color:#e8c97a}
+.retry-btn:hover{background:#ffedcc}
+.seg-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 12px;min-width:340px}
+.seg-item{display:flex;gap:5px;min-width:0;font-size:11px;line-height:1.5;align-items:flex-start}
+.seg-label{flex:0 0 auto;color:var(--muted);min-width:72px}
+.seg-value{min-width:0;color:#344054;word-break:break-word;overflow-wrap:anywhere}
+.ins-segments{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;padding:10px 12px 12px}
+.ins-segments .seg-item{font-size:11.5px;border-bottom:1px dashed #eef1f5;padding-bottom:4px}
+.ins-segments .seg-label{min-width:88px}
+.ins-term-group{border:2px solid #aebfe3;border-radius:9px;background:#fff;overflow:hidden;
+  margin-bottom:11px;box-shadow:0 3px 12px rgba(59,91,219,.10)}
+.ins-term-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 11px;
+  background:#e8efff;border-bottom:2px solid #cdd9f0}
+.ins-term-index{width:21px;height:21px;border-radius:50%;background:#3b5bdb;color:#fff;
+  font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.ins-term-name{font-size:13px;font-weight:700;color:#1f2937}
+.ins-term-tag{display:inline-block;padding:1px 7px;border-radius:10px;background:#e0e7ff;
+  color:#3b5bdb;font-size:10.5px;font-weight:600}
+.ins-term-meta{font-size:10.5px;color:var(--muted);max-width:440px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ins-term-count{margin-left:auto;font-size:10.5px;color:#475467;white-space:nowrap}
+.ins-term-group .ins-list{padding:8px;gap:8px}
+.confirm-modal{position:fixed;inset:0;z-index:11000;display:none;align-items:center;justify-content:center;
+  padding:20px;background:rgba(15,23,42,.42);backdrop-filter:blur(2.5px)}
+.confirm-modal.on{display:flex;animation:fadeIn .18s ease-out}
+.confirm-card{width:min(430px,calc(100vw - 36px));background:#fff;border-radius:10px;padding:20px 20px 16px;
+  box-shadow:0 24px 70px rgba(15,23,42,.30);animation:popIn .24s cubic-bezier(.2,.85,.3,1.2);position:relative;top:-7vh}
+.confirm-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.confirm-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  background:#fff1f0;color:#d94a3a;font-weight:800;font-size:16px}
+.confirm-icon.exec{background:#eef2ff;color:#3b5bdb;font-size:13px}
+.confirm-head h3{font-size:16px;margin:0;color:#1f2937}
+.confirm-msg{font-size:13px;line-height:1.65;color:#475467;padding:2px 0 18px 38px}
+.confirm-actions{display:flex;justify-content:flex-end;gap:8px}
+.confirm-actions .danger{background:#d94a3a;border-color:#d94a3a;color:#fff}
+@media(max-width:900px){
+  .detail-summary{grid-template-columns:1fr 1fr}
+  .ins-grid{grid-template-columns:1fr 1fr}
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.caret{display:inline-block;width:12px;color:var(--blue);transition:transform .15s;margin-right:4px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+.status{display:inline-block;padding:1px 7px;border-radius:10px;background:#f2f4f7;color:#667085;font-size:11px}
+.status.pending{background:#fff7e6;color:#b26a00}
+.status.executing{background:#eef2ff;color:#3b5bdb}
+.status.done{background:#e8f8ef;color:#087f5b}
+.status.partial,.status.failed{background:#fff1f0;color:#c0392b}
+.detail-row>td{padding:0!important;background:#fbfdff;width:100%;white-space:normal}
+.detail-box{width:100%;box-sizing:border-box;padding:10px 12px 14px;border-bottom:1px solid var(--bd);
+  overflow:hidden;white-space:normal}
+.detail-box .ins-list,.detail-box .ins-card,.detail-box .ins-card-head,
+.detail-box .ins-segments,.detail-box .seg-item,.detail-box .seg-value{white-space:normal}
+.detail-box .seg-label{white-space:nowrap}
+.detail-box .ins-list{max-width:100%}
+.detail-box .ins-card{max-width:100%;box-sizing:border-box}
+.detail-box .ins-segments{min-width:0}
+.detail-box .ins-json pre{max-width:100%;box-sizing:border-box}
+.detail-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.detail-head .sp{flex:1}
+.tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.tbl th,.tbl td{border-bottom:1px solid #f0f2f5;padding:7px 7px;text-align:left;vertical-align:top}
+.tbl th{background:#fafbfc;color:var(--muted);white-space:nowrap}
+.tbl .detail-txt{min-width:300px;white-space:pre-wrap;line-height:1.5}
+.empty{padding:34px;text-align:center;color:var(--muted);font-size:12.5px}
+.warn{padding:7px 9px;margin:6px 0;background:#fff7e6;border-left:3px solid #e8c97a;color:#8a5a00;font-size:11.5px;border-radius:3px}
+.pagetabs{display:flex;align-items:center;gap:6px;margin-top:10px;border-bottom:1px solid var(--bd)}
+.ptab{padding:8px 18px;font-size:13.5px;color:var(--txt-2);cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;user-select:none}
+.ptab:hover{color:var(--blue)}
+.ptab.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue)}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top">
+    <button class="seg-btn" onclick="location.href='/'">数据表格</button>
+    <button class="seg-btn active">指令任务</button>
+  </div>
+  <div class="topbar-right"><span class="muted">搜索词 / ASIN 指令</span></div>
+</header>
+
+<div class="wrap">
+  <div class="pagetabs">
+    <div class="ptab" onclick="location.href='/static/daily-probe.html'">查询数据</div>
+    <div class="ptab" onclick="location.href='/static/daily-probe.html?tab=termData'">搜索数据</div>
+    <div class="ptab on">指令任务</div>
+    <div class="ptab" onclick="location.href='/static/daily-probe.html?tab=collect'">采集数据</div>
+    <div class="ptab" onclick="location.href='/static/daily-probe.html?tab=simple'">精简采集</div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <input id="searchInput" class="searchbox" placeholder="搜索任务ID / 状态 / 活动 / 词或ASIN / 指令内容">
+      <button class="btn ghost" id="refreshBtn" type="button">刷新</button>
+      <span class="muted" id="taskSummary">加载中…</span>
+      <span class="sp"></span>
+      <button class="btn ghost" id="backBtn" type="button">返回搜索数据</button>
+    </div>
+  </div>
+
+  <div class="task-table-wrap">
+    <table class="task-table">
+      <thead><tr>
+        <th>任务ID</th><th>创建时间</th><th>状态</th><th>指令数</th><th>提醒</th><th>操作</th>
+      </tr></thead>
+      <tbody id="taskBody"><tr><td colspan="6"><div class="empty">加载中…</div></td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="detail-modal" id="detailModal">
+  <div class="detail-modal-card">
+    <div class="detail-modal-head">
+      <b id="detailTitle">任务详情</b>
+      <span id="detailStatus"></span>
+      <span class="sp"></span>
+      <button class="btn ghost" id="detailClose" type="button">关闭</button>
+    </div>
+    <div class="detail-modal-body" id="detailModalBody"></div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="deleteModal">
+  <div class="confirm-card">
+    <div class="confirm-head">
+      <span class="confirm-icon">!</span>
+      <h3>确认删除</h3>
+    </div>
+    <div class="confirm-msg" id="deleteMsg"></div>
+    <div class="confirm-actions">
+      <button class="btn ghost" id="deleteCancel" type="button">取消</button>
+      <button class="btn danger" id="deleteConfirm" type="button">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal" id="execModal">
+  <div class="confirm-card">
+    <div class="confirm-head">
+    <span class="confirm-icon exec">▶</span>
+    <h3 id="execTitle">确认执行任务</h3>
+    </div>
+    <div class="confirm-msg" id="execMsg"></div>
+    <div class="confirm-actions">
+      <button class="btn ghost" id="execCancel" type="button">取消</button>
+      <button class="btn" id="execConfirm" type="button">确认执行</button>
+    </div>
+  </div>
+</div>
+<script src="/static/nav.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const STATUS_CN = { pending: "待确认", executing: "执行中", done: "已完成", partial: "部分完成", failed: "失败" };
+const OP_STATUS_KEY = "daily_probe_term_op_status_v2";
+let TASKS = [], OPEN_TASK = "";
+
+function statusTag(s) {
+  return `<span class="status ${esc(s || "pending")}">${esc(STATUS_CN[s] || s || "-")}</span>`;
+}
+function instructionStatusTag(x) {
+  if (x.executed) return `<span class="status done">已完成</span>`;
+  if (x.status === "failed") return `<span class="status failed">失败</span>`;
+  return `<span class="status pending">待执行</span>`;
+}
+function fmtTime(v) { return v ? String(v).replace("T", " ").slice(0, 19) : "-"; }
+function taskItems(t) { return (t.plan || {}).items || []; }
+function actionTone(x) {
+  const a = String(x.action || "");
+  if (a.startsWith("add_negative")) return "neg";
+  if (a === "create_campaign") return "create";
+  return "group";
+}
+function actionBadge(x) {
+  const tone = actionTone(x);
+  return `<span class="act-badge ${tone}">${esc(x.label || x.action || "指令")}</span>`;
+}
+function instructionSections(x) {
+  if (Array.isArray(x.sections) && x.sections.length) return x.sections;
+  return [["说明", x.detail || "-"]];
+}
+function segmentsHtml(x, cls = "seg-list") {
+  return `<div class="${cls}">${instructionSections(x).map(([k, v]) =>
+    `<div class="seg-item"><span class="seg-label">${esc(k)}</span><span class="seg-value">${esc(v)}</span></div>`
+  ).join("")}</div>`;
+}
+function instructionGroups(items) {
+  const map = new Map();
+  (items || []).forEach(x => {
+    const key = `${x.kind || "keyword"}|${x.term || ""}|${x.source_campaign_id || x.campaign_id || ""}`;
+    if (!map.has(key)) map.set(key, {
+      term: x.term || "未识别",
+      kind: x.kind || "keyword",
+      campaign: x.source_campaign_name || x.campaign_name || x.source_campaign_id || x.campaign_id || "-",
+      items: [],
+    });
+    map.get(key).items.push(x);
+  });
+  return [...map.values()];
+}
+function groupedInstructionHtml(items, modal = false, taskId = "") {
+  const groups = instructionGroups(items);
+  return groups.map((g, gi) => {
+    const cards = g.items.map((x, i) => {
+      const tone = actionTone(x);
+      const stateHtml = instructionStatusTag(x);
+      const retry = (!x.executed && x.status === "failed" && taskId)
+        ? `<button class="btn mini retry-btn" type="button"
+             data-retry-task="${esc(taskId)}" data-retry-item="${esc(x.id || "")}">重试</button>`
+        : "";
+      return `<div class="ins-card tone-${tone}">
+        <div class="ins-card-head">
+          <span class="no">${i + 1}</span>
+          ${actionBadge(x)}
+          ${stateHtml}
+          ${retry}
+          <span class="sp"></span>
+          <span class="mono">${esc(x.id || "")}</span>
+        </div>
+        ${segmentsHtml(x, "ins-segments")}
+        ${x.error ? `<div class="ins-error">错误：${esc(x.error)}</div>` : ""}
+        <details class="ins-json">
+          <summary>查看 selectors / params</summary>
+          <pre>${esc(JSON.stringify({ selectors: x.selector || {}, params: x.params || {} }, null, 2))}</pre>
+        </details>
+      </div>`;
+    }).join("");
+    return `<section class="ins-term-group">
+      <div class="ins-term-head">
+        <span class="ins-term-index">${gi + 1}</span>
+        <span class="ins-term-name" title="${esc(g.term)}">${esc(g.term)}</span>
+        <span class="ins-term-tag">${g.kind === "asin" ? "搜索 ASIN" : "搜索词"}</span>
+        <span class="ins-term-meta" title="${esc(g.campaign)}">来源：${esc(g.campaign)}</span>
+        <span class="ins-term-count">${g.items.length} 条指令</span>
+      </div>
+      <div class="ins-list">${cards}</div>
+    </section>`;
+  }).join("");
+}
+
+function taskMatches(t, q) {
+  if (!q) return true;
+  const plan = t.plan || {};
+  const blob = [
+    t.task_id, t.status, t.created_at, JSON.stringify(plan.warnings || []),
+    ...taskItems(t).map(x => [x.label, x.action, x.detail, x.term, x.campaign_name, x.group_name].join(" ")),
+  ].join(" ").toLowerCase();
+  return blob.includes(q.toLowerCase());
+}
+
+function detailHtml(t) {
+  const plan = t.plan || {};
+  const items = plan.items || [];
+  const warnings = (plan.warnings || []).map(x => `<div class="warn">${esc(x)}</div>`).join("");
+  const result = t.result ? `<details class="ins-json"><summary>查看执行结果</summary><pre>${esc(JSON.stringify(t.result, null, 2))}</pre></details>` : "";
+  return `<div class="detail-box">
+    <div class="detail-head">
+      <span class="muted">创建：${esc(fmtTime(t.created_at))}</span>
+      ${t.executed_at ? `<span class="muted">执行：${esc(fmtTime(t.executed_at))}</span>` : ""}
+    </div>
+    ${warnings}${result}
+    ${items.length ? groupedInstructionHtml(items, false, t.task_id) : `<div class="empty">该任务没有指令</div>`}
+  </div>`;
+}
+
+function renderTasks() {
+  const q = ($("searchInput").value || "").trim();
+  const list = TASKS.filter(t => taskMatches(t, q));
+  $("taskSummary").textContent = `共 ${TASKS.length} 个任务${q ? `，匹配 ${list.length} 个` : ""}`;
+  if (!list.length) {
+    $("taskBody").innerHTML = `<tr><td colspan="6"><div class="empty">没有匹配的指令任务</div></td></tr>`;
+    return;
+  }
+  $("taskBody").innerHTML = list.map(t => {
+    const plan = t.plan || {};
+    const items = taskItems(t);
+    const open = OPEN_TASK === t.task_id;
+    const canExec = t.status === "pending" || t.status === "partial" || t.status === "failed";
+    const hasExecuted = items.some(x => x.executed);
+    const canDelete = !hasExecuted && t.status !== "executing";
+    return `<tr class="task-row ${open ? "open" : ""}" data-task="${esc(t.task_id)}">
+      <td class="mono"><span class="caret">▶</span><b>${esc(t.task_id)}</b></td>
+      <td>${esc(t.created_at || "-")}</td>
+      <td>${statusTag(t.status)}</td>
+      <td>${items.length}</td>
+      <td>${plan.warnings && plan.warnings.length ? `${plan.warnings.length} 条` : "-"}</td>
+      <td><div class="task-actions">
+        <button class="btn ghost mini" data-detail="${esc(t.task_id)}" type="button">详情</button>
+        <button class="btn mini danger" data-delete="${esc(t.task_id)}" type="button"
+          ${canDelete ? "" : "disabled"} title="${canDelete ? "删除未执行任务" : "已有指令执行，不能删除"}">删除</button>
+        <button class="btn mini exec-btn" data-confirm="${esc(t.task_id)}" type="button"
+          ${canExec ? "" : "disabled"}>执行</button>
+      </div></td>
+    </tr>
+    ${open ? `<tr class="detail-row"><td colspan="6">${detailHtml(t)}</td></tr>` : ""}`;
+  }).join("");
+  $("taskBody").querySelectorAll(".task-row").forEach(tr => {
+    tr.onclick = () => {
+      OPEN_TASK = OPEN_TASK === tr.dataset.task ? "" : tr.dataset.task;
+      renderTasks();
+    };
+  });
+  $("taskBody").querySelectorAll("[data-confirm]").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      confirmTask(btn.dataset.confirm, btn);
+    };
+  });
+  $("taskBody").querySelectorAll("[data-detail]").forEach(btn => {
+    btn.onclick = (e) => { e.stopPropagation(); openDetail(btn.dataset.detail); };
+  });
+  $("taskBody").querySelectorAll("[data-delete]").forEach(btn => {
+    btn.onclick = (e) => { e.stopPropagation(); deleteTask(btn.dataset.delete, btn); };
+  });
+  bindRetryButtons($("taskBody"));
+}
+
+function bindRetryButtons(container) {
+  container.querySelectorAll("[data-retry-item]").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      retryInstruction(btn.dataset.retryTask, btn.dataset.retryItem, btn);
+    };
+  });
+}
+
+function openDetail(taskId) {
+  const t = TASKS.find(x => x.task_id === taskId);
+  if (!t) return;
+  const plan = t.plan || {};
+  const items = plan.items || [];
+  const warns = (plan.warnings || []).map(x => `<div class="warn">${esc(x)}</div>`).join("");
+  const result = t.result ? `<details class="ins-json"><summary>查看执行结果</summary><pre>${esc(JSON.stringify(t.result, null, 2))}</pre></details>` : "";
+  $("detailTitle").textContent = `任务详情 · ${t.task_id}`;
+  $("detailStatus").innerHTML = statusTag(t.status);
+  const summary = `<div class="detail-summary">
+    <div class="item"><label>任务ID</label><b class="mono">${esc(t.task_id)}</b></div>
+    <div class="item"><label>创建时间</label><b>${esc(fmtTime(t.created_at))}</b></div>
+    <div class="item"><label>执行时间</label><b>${esc(fmtTime(t.executed_at))}</b></div>
+    <div class="item"><label>指令数量 / 词数</label><b>${items.length} 条 / ${instructionGroups(items).length} 个</b></div>
+  </div>`;
+  $("detailModalBody").innerHTML = summary + warns + result + (items.length
+    ? groupedInstructionHtml(items, true, t.task_id)
+    : `<div class="modal-empty">该任务没有指令</div>`);
+  bindRetryButtons($("detailModalBody"));
+  $("detailModal").classList.add("on");
+}
+
+function closeDetail() { $("detailModal").classList.remove("on"); }
+
+function frontStatusKey(x) {
+  const kind = x.kind || "keyword";
+  const cid = x.source_campaign_id || x.campaign_id || "";
+  const gid = x.source_group_id ?? x.group_id ?? "";
+  return `${kind}|${cid}|${gid}|${x.term || ""}|status`;
+}
+
+let _deleteResolve = null;
+function closeDeleteModal(result) {
+  $("deleteModal").classList.remove("on");
+  const resolve = _deleteResolve;
+  _deleteResolve = null;
+  if (resolve) resolve(result);
+}
+function askDelete(taskId) {
+  $("deleteMsg").textContent = `确认删除任务 ${taskId}？删除后关联搜索词/ASIN 的处置状态会重置为未处置。`;
+  $("deleteModal").classList.add("on");
+  setTimeout(() => $("deleteConfirm").focus(), 40);
+  return new Promise(resolve => { _deleteResolve = resolve; });
+}
+
+async function deleteTask(taskId, btn) {
+  const ok = await askDelete(taskId);
+  if (!ok) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/daily/search-ops/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    const plan = d.plan || {};
+    try {
+      const key = OP_STATUS_KEY;
+      const store = JSON.parse(localStorage.getItem(key) || "{}") || {};
+      (plan.items || []).forEach(x => { delete store[frontStatusKey(x)]; });
+      localStorage.setItem(key, JSON.stringify(store));
+    } catch (e) { /* ignore */ }
+    if (OPEN_TASK === taskId) OPEN_TASK = "";
+    await loadTasks();
+  } catch (e) {
+    alert("删除失败：" + String(e.message || e));
+    btn.disabled = false;
+  }
+}
+
+function syncTaskStatuses(task) {
+  const groups = new Map();
+  (taskItems(task) || []).forEach(x => {
+    const key = frontStatusKey(x);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(x);
+  });
+  if (!groups.size) return;
+  let store = {};
+  try { store = JSON.parse(localStorage.getItem(OP_STATUS_KEY) || "{}") || {}; } catch (e) { store = {}; }
+  let changed = false;
+  groups.forEach((items, key) => {
+    // 只有该词的所有指令都执行成功，才把处置状态推进到“已完成”。
+    if (items.length && items.every(x => x.executed) && store[key] !== "已完成") {
+      store[key] = "已完成";
+      changed = true;
+    }
+  });
+  if (changed) {
+    try { localStorage.setItem(OP_STATUS_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
+  }
+}
+
+async function loadTasks(preferred) {
+  const r = await fetch("/api/daily/search-ops/tasks");
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+  TASKS = d.items || [];
+  TASKS.forEach(syncTaskStatuses);
+  if (preferred) OPEN_TASK = preferred;
+  renderTasks();
+}
+
+let _execResolve = null;
+function closeExecModal(result) {
+  $("execModal").classList.remove("on");
+  const resolve = _execResolve;
+  _execResolve = null;
+  if (resolve) resolve(result);
+}
+function askExecConfirm(title, message) {
+  $("execTitle").textContent = title;
+  $("execMsg").textContent = message;
+  $("execModal").classList.add("on");
+  setTimeout(() => $("execConfirm").focus(), 40);
+  return new Promise(resolve => { _execResolve = resolve; });
+}
+function askExecute(taskId) {
+  const task = TASKS.find(x => x.task_id === taskId);
+  const count = task ? taskItems(task).length : 0;
+  return askExecConfirm("确认执行任务",
+    `确认执行任务 ${taskId}？共 ${count} 条指令。确认后会立即修改赛狐广告，且已执行任务不能再删除。`);
+}
+function askRetry(taskId, itemId) {
+  return askExecConfirm("确认重试指令",
+    `确认重试任务 ${taskId} 中的指令 ${itemId}？重试会立即修改赛狐广告。`);
+}
+
+async function retryInstruction(taskId, itemId, btn) {
+  const ok = await askRetry(taskId, itemId);
+  if (!ok) return;
+  btn.disabled = true; btn.textContent = "重试中…";
+  try {
+    const r = await fetch(
+      `/api/daily/search-ops/tasks/${encodeURIComponent(taskId)}/items/${encodeURIComponent(itemId)}/retry`,
+      { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    OPEN_TASK = taskId;
+    await loadTasks(taskId);
+    if ($("detailModal").classList.contains("on")) openDetail(taskId);
+  } catch (e) {
+    alert("重试失败：" + String(e.message || e));
+    btn.disabled = false; btn.textContent = "重试";
+  }
+}
+
+async function confirmTask(taskId, btn) {
+  const ok = await askExecute(taskId);
+  if (!ok) return;
+  btn.disabled = true; btn.textContent = "执行中…";
+  try {
+    const r = await fetch(`/api/daily/search-ops/tasks/${encodeURIComponent(taskId)}/confirm`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    OPEN_TASK = taskId;
+    await loadTasks(taskId);
+  } catch (e) {
+    alert("执行失败：" + String(e.message || e));
+    btn.disabled = false; btn.textContent = "执行";
+  }
+}
+
+$("searchInput").oninput = renderTasks;
+$("refreshBtn").onclick = () => loadTasks(OPEN_TASK);
+$("backBtn").onclick = () => { location.href = "/static/daily-probe.html?tab=termData"; };
+$("detailClose").onclick = closeDetail;
+$("detailModal").onclick = (e) => { if (e.target.id === "detailModal") closeDetail(); };
+$("deleteCancel").onclick = () => closeDeleteModal(false);
+$("deleteConfirm").onclick = () => closeDeleteModal(true);
+$("deleteModal").onclick = (e) => { if (e.target.id === "deleteModal") closeDeleteModal(false); };
+$("execCancel").onclick = () => closeExecModal(false);
+$("execConfirm").onclick = () => closeExecModal(true);
+$("execModal").onclick = (e) => { if (e.target.id === "execModal") closeExecModal(false); };
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("detailModal").classList.contains("on")) closeDetail();
+  if (e.key === "Escape" && $("deleteModal").classList.contains("on")) closeDeleteModal(false);
+  if (e.key === "Escape" && $("execModal").classList.contains("on")) closeExecModal(false);
+});
+const qTask = new URLSearchParams(location.search).get("task") || "";
+loadTasks(qTask).catch(e => {
+  $("taskBody").innerHTML = `<tr><td colspan="6"><div class="empty">加载失败：${esc(e.message || e)}</div></td></tr>`;
+  $("taskSummary").textContent = "加载失败";
+});
+</script>
+</body>
+</html>

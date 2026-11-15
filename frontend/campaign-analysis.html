@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>活动分析 - 赛狐广告平台</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  :root{--ca-line:#e5e8ee;--ca-soft:#f7f8fa;--ca-blue:#2b5fd0;--ca-purple:#6657d9}
+  .ca-wrap{max-width:1680px;margin:0 auto;padding:18px 22px 40px}
+  .ca-title{font-size:24px;font-weight:700}
+  .ca-sub{color:var(--txt-2);font-size:13px;margin-top:4px}
+  .ca-panel{background:#fff;border:1px solid var(--ca-line);border-radius:10px;box-shadow:0 1px 2px rgba(20,30,50,.03)}
+  .ca-form{display:grid;grid-template-columns:minmax(260px,1.5fr) 150px 150px 120px 120px 110px;gap:10px;align-items:end;padding:15px}
+  .ca-field label{display:block;font-size:11.5px;color:var(--txt-2);margin-bottom:5px}
+  .ca-field select,.ca-field input{width:100%;height:34px;border:1px solid var(--bd-d);border-radius:6px;padding:0 9px;font:inherit;background:#fff;outline:none}
+  .ca-field select:focus,.ca-field input:focus{border-color:var(--ca-blue);box-shadow:0 0 0 3px rgba(43,95,208,.08)}
+  .ca-btn{height:34px;border:1px solid var(--bd-d);border-radius:6px;background:#fff;padding:0 14px;font:inherit;cursor:pointer;white-space:nowrap}
+  .ca-btn.primary{background:var(--ca-blue);border-color:var(--ca-blue);color:#fff}
+  .ca-btn:disabled{opacity:.45;cursor:not-allowed}
+  .ca-hint{font-size:11.5px;color:var(--muted);margin:8px 2px 0;line-height:1.5}
+  .ca-empty{border:1px dashed #d6dbe5;text-align:center;padding:54px 20px;color:var(--txt-2);margin-top:14px}
+  .ca-empty b{display:block;color:var(--txt);font-size:16px;margin-bottom:7px}
+  .ca-metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:14px}
+  .ca-metric{background:#fff;border:1px solid var(--ca-line);border-radius:9px;padding:12px 14px}
+  .ca-metric .k{font-size:11px;color:var(--muted)}
+  .ca-metric .v{font-size:20px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .ca-cols{display:grid;grid-template-columns:1fr 1.3fr;gap:14px;margin-top:14px;align-items:start}
+  .ca-card{background:#fff;border:1px solid var(--ca-line);border-radius:10px}
+  .ca-card-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--ca-line)}
+  .ca-card-h h3{margin:0;font-size:14px}
+  .ca-card-b{padding:13px 14px;max-height:380px;overflow:auto}
+  .ca-badge{display:inline-flex;border-radius:999px;padding:2px 8px;font-size:11px;line-height:18px;background:#eef0f4;color:#5b6371;white-space:nowrap}
+  .ca-badge.high{background:#fdece9;color:#b63624}.ca-badge.medium{background:#fff3df;color:#a0610b}
+  .ca-badge.low{background:#eaf0ff;color:#2555bb}.ca-badge.green{background:#e6f7ee;color:#087a48}
+  .ca-diag{padding:9px 10px;border-left:3px solid #f0b44a;background:#fffaf0;border-radius:0 6px 6px 0;margin-bottom:8px}
+  .ca-diag:last-child{margin-bottom:0}
+  .ca-diag.high{border-left-color:#e5503a;background:#fdf2ef}
+  .ca-diag .t{font-size:12px;font-weight:600}
+  .ca-diag .e{font-size:11px;color:var(--txt-2);margin-top:3px;line-height:1.5}
+  .ca-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+  .ca-table th{position:sticky;top:0;background:#f7f8fa;color:var(--txt-2);text-align:left;padding:7px 8px;border-bottom:1px solid var(--ca-line);font-size:11px;white-space:nowrap;z-index:1}
+  .ca-table td{padding:7px 8px;border-bottom:1px solid #f0f2f5;vertical-align:top}
+  .ca-table tr:last-child td{border-bottom:0}
+  .ca-table .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ca-table .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+  .ca-table .bar{height:5px;background:#eaf0ff;border-radius:3px;min-width:50px;margin-top:4px;overflow:hidden}
+  .ca-table .bar i{display:block;height:100%;background:#7fa3ee;border-radius:3px}
+  .ca-brk{color:#7b8494;font-size:10.5px;white-space:nowrap}
+  .ca-strategy{padding:9px 10px;border:1px solid var(--ca-line);border-radius:7px;margin-bottom:8px;background:#fcfcfe}
+  .ca-strategy:last-child{margin-bottom:0}
+  .ca-strategy .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .ca-strategy .name{font-size:12px;font-weight:600}
+  .ca-strategy .reason{font-size:11.5px;color:var(--txt-2);margin-top:5px;line-height:1.55}
+  .ca-action-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted);margin-top:3px}
+  .ca-params{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+  .ca-param{font-size:10.5px;line-height:17px;padding:1px 6px;border-radius:4px;background:#f0f3f8;color:#596579}
+  .ca-param b{color:#344054;font-weight:600}
+  .ca-strategy pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;white-space:pre-wrap;word-break:break-all;background:#f7f8fa;border-radius:5px;padding:6px;margin:6px 0 0;color:#465064;max-height:100px;overflow:auto}
+  .ca-tabs{display:flex;gap:4px;padding:10px 14px 0;border-bottom:1px solid var(--ca-line);overflow:auto}
+  .ca-tab{height:30px;padding:0 12px;border:0;background:transparent;border-bottom:2px solid transparent;color:var(--txt-2);font:inherit;cursor:pointer;white-space:nowrap}
+  .ca-tab.active{color:var(--ca-blue);border-bottom-color:var(--ca-blue);font-weight:600}
+  .ca-subtabs{display:flex;gap:6px;padding:9px 14px 0}
+  .ca-subtab{height:26px;padding:0 11px;border:1px solid var(--ca-line);border-radius:14px;background:#fff;color:var(--txt-2);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+  .ca-subtab.active{background:#eaf0ff;border-color:#cfdcff;color:var(--ca-blue);font-weight:600}
+  .ca-dim{padding:12px 14px;max-height:480px;overflow:auto}
+  .ca-warn{background:#fff8e8;border:1px solid #f1d8a8;color:#8b5a0b;border-radius:7px;padding:8px 10px;font-size:12px;line-height:1.5;margin-top:10px}
+  .ca-warn.red{background:#fdf0ee;border-color:#f4cec7;color:#a73927}
+  .ca-loading{display:inline-flex;align-items:center;gap:6px;color:var(--txt-2);font-size:12px}
+  .ca-spin{width:12px;height:12px;border:2px solid #d4dae5;border-top-color:var(--ca-blue);border-radius:50%;animation:caspin .7s linear infinite}
+  @keyframes caspin{to{transform:rotate(360deg)}}
+  .ca-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(10px);background:#243047;color:#fff;padding:9px 15px;border-radius:7px;font-size:12.5px;opacity:0;pointer-events:none;transition:.2s;z-index:9999}
+  .ca-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.ca-toast.err{background:#a73927}
+  .ca-hidden{display:none!important}
+  @media(max-width:1100px){.ca-form{grid-template-columns:1fr 1fr 1fr}.ca-metrics{grid-template-columns:repeat(3,1fr)}.ca-cols{grid-template-columns:1fr}}
+  @media(max-width:700px){.ca-wrap{padding:12px}.ca-form{grid-template-columns:1fr}.ca-metrics{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top"></div>
+  <div class="topbar-right"><span id="clock" class="clock">--:--:--</span><button class="btn btn-ghost" onclick="location.href='/agent'">返回智能体</button></div>
+</header>
+
+<main class="ca-wrap">
+  <div class="ca-title">广告活动分析</div>
+  <div class="ca-sub">读取本地采集库，分析活动汇总、趋势、广告组、投放、产品、广告位、分时和搜索词，并生成策略建议。</div>
+
+  <section class="ca-panel" style="margin-top:14px">
+    <div class="ca-form">
+      <div class="ca-field">
+        <label>广告活动</label>
+        <select id="campaign"></select>
+      </div>
+      <div class="ca-field"><label>开始日期</label><input type="date" id="dateFrom"></div>
+      <div class="ca-field"><label>结束日期</label><input type="date" id="dateTo"></div>
+      <div class="ca-field"><label>目标 ACOS %</label><input type="number" id="targetAcos" value="35" min="1" max="500" step="1"></div>
+      <button class="ca-btn primary" id="btnAnalyze">开始分析</button>
+      <button class="ca-btn" id="btnExport" disabled>导出 Excel</button>
+    </div>
+    <div class="ca-hint" id="coverageHint">正在读取本地数据覆盖...</div>
+  </section>
+
+  <div class="ca-empty" id="emptyState">
+    <b>选择一个活动开始分析</b>
+    <div>分析只读取本地采集库，不会调用赛狐写接口。</div>
+  </div>
+
+  <div id="result" class="ca-hidden">
+    <div id="summary" class="ca-metrics"></div>
+    <div id="warning" class="ca-warn ca-hidden"></div>
+
+    <div class="ca-cols">
+      <section class="ca-card">
+        <div class="ca-card-h"><h3>诊断</h3><span class="ca-badge" id="diagBadge">-</span></div>
+        <div class="ca-card-b" id="diagnostics"></div>
+      </section>
+      <section class="ca-card">
+        <div class="ca-card-h"><h3>策略建议</h3><span class="ca-badge" id="strategyBadge">-</span></div>
+        <div class="ca-card-b" id="strategy"></div>
+      </section>
+    </div>
+
+    <section class="ca-panel" style="margin-top:14px">
+      <div class="ca-tabs" id="tabs">
+        <button class="ca-tab active" data-dim="trend">日趋势</button>
+        <button class="ca-tab" data-dim="groups">广告组</button>
+        <button class="ca-tab" data-dim="targets">投放</button>
+        <button class="ca-tab" data-dim="products">产品 ASIN</button>
+        <button class="ca-tab" data-dim="placements">广告位</button>
+        <button class="ca-tab" data-dim="hourly">分时</button>
+        <button class="ca-tab" data-dim="search">搜索词</button>
+        <button class="ca-tab" data-dim="competitors">竞品数据</button>
+      </div>
+      <div class="ca-subtabs ca-hidden" id="searchSheets">
+        <button class="ca-subtab active" data-search-sheet="summary">汇总</button>
+        <button class="ca-subtab" data-search-sheet="keyword">搜索词</button>
+        <button class="ca-subtab" data-search-sheet="asin">搜索 ASIN</button>
+      </div>
+      <div class="ca-dim" id="dimension"></div>
+    </section>
+  </div>
+</main>
+<div class="ca-toast" id="toast"></div>
+<script src="/static/nav.js"></script>
+<script src="/static/campaign-analysis.js"></script>
+</body>
+</html>

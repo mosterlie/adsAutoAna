@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛狐ERP - 活动与广告组</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .cg-wrap{max-width:1500px;margin:0 auto;padding:16px 18px 36px}
+  .cg-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .cg-head h1{font-size:20px;margin:0 8px 0 0}
+  .cg-head .muted{font-size:12px}
+  .cg-search{height:32px;border:1px solid var(--bd);border-radius:5px;padding:0 10px;min-width:260px;font:inherit}
+  .cg-tabs{display:flex;gap:4px;border-bottom:1px solid var(--bd);margin-bottom:10px}
+  .cg-tab{border:0;background:transparent;padding:8px 14px;font:inherit;color:var(--txt-2);border-bottom:2px solid transparent;cursor:pointer}
+  .cg-tab.on{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+  .cg-table-wrap{border:1px solid var(--bd);border-radius:6px;overflow:auto;background:#fff}
+  .cg-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .cg-table th{position:sticky;top:0;background:#f8fafc;text-align:left;padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
+  .cg-table td{padding:7px 10px;border-bottom:1px solid #f1f3f6;vertical-align:top}
+  .cg-table tr:hover td{background:#f7faff}
+  .cg-table .num{text-align:right;white-space:nowrap}
+  .cg-table .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#667085}
+  .cg-empty{padding:24px;text-align:center;color:var(--muted)}
+  .cg-error{color:#b63624;padding:16px}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="seg seg-top"></div>
+  <div class="topbar-right"><span class="muted" id="cgMeta"></span></div>
+</header>
+
+<div class="cg-wrap">
+  <div class="cg-head">
+    <h1>活动与广告组</h1>
+    <span class="muted" id="cgCounts">加载中…</span>
+    <span class="sp" style="flex:1"></span>
+    <input class="cg-search" id="cgSearch" placeholder="搜索活动名 / campaignId / 广告组名 / groupId">
+    <button class="btn ghost" id="cgRefresh">刷新赛狐数据</button>
+  </div>
+  <div class="cg-tabs">
+    <button class="cg-tab on" data-tab="campaigns">广告活动 <span id="cgCampCount"></span></button>
+    <button class="cg-tab" data-tab="groups">广告组 <span id="cgGroupCount"></span></button>
+  </div>
+  <div class="cg-table-wrap" id="cgBox"><div class="cg-empty">正在从赛狐读取活动与广告组…</div></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g,
+  (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = (v) => v === null || v === undefined || v === "" ? "-" : "¥" + Number(v).toLocaleString("zh-CN", {maximumFractionDigits: 2});
+const fmt = (v) => (v === null || v === undefined || v === "") ? "-" : Number(v).toLocaleString("zh-CN", {maximumFractionDigits: 2});
+const STATE = { campaigns: [], groups: [], tab: "campaigns", q: "", fetched_at: "" };
+
+function matched(rows, fields) {
+  const q = STATE.q.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((r) => fields.some((k) => String(r[k] || "").toLowerCase().includes(q)));
+}
+
+function render() {
+  $("cgCampCount").textContent = `(${STATE.campaigns.length})`;
+  $("cgGroupCount").textContent = `(${STATE.groups.length})`;
+  $("cgCounts").textContent = `实时：${STATE.campaigns.length} 个活动 · ${STATE.groups.length} 个广告组` +
+    (STATE.fetched_at ? ` · ${STATE.fetched_at}` : "");
+  document.querySelectorAll(".cg-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === STATE.tab));
+
+  if (STATE.tab === "campaigns") {
+    const rows = matched(STATE.campaigns, ["campaign_name", "campaign_id", "state", "portfolio_name"]);
+    $("cgBox").innerHTML = `<table class="cg-table"><thead><tr>
+      <th>广告活动</th><th>campaignId</th><th>状态</th><th>广告类型</th>
+      <th>投放类型</th><th class="num">每日预算</th><th>广告组合</th><th>开始日期</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td>${esc(r.campaign_name || "-")}</td>
+        <td class="mono">${esc(r.campaign_id)}</td>
+        <td>${esc(r.state || "-")}</td>
+        <td>${esc(r.ad_type || "-")}</td>
+        <td>${esc(r.targeting_type || "-")}</td>
+        <td class="num">${money(r.daily_budget)}</td>
+        <td>${esc(r.portfolio_name || "-")}</td>
+        <td>${esc(r.start_date || "-")}</td>
+      </tr>`).join("")}</tbody></table>` +
+      (rows.length ? "" : `<div class="cg-empty">没有匹配的活动</div>`);
+  } else {
+    const rows = matched(STATE.groups, ["campaign_name", "campaign_id", "group_name", "group_id",
+      "amazon_group_id", "state"]);
+    $("cgBox").innerHTML = `<table class="cg-table"><thead><tr>
+      <th>广告活动</th><th>广告组</th><th>groupId</th><th>Amazon groupId</th>
+      <th class="num">默认竞价</th><th>状态</th><th>广告类型</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td>${esc(r.campaign_name || r.campaign_id || "-")}<div class="mono">${esc(r.campaign_id)}</div></td>
+        <td>${esc(r.group_name || "-")}</td>
+        <td class="mono">${esc(r.group_id)}</td>
+        <td class="mono">${esc(r.amazon_group_id || "-")}</td>
+        <td class="num">${money(r.default_bid)}</td>
+        <td>${esc(r.state || "-")}</td>
+        <td>${esc(r.ad_type || "-")}</td>
+      </tr>`).join("")}</tbody></table>` +
+      (rows.length ? "" : `<div class="cg-empty">没有匹配的广告组</div>`);
+  }
+}
+
+async function load(refresh) {
+  $("cgBox").innerHTML = `<div class="cg-empty">正在从赛狐读取活动与广告组…</div>`;
+  $("cgRefresh").disabled = true;
+  try {
+    const r = await fetch(`/api/ads/campaign-groups${refresh ? "?refresh=1" : ""}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message || `HTTP ${r.status}`);
+    STATE.campaigns = d.campaigns || [];
+    STATE.groups = d.groups || [];
+    STATE.fetched_at = d.fetched_at || "";
+    render();
+  } catch (e) {
+    $("cgBox").innerHTML = `<div class="cg-error">读取失败：${esc(e.message || e)}</div>`;
+  } finally {
+    $("cgRefresh").disabled = false;
+  }
+}
+
+document.querySelectorAll(".cg-tab").forEach((b) => b.onclick = () => {
+  STATE.tab = b.dataset.tab;
+  render();
+});
+$("cgSearch").oninput = (e) => { STATE.q = e.target.value; render(); };
+$("cgRefresh").onclick = () => load(true);
+load(new URLSearchParams(location.search).get("refresh") === "1");
+</script>
+<script src="/static/nav.js"></script>
+</body>
+</html>

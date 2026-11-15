@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -59,6 +60,13 @@ CREATE TABLE IF NOT EXISTS dim_product (
   price REAL, landed_price REAL, fulfillment TEXT, online_status TEXT,
   rating REAL, rating_count INTEGER, quantity INTEGER, updated_at TEXT
 );
+
+-- 活动投放产品映射：产品事实未采集时，仍可用于搜索数据的 ASIN/SKU 展示。
+CREATE TABLE IF NOT EXISTS dim_campaign_product (
+  campaign_id TEXT NOT NULL, asin TEXT NOT NULL, sku TEXT, parent_asin TEXT,
+  updated_at TEXT, PRIMARY KEY (campaign_id, asin)
+);
+CREATE INDEX IF NOT EXISTS idx_cp_camp ON dim_campaign_product (campaign_id);
 
 CREATE TABLE IF NOT EXISTS dim_target (
   target_id TEXT PRIMARY KEY,
@@ -321,6 +329,13 @@ def write_product(conn, asin: str, campaign_id: str, group_id: str, date: str,
 def write_targets(conn, campaign_id: str, group_id: str, date: str,
                   targets: Dict[str, Any]) -> None:
     for tid, v in (targets or {}).items():
+        # 采集到投放文本时同步维护维度表，避免后续只显示 targetId。
+        label = str(v.get("label") or "")
+        if label and not label.isdigit():
+            upsert_target(
+                conn, str(tid), campaign_id=campaign_id, group_id=group_id,
+                target_type=str(v.get("type") or ""), target_text=label,
+                match_type=str(v.get("match_type") or ""))
         for h in v.get("hours") or []:
             r = fact_row(h.get("metrics") or {}, target_id=tid,
                          campaign_id=campaign_id, group_id=group_id,
@@ -443,6 +458,16 @@ def upsert_product(conn, asin: str, **kw) -> None:
     kw.update({"asin": asin, "updated_at": NOW()})
     upsert(conn, "dim_product", {k: v for k, v in kw.items() if v is not None},
            ("asin",))
+
+
+def upsert_campaign_product(conn, campaign_id: str, asin: str, **kw) -> None:
+    """记录活动实际投放的产品；不依赖产品事实是否已采集。"""
+    if not campaign_id or not asin:
+        return
+    kw.update({"campaign_id": str(campaign_id), "asin": str(asin), "updated_at": NOW()})
+    upsert(conn, "dim_campaign_product",
+           {k: v for k, v in kw.items() if v is not None},
+           ("campaign_id", "asin"))
 
 
 def upsert_target(conn, target_id: str, **kw) -> None:
@@ -1073,13 +1098,14 @@ def list_campaigns(conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, 
         init(conn)
         rows = conn.execute("""
             SELECT c.campaign_id, c.name, c.targeting_type, c.daily_budget, c.status,
+                   c.portfolio_id, c.portfolio_name,
                    COUNT(DISTINCT f.date) AS days,
                    MIN(f.date) AS first_date, MAX(f.date) AS last_date,
                    ROUND(SUM(CASE WHEN f.hour=-1 AND f.placement='' THEN f.cost END),2) AS total_cost,
                    SUM(CASE WHEN f.hour=-1 AND f.placement='' THEN f.clicks END) AS total_clicks
             FROM dim_campaign c
             LEFT JOIN fact_campaign f ON f.campaign_id = c.campaign_id
-            GROUP BY c.campaign_id
+            GROUP BY c.campaign_id, c.portfolio_id, c.portfolio_name
             ORDER BY days DESC, total_cost DESC
         """).fetchall()
         return [dict(r) for r in rows]
@@ -1345,12 +1371,19 @@ def competitor_terms(campaign_id: str, start: str = "", end: str = "",
             where += " AND date BETWEEN ? AND ?"
             args += [start, end]
         rs = conn.execute(f"""
-            SELECT t.term, COUNT(c.asin) n, MIN(c.price) min_price,
+            SELECT t.term, t.ad_cost, t.clicks,
+                   COUNT(c.asin) n, MIN(c.price) min_price,
                    MAX(c.price) max_price, AVG(c.reviews) avg_rev,
                    MAX(c.fetched_at) fetched_at
-            FROM (SELECT DISTINCT term FROM fact_search_term WHERE {where}) t
+            FROM (
+                SELECT term, SUM(cost) ad_cost, SUM(clicks) clicks
+                FROM fact_search_term
+                WHERE {where} AND scope='campaign'
+                GROUP BY term
+            ) t
             LEFT JOIN fact_competitor c ON c.term = t.term
-            GROUP BY t.term ORDER BY n DESC, t.term
+            GROUP BY t.term, t.ad_cost, t.clicks
+            ORDER BY t.ad_cost DESC, n DESC, t.term
         """, args).fetchall()
         out = []
         for r in rs:
@@ -1359,6 +1392,8 @@ def competitor_terms(campaign_id: str, start: str = "", end: str = "",
                 " ORDER BY price", (r["term"],)).fetchall()]
             med = prices[len(prices) // 2] if prices else None
             out.append({"term": r["term"], "count": r["n"] or 0,
+                        "adCost": round(r["ad_cost"] or 0, 2),
+                        "clicks": r["clicks"] or 0,
                         "median": round(med, 2) if med else None,
                         "min": r["min_price"], "max": r["max_price"],
                         "avgReviews": round(r["avg_rev"] or 0, 1),
@@ -1652,6 +1687,226 @@ def range_overview(campaign_id: str, start: str, end: str,
             conn.close()
 
 
+def search_term_overview(campaign_id: str, start: str, end: str,
+                          limit: int = 2000) -> List[Dict[str, Any]]:
+    """搜索词数据总览：搜索词 + 活动/组/产品/SKU + 聚合指标。
+
+    搜索词本身只有活动级和组级归因，没有产品级归因；产品/SKU 列展示
+    该活动（或所在组能确定时）实际投放的产品集合，指标仍是搜索词自身指标。
+    """
+    own = False
+    conn = get_conn()
+    try:
+        init(conn)
+        camp = conn.execute(
+            "SELECT name FROM dim_campaign WHERE campaign_id=?", (campaign_id,)).fetchone()
+        campaign_name = str(camp["name"] if camp else "") or campaign_id
+
+        product_rows = conn.execute("""
+            SELECT DISTINCT fp.asin, dp.sku, dp.parent_asin, dp.title
+            FROM fact_product fp
+            LEFT JOIN dim_product dp ON dp.asin=fp.asin
+            WHERE fp.campaign_id=? AND fp.date BETWEEN ? AND ?
+            UNION
+            SELECT cp.asin, COALESCE(dp.sku, cp.sku),
+                   COALESCE(dp.parent_asin, cp.parent_asin), dp.title
+            FROM dim_campaign_product cp
+            LEFT JOIN dim_product dp ON dp.asin=cp.asin
+            WHERE cp.campaign_id=?
+        """, (campaign_id, start, end, campaign_id)).fetchall()
+        products = [dict(r) for r in product_rows]
+        parent_skus = {}
+        for p in products:
+            pa = str(p.get("parent_asin") or "")
+            if pa:
+                r = conn.execute("SELECT sku FROM dim_product WHERE asin=?", (pa,)).fetchone()
+                if r and r["sku"]:
+                    parent_skus[pa] = str(r["sku"])
+        for p in products:
+            sku = str(p.get("sku") or "")
+            pa = str(p.get("parent_asin") or "")
+            p["parent_sku"] = parent_skus.get(pa) or (sku.split("-")[0] if "-" in sku else sku)
+        product_asins = sorted({str(p["asin"]) for p in products if p.get("asin")})
+        child_skus = sorted({str(p["sku"]) for p in products if p.get("sku")})
+        parent_sku_list = sorted({str(p["parent_sku"]) for p in products if p.get("parent_sku")})
+        parent_asins = sorted({str(p["parent_asin"]) for p in products if p.get("parent_asin")})
+
+        def query_scope(scope: str) -> List[Dict[str, Any]]:
+            return [dict(r) for r in conn.execute("""
+                SELECT term, match_type, owner_id, scope,
+                       SUM(impressions) impressions, SUM(clicks) clicks,
+                       SUM(cost) cost, SUM(orders) orders,
+                       SUM(add_to_cart) add_to_cart,
+                       COUNT(DISTINCT date) days,
+                       MIN(date) first_date, MAX(date) last_date
+                FROM fact_search_term
+                WHERE campaign_id=? AND date BETWEEN ? AND ?
+                  AND query_type='keyword' AND scope=?
+                GROUP BY term, match_type, owner_id, scope
+                ORDER BY SUM(cost) DESC, SUM(clicks) DESC, term
+                LIMIT ?
+            """, (campaign_id, start, end, scope, limit)).fetchall()]
+
+        rows = query_scope("group")
+        scope_used = "group"
+        if not rows:
+            rows = query_scope("campaign")
+            scope_used = "campaign"
+
+        group_names = {}
+        for r in conn.execute("SELECT group_id, name FROM dim_group").fetchall():
+            group_names[str(r["group_id"])] = str(r["name"] or "")
+
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            imp = _num(r.get("impressions"))
+            clicks = _num(r.get("clicks"))
+            cost = _num(r.get("cost"))
+            orders = _num(r.get("orders"))
+            carts = _num(r.get("add_to_cart"))
+            gid = str(r.get("owner_id") or "")
+            out.append({
+                "term": r.get("term") or "",
+                "match_type": r.get("match_type") or "",
+                "scope": scope_used,
+                "campaign_id": campaign_id,
+                "campaign_name": campaign_name,
+                "group_id": gid if scope_used == "group" else "",
+                "group_name": (group_names.get(gid) if scope_used == "group" else "") or "活动级",
+                "product_asins": product_asins,
+                "child_skus": child_skus,
+                "parent_skus": parent_sku_list,
+                "parent_asins": parent_asins,
+                "impressions": imp,
+                "clicks": clicks,
+                "cost": round(cost, 2),
+                "orders": orders,
+                "add_to_cart": carts,
+                "days": int(r.get("days") or 0),
+                "first_date": r.get("first_date") or "",
+                "last_date": r.get("last_date") or "",
+                "ctr": round(clicks / imp * 100, 2) if imp else None,
+                "cpc": round(cost / clicks, 2) if clicks else None,
+                "cpa": round(cost / orders, 2) if orders else None,
+            })
+        return out
+    finally:
+        conn.close()
+
+
+def search_term_overview_all(start: str, end: str,
+                             limit: int = 2000,
+                             query_type: str = "keyword") -> List[Dict[str, Any]]:
+    """跨所有广告活动的搜索数据，按花费从高到低。
+
+    query_type=keyword 为搜索词，query_type=asin 为搜索 ASIN。
+    """
+    conn = get_conn()
+    try:
+        init(conn)
+        campaign_names = {
+            str(r["campaign_id"]): str(r["name"] or "")
+            for r in conn.execute("SELECT campaign_id, name FROM dim_campaign").fetchall()
+        }
+        group_names = {}
+        for r in conn.execute("SELECT group_id, amazon_group_id, name FROM dim_group").fetchall():
+            nm = str(r["name"] or "")
+            if r["group_id"]:
+                group_names[str(r["group_id"])] = nm
+            # 历史搜索词 owner_id 可能存的是 Amazon 组 id，两个键都映射。
+            if r["amazon_group_id"]:
+                group_names[str(r["amazon_group_id"])] = nm
+
+        # 产品集合按活动汇总；搜索词本身只有活动/组级归因。
+        prod_rows = conn.execute("""
+            SELECT DISTINCT fp.campaign_id, fp.asin, dp.sku, dp.parent_asin
+            FROM fact_product fp
+            LEFT JOIN dim_product dp ON dp.asin=fp.asin
+            WHERE fp.date BETWEEN ? AND ?
+            UNION
+            SELECT cp.campaign_id, cp.asin, COALESCE(dp.sku, cp.sku),
+                   COALESCE(dp.parent_asin, cp.parent_asin)
+            FROM dim_campaign_product cp
+            LEFT JOIN dim_product dp ON dp.asin=cp.asin
+        """, (start, end)).fetchall()
+        parent_sku = {}
+        for r in conn.execute("SELECT asin, sku FROM dim_product WHERE sku IS NOT NULL"):
+            if r["asin"] and r["sku"]:
+                parent_sku[str(r["asin"])] = str(r["sku"])
+        products_by_campaign: Dict[str, List[Dict[str, Any]]] = {}
+        for r in prod_rows:
+            cid = str(r["campaign_id"] or "")
+            if not cid:
+                continue
+            sku = str(r["sku"] or "")
+            pa = str(r["parent_asin"] or "")
+            products_by_campaign.setdefault(cid, []).append({
+                "asin": str(r["asin"] or ""),
+                "sku": sku,
+                "parent_asin": pa,
+                "parent_sku": parent_sku.get(pa) or (sku.split("-")[0] if "-" in sku else sku),
+            })
+
+        def grouped(scope: str) -> List[Dict[str, Any]]:
+            return [dict(r) for r in conn.execute("""
+                SELECT campaign_id, term, owner_id,
+                       GROUP_CONCAT(DISTINCT match_type) match_types,
+                       SUM(impressions) impressions, SUM(clicks) clicks,
+                       SUM(cost) cost, SUM(orders) orders,
+                       SUM(add_to_cart) add_to_cart,
+                       COUNT(DISTINCT date) days,
+                       MIN(date) first_date, MAX(date) last_date
+                FROM fact_search_term
+                WHERE date BETWEEN ? AND ? AND query_type=? AND scope=?
+                GROUP BY campaign_id, term, owner_id
+                ORDER BY SUM(cost) DESC, SUM(clicks) DESC, term
+                LIMIT ?
+            """, (start, end, query_type, scope, limit)).fetchall()]
+
+        rows = grouped("group")
+        scope_used = "group"
+        if not rows:
+            rows = grouped("campaign")
+            scope_used = "campaign"
+
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            cid = str(r["campaign_id"] or "")
+            gid = str(r["owner_id"] or "") if scope_used == "group" else ""
+            prods = products_by_campaign.get(cid, [])
+            imp = _num(r.get("impressions"))
+            clicks = _num(r.get("clicks"))
+            cost = _num(r.get("cost"))
+            orders = _num(r.get("orders"))
+            out.append({
+                "campaign_id": cid,
+                "campaign_name": campaign_names.get(cid, cid),
+                "group_id": gid,
+                "group_name": (group_names.get(gid) if gid else "") or "活动级",
+                "scope": scope_used,
+                "term": r.get("term") or "",
+                "match_type": r.get("match_types") or "",
+                "product_asins": sorted({p["asin"] for p in prods if p["asin"]}),
+                "child_skus": sorted({p["sku"] for p in prods if p["sku"]}),
+                "parent_skus": sorted({p["parent_sku"] for p in prods if p["parent_sku"]}),
+                "parent_asins": sorted({p["parent_asin"] for p in prods if p["parent_asin"]}),
+                "impressions": imp,
+                "clicks": clicks,
+                "cost": round(cost, 2),
+                "orders": orders,
+                "add_to_cart": _num(r.get("add_to_cart")),
+                "days": int(r.get("days") or 0),
+                "first_date": r.get("first_date") or "",
+                "last_date": r.get("last_date") or "",
+                "ctr": round(clicks / imp * 100, 2) if imp else None,
+                "cpc": round(cost / clicks, 2) if clicks else None,
+                "cpa": round(cost / orders, 2) if orders else None,
+            })
+        return out
+    finally:
+        conn.close()
+
+
 def parents_of(campaign_id: str,
                conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
     """该活动涉及的「父体」信息（图片 / 标题 / 子体数 / 价格区间 / 商品标识）"""
@@ -1662,8 +1917,13 @@ def parents_of(campaign_id: str,
         asins = [r["asin"] for r in conn.execute(
             "SELECT DISTINCT asin FROM fact_product WHERE campaign_id=?", (campaign_id,))]
         if not asins:
-            asins = [r["asin"] for r in conn.execute(
-                "SELECT DISTINCT asin FROM dim_product")]
+            # 没有该活动的产品事实时，不能把全库产品当成该活动产品。
+            # 只用活动名中的父 ASIN 作为兜底；没有就返回空。
+            row = conn.execute(
+                "SELECT name FROM dim_campaign WHERE campaign_id=?", (campaign_id,)).fetchone()
+            m = re.search(r"(B0[A-Z0-9]{8})", str(row["name"] if row else ""))
+            if m:
+                asins = [m.group(1)]
 
         parents: List[str] = []
         for a in asins:

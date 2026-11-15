@@ -111,7 +111,7 @@ def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
 def public_config() -> Dict[str, Any]:
     """给前端的配置(不回传明文 Key)"""
     cfg = get_config()
-    key = cfg.get("workbuddy_key") or ""
+    key = wb_config.api_key(cfg.get("workbuddy_key") or "")
     out = {k: v for k, v in cfg.items() if k != "workbuddy_key"}
     out["workbuddy_key_set"] = bool(key)
     out["workbuddy_key_tail"] = key[-4:] if key else ""
@@ -234,7 +234,8 @@ def available(provider: str = "") -> bool:
     cfg = get_config()
     p = provider or cfg.get("provider") or "ollama"
     if p == "workbuddy":
-        return bool((cfg.get("workbuddy_key") or "").strip())
+        # 统一走 wb_config.api_key：支持配置页、环境变量和 .env。
+        return bool(wb_config.api_key(cfg.get("workbuddy_key") or ""))
     try:
         url = (cfg.get("ollama_url") or config.OLLAMA_URL).rstrip("/") + "/api/tags"
         with _OPENER.open(url, timeout=3) as r:

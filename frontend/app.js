@@ -857,6 +857,7 @@ $("fStart").onchange = () => { state.page = 1; loadAll(); };
 $("fEnd").onchange = () => { state.page = 1; loadAll(); };
 $("btnRefresh").onclick = () => loadAll();
 $("btnCrawl").onclick = doCrawl;
+$("btnCampaignGroups").onclick = () => { location.href = "/campaign-groups?refresh=1"; };
 $("btnSyncCookie").onclick = syncCookies;
 $("btnExport").onclick = exportCsv;
 $("pageSize").onchange = (e) => { state.pageSize = +e.target.value; state.page = 1; loadRecords(); };

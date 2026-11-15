@@ -22,11 +22,15 @@
             onclick="location.href='/static/api-docs.html'">接口查询</button>
     <button class="seg-btn" id="btnDaily"
             onclick="location.href='/static/daily-probe.html'">广告数据</button>
+    <button class="seg-btn" id="btnAgent"
+            onclick="location.href='/agent'">智能体</button>
   </div>
   <div class="topbar-right">
     <span id="clock" class="clock" title="当前时间">--:--:--</span>
     <span id="lastUpdated" class="muted">数据未同步</span>
     <button class="btn btn-ghost" id="btnCrawl" title="从赛狐同步广告数据到本地库">同步数据</button>
+    <button class="btn btn-ghost" id="btnCampaignGroups"
+            title="从赛狐获取当前全部广告活动和广告组">获取全部活动/广告组</button>
     <button class="btn btn-ghost" id="btnAiConfig"
             title="品名解析模型 + 相关性判断底座模型 + Ollama / WorkBuddy 配置">配置</button>
     <button class="btn btn-ghost" id="btnSyncCookie" title="从调试 Chrome 同步登录态">同步登录态</button>
@@ -484,5 +488,6 @@
 </div>
 
 <script src="/static/app.js"></script>
+<script src="/static/nav.js"></script>
 </body>
 </html>

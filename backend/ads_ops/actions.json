@@ -1,0 +1,234 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-11-10",
+  "source": "docs/sellfox_sp_create_api.md",
+  "note": "本文件是「接口文档 → 智能体可感知动作」的唯一编译产物。智能体只感知到这里为止，不感知底层的 URL、编码、id 体系。",
+  "shop": "711811",
+  "marketplace": "A1VC38T7YXB528",
+  "gateways": {
+    "gw": "https://www.sellfox.com/api/gw/sellfox/sellfox-cpc/api/sellfox/",
+    "old": "https://www.sellfox.com"
+  },
+  "levels": {
+    "L1": "单值可逆：改数字/状态，秒级回滚，可自动执行",
+    "L2": "结构变更：增删对象，靠归档回滚，需报告",
+    "L3": "新建/不可逆：非幂等，必须人工确认"
+  },
+  "actions": [
+    {
+      "name": "set_target_bid", "level": "L1", "doc": "§14.2", "verified": true,
+      "intent": ["调竞价", "调价", "改价", "出价", "提价", "降价", "砍价", "加价", "改出价", "改匹配位价格", "CPC太高"],
+      "desc": "修改单个投放位（含自动广告 4 个匹配位）的出价",
+      "endpoint": "spTarget/updateBid", "gateway": "gw", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "target_internal", "note": "赛狐内部 target id，不是 Amazon targetId"}},
+      "params": {"bid": {"type": "number", "min": 1, "max": 1000, "unit": "JPY"}},
+      "idempotent": true, "rollback": "set_target_bid 回原值",
+      "limits": {"max_change_pct": 30, "daily_quota": 20}
+    },
+    {
+      "name": "set_target_state", "level": "L1", "doc": "§14.1", "verified": true,
+      "intent": ["暂停投放", "启用投放", "关掉这个匹配位"],
+      "desc": "暂停/启用单个投放位",
+      "endpoint": "spTarget/updateState", "gateway": "gw", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "target_internal"}},
+      "params": {"state": {"type": "enum", "values": ["enabled", "paused"]}},
+      "idempotent": true, "rollback": "反向 updateState", "limits": {}
+    },
+    {
+      "name": "set_group_bid", "level": "L1", "doc": "§17.2", "verified": true,
+      "intent": ["改广告组默认竞价", "改组出价"],
+      "desc": "修改广告组默认竞价。注意自动广告实际出价看 4 个匹配位，改默认竞价未必生效",
+      "endpoint": "/api/cpcSPManage/group/update.json", "gateway": "old", "method": "POST", "encoding": "json",
+      "ids": {"dxmGroupId": {"kind": "group_internal", "note": "getAllGroupData 行里的 id"}},
+      "params": {"name": {"type": "string", "required": true, "note": "必须带原组名，漏了会被清空"},
+                 "defaultBid": {"type": "string", "note": "字符串小数，如 26.00"}},
+      "idempotent": true, "rollback": "改回原 defaultBid", "limits": {"max_change_pct": 30}
+    },
+    {
+      "name": "set_group_state", "level": "L1", "doc": "§17.3", "verified": true,
+      "intent": ["暂停广告组", "启用广告组"],
+      "desc": "暂停/启用广告组",
+      "endpoint": "/api/cpcSPManage/group/updateState.json", "gateway": "old", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "group_internal"}},
+      "params": {"state": {"type": "enum", "values": ["enabled", "paused"]}},
+      "idempotent": true, "rollback": "反向 updateState", "limits": {}
+    },
+    {
+      "name": "set_campaign_state", "level": "L1", "doc": "§8", "verified": true,
+      "intent": ["暂停活动", "启用活动", "关掉这个活动", "停掉广告"],
+      "desc": "暂停/启用广告活动（只切状态，不动其他字段）",
+      "endpoint": "spCampaign/updateState", "gateway": "gw", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "campaign_internal", "note": "dxmCampaignId，不是 Amazon campaignId"}},
+      "params": {"state": {"type": "enum", "values": ["enabled", "paused"]}},
+      "idempotent": true, "rollback": "反向 updateState", "limits": {}
+    },
+    {
+      "name": "set_campaign_placement", "level": "L1", "doc": "§19.3", "verified": true,
+      "intent": ["广告位加价", "商品页加价", "顶部加价", "调广告位比例"],
+      "desc": "调整某个广告位的加价比例",
+      "endpoint": "/api/cpcSPManage/campaign/updatePlacementAdjustment.json",
+      "gateway": "old", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "campaign_internal"}},
+      "params": {"placement": {"type": "enum", "values": ["placementTop", "placementRestOfSearch", "placementProductPage", "offAmazon"]},
+                 "value": {"type": "integer", "min": 0, "max": 900, "note": "必须是整数；offAmazon 不可调"}},
+      "idempotent": true, "rollback": "改回原百分比", "limits": {"max_change_pt": 50}
+    },
+    {
+      "name": "set_campaign_budget", "level": "L1", "doc": "§7", "verified": true,
+      "intent": ["改预算", "加预算", "降预算"],
+      "desc": "修改活动每日预算。⚠️ 该接口是全量覆盖语义",
+      "endpoint": "spCampaign/update", "gateway": "gw", "method": "POST", "encoding": "json",
+      "requires_read_first": true,
+      "read_recipe": "先 GET adCampaign/getInfo 取全部字段，只改 dailyBudget 再整体提交",
+      "ids": {"dxmCampaignId": {"kind": "campaign_internal"}},
+      "params": {"dailyBudget": {"type": "string", "note": "字符串，如 \"300\""}},
+      "idempotent": true, "rollback": "改回原预算",
+      "limits": {"max_change_pct": 50, "warn": "漏字段会被清空"}
+    },
+    {
+      "name": "set_ad_product_state", "level": "L1", "doc": "§13.2", "verified": true,
+      "intent": ["暂停广告产品", "暂停某个SKU的广告"],
+      "desc": "暂停/启用组内的某个广告产品",
+      "endpoint": "/api/cpcSPManage/product/updateState.json", "gateway": "old", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "ad_product_internal", "note": "组内广告产品 id；同一 SKU 在不同组是不同 id"}},
+      "params": {"state": {"type": "enum", "values": ["enabled", "paused"]}},
+      "idempotent": true, "rollback": "反向 updateState", "limits": {}
+    },
+    {
+      "name": "add_negative_keyword", "level": "L2", "doc": "§16.2", "verified": true,
+      "intent": ["否词", "加否定关键词", "屏蔽这个词"],
+      "desc": "给广告组添加否定关键词",
+      "endpoint": "negative/createSpGroupNeKeywords", "gateway": "gw", "method": "POST", "encoding": "json",
+      "ids": {"groupId": {"kind": "group_amazon", "note": "Amazon adGroupId"}},
+      "params": {"neKeywords": {"type": "array",
+                 "item": {"keywordText": "string", "matchType": ["negativeExact", "negativePhrase"]}}},
+      "precondition": "必须先过词相关性判定（term_relevance），相关词禁止否定",
+      "partial_failure": "errMsgList 非空 = 部分失败",
+      "constraint": "含 _  |  等符号会被 Amazon 判无效，提交前过滤",
+      "idempotent": false, "rollback": "归档该否定词", "limits": {"max_per_call": 100}
+    },
+    {
+      "name": "add_negative_asin", "level": "L2", "doc": "§16.3", "verified": true,
+      "intent": ["否定商品", "否掉这个ASIN"],
+      "desc": "给广告组添加否定商品（ASIN）",
+      "endpoint": "spTarget/createNeTargeting", "gateway": "gw", "method": "POST", "encoding": "json",
+      "ids": {"groupId": {"kind": "group_amazon"}},
+      "params": {"neTargetings": {"type": "array", "item": {"asin": "string", "type": "asin", "isAdd": true}}},
+      "precondition": "先用 /api/cpcSPManage/product/searchAsinsForTargeting.json 逐个校验 ASIN 存在",
+      "idempotent": false, "rollback": "归档该否定商品", "limits": {}
+    },
+    {
+      "name": "archive_negative", "level": "L2", "doc": "§16.4", "verified": true,
+      "intent": ["取消否词", "恢复被否的词"],
+      "desc": "归档否定关键词/否定商品（赛狐无暂停，只能归档）",
+      "endpoint": "multiple/neTarget/updateBatchMultiShop", "gateway": "gw", "method": "POST", "encoding": "json",
+      "ids": {"neTargetId": {"kind": "ne_amazon"}, "id": {"kind": "ne_internal", "note": "两个 id 都必须传"}},
+      "params": {"vos": {"type": "array", "item": {"neType": ["keyword", "target"], "neLevel": ["group", "campaign"]}}},
+      "idempotent": true, "rollback": "重新 add", "limits": {}
+    },
+    {
+      "name": "add_products_to_group", "level": "L2", "doc": "§13.1", "verified": true,
+      "intent": ["加产品到广告组", "把这个SKU加进广告"],
+      "desc": "把产品加入广告组（可一次传多个组）",
+      "endpoint": "/api/cpcSPManage/product/v2/add.json", "gateway": "old", "method": "POST", "encoding": "json",
+      "ids": {"groupIds": {"kind": "group_amazon_array"},
+              "products[].id": {"kind": "product_library", "note": "产品库 id（全局唯一），不是广告产品 id"}},
+      "partial_failure": "data 是字符串化 JSON 数组，非空即部分失败",
+      "constraint": "组内已有同 MSKU（enabled/paused）会被拒；archived 允许重复添加",
+      "idempotent": false, "rollback": "归档新广告产品", "limits": {}
+    },
+    {
+      "name": "archive_ad_product", "level": "L2", "doc": "§13.3", "verified": true,
+      "intent": ["从广告组移除产品", "归档广告产品"],
+      "desc": "归档组内广告产品",
+      "endpoint": "/api/cpcSPManage/product/archive.json", "gateway": "old", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "ad_product_internal"}},
+      "params": {},
+      "idempotent": true, "rollback": "重新 add", "limits": {}
+    },
+    {
+      "name": "add_group", "level": "L2", "doc": "§10", "verified": true,
+      "intent": ["加广告组", "加个组", "新建组", "开个组", "多建一个组", "拆组", "在已有活动下加组"],
+      "desc": "给已有活动追加一个广告组（复用 create 接口，靠 campaignId 非空区分）",
+      "endpoint": "ad/sp/create", "gateway": "gw", "method": "POST", "encoding": "json",
+      "reuses": "create_campaign",
+      "diff": "spCampaignInfo.campaignId 传已有活动 id；name/日期传空串；4 个广告位传 null；portfolioId 传空串",
+      "ids": {"campaignId": {"kind": "campaign_amazon"}},
+      "idempotent": false, "rollback": "归档该组", "limits": {"min_interval_sec": 2}
+    },
+    {
+      "name": "create_campaign", "level": "L3", "doc": "§2 / §21.2", "verified": true,
+      "handler": "campaign.create", "executor": "backend.ads_ops.executor",
+      "confirm_required": true,
+      "intent": ["创建广告", "新建活动", "开个广告", "建手动广告"],
+      "desc": "新建 SP 广告活动（含 1 个广告组 + 投放）",
+      "endpoint": "ad/sp/create", "gateway": "gw", "method": "POST", "encoding": "json",
+      "idempotent": false, "non_idempotent_warning": "每次调用都新建，重试会产生重复活动",
+      "precondition": ["按 name 查重（赛狐禁止活动重名）", "products[].id 用产品库 id", "同名再建会被拒或产生重复"],
+      "params_verified": {"spCampaignInfo": "实测", "spGroupInfo": "实测",
+                          "spTargetInfo.keywords": "实测", "spTargetInfo.targetings": "字段靠源码推断，未完整实测"},
+      "rollback": "archive_campaign（不可逆，需重建）",
+      "limits": {"require_human_confirm": true}
+    },
+    {
+      "name": "archive_campaign", "level": "L3", "doc": "§9", "verified": true,
+      "handler": "campaign.archive", "executor": "backend.ads_ops.executor",
+      "confirm_required": true,
+      "intent": ["归档活动", "删除活动", "下线这个广告"],
+      "desc": "归档广告活动（不可逆）",
+      "endpoint": "spCampaign/archive", "gateway": "gw", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "campaign_internal"}},
+      "params": {},
+      "idempotent": true, "rollback": "无（需新建）",
+      "limits": {"require_human_confirm": true}
+    },
+    {
+      "name": "rename_campaign", "level": "L2", "doc": "CONTEXT.md#6", "verified": true,
+      "intent": ["改活动名", "重命名活动"],
+      "desc": "修改活动名称",
+      "endpoint": "/api/cpcSPManage/campaign/updateName.json", "gateway": "old", "method": "POST", "encoding": "form",
+      "ids": {"id": {"kind": "campaign_internal"}},
+      "params": {"name": {"type": "string", "note": "赛狐禁止重名"}},
+      "idempotent": true, "rollback": "改回原名", "limits": {}
+    },
+    {
+      "name": "move_campaign_portfolio", "level": "L2", "doc": "§15.3", "verified": true,
+      "intent": ["移入广告组合", "换组合"],
+      "desc": "把活动移入某个广告组合",
+      "endpoint": "multiple/portfolio/movePortFolioData", "gateway": "gw", "method": "POST", "encoding": "json",
+      "ids": {"portfolioId": {"kind": "portfolio_amazon"}},
+      "constraint": "亚马逊不支持移出组合（portfolioId=0 报 EntityID does not exist），只能移入另一个组合",
+      "idempotent": true, "rollback": "移回原组合", "limits": {}
+    }
+  ],
+  "unverified": [
+    {"item": "multiple/placement/batchUpdatePlacementAdjustment", "doc": "§19.4", "status": "参数契约未知，5 种形态全部失败"},
+    {"item": "spKeyword/* 系列", "doc": "§21.3", "status": "源码整理，未逐个实测；关键词列表读取接口未定位"},
+    {"item": "portfolio removePortFolioData", "doc": "§15.4", "status": "未打通，疑似废弃"},
+    {"item": "分时预算模板 create", "doc": "§20.2", "status": "已实测但涉及套餐限制，暂不纳入自动动作"}
+  ],
+  "conflicts": [
+    {
+      "field": "spGroupInfo.products[].id",
+      "issue": "§2.1 说是「赛狐广告产品行 id」，§13.1 说是「产品库 id」，§10 样例用的是 8 位数字",
+      "evidence": "create 样例 56628535、§13.1 的 60427897 都是 8 位 = 产品库 id；而广告产品 id 是 11 位（如 86988578432）",
+      "conclusion": "应使用产品库 id；§2.1 的字段说明有误。执行前用一条真实创建验证一次"
+    }
+  ],
+  "forbidden": [
+    {
+      "what": "通过文件导入亚马逊的方式操作广告",
+      "detail": "包括但不限于：生成 Amazon Bulk Operations Excel 后上传后台、下载后台报表改完回传、任何离线表格导入流程",
+      "reason": "用户明确约定（2026-11-10）：一切涉及广告的操作一律走赛狐接口，不做文件导入",
+      "since": "2026-11-10",
+      "deprecated_files": [
+        "backend/bulk_generator.py",
+        "backend/ad_creator/bulk_generator.py",
+        "backend/ad_creator/db_source.py",
+        "backend/ad_creator/parser.py",
+        "backend/bulk_data.py"
+      ],
+      "replacement": "backend/ads_ops（本注册表）"
+    }
+  ]
+}

@@ -22,6 +22,9 @@ from backend import amazon_store                  # noqa: E402
 from backend import database as db                # noqa: E402
 from backend.ad_creator_api import router as ad_creator_router  # noqa: E402
 from backend.ads_fact_api import router as ads_fact_router  # noqa: E402
+from backend.ads_ops.api import router as ads_actions_router  # noqa: E402
+from backend.ads_ops.query_api import router as ads_query_router  # noqa: E402
+from backend.agent.api import router as agent_router  # noqa: E402
 from backend.api import router                    # noqa: E402
 from backend.campaign_probe_api import router as probe_router  # noqa: E402
 from backend.daily_probe_api import router as daily_router  # noqa: E402
@@ -38,6 +41,9 @@ app.include_router(ad_creator_router)      # 广告创建(自 autoAds 平移)
 app.include_router(ads_fact_router)        # 广告产品级分时查询
 app.include_router(probe_router)           # 活动全量取数（各层级）
 app.include_router(daily_router)           # 按天全量取数（三体系+分时+搜索词）
+app.include_router(ads_actions_router)     # 广告写动作（预览/确认/执行/审计）
+app.include_router(ads_query_router)       # 统一只读查询 + 工具清单
+app.include_router(agent_router)           # Agent 分析/策略编排
 
 if os.path.isdir(FRONTEND_DIR):
     class NoCacheStatic(StaticFiles):
@@ -70,6 +76,30 @@ def _asset_version() -> str:
         except OSError:
             continue
     return h.hexdigest()[:10]
+
+
+@app.get("/agent")
+def agent_page():
+    """广告智能体统一工作台。"""
+    return FileResponse(os.path.join(FRONTEND_DIR, "agent.html"))
+
+
+@app.get("/campaign-analysis")
+def campaign_analysis_page():
+    """活动级多维分析与策略。"""
+    return FileResponse(os.path.join(FRONTEND_DIR, "campaign-analysis.html"))
+
+
+@app.get("/campaign-groups")
+def campaign_groups_page():
+    """赛狐实时活动与广告组总览。"""
+    return FileResponse(os.path.join(FRONTEND_DIR, "campaign-groups.html"))
+
+
+@app.get("/search-ops")
+def search_ops_page():
+    """搜索词/ASIN 指令任务。"""
+    return FileResponse(os.path.join(FRONTEND_DIR, "search-ops.html"))
 
 
 @app.get("/")

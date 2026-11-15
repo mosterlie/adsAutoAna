@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import threading
 import time
 import uuid
@@ -218,7 +219,9 @@ def collect_targets_hour(cid: str, day: str, gid: str, targets: List[Dict[str, A
                 body["groupIdList"] = [gid]
             d = safe_post("multiple/target/getAllTargetHourData", body) or {}
             rep = d.get("periodReportList") or []
-            out[tid] = {"label": label, "type": t.get("_targetType"), "hours": _hours(rep),
+            out[tid] = {"label": label, "type": t.get("_targetType"),
+                        "match_type": t.get("matchType") or "",
+                        "hours": _hours(rep),
                         "sum": _sum_metrics(_hours(rep))}
         except Exception as e:              # noqa: BLE001
             errs.append({"layer": f"target[{tid}]@{day}", "msg": str(e)[:120]})
@@ -306,15 +309,20 @@ def collect_one_day(cid: str, day: str, opts: Dict[str, bool],
     out["campaign"] = collect_campaign_hour(cid, day, errs)
     if progress_cb:
         progress_cb("campaign_hour")
+    # 当日无点击：只保留活动汇总，跳过后续所有明细请求。
+    campaign_sum = out["campaign"].get("sum") or {}
+    if opts.get("skipNoClicks") and _to_num(campaign_sum.get("clicks")) <= 0:
+        out["skippedNoClicks"] = True
+        return out
 
     if opts.get("placement", True):
         out["campaign"]["placements"] = collect_placements(cid, day, "", errs)
 
-    targets = list_targets(cid, day)
     if opts.get("target", True):
+        targets = list_targets(cid, day)
         out["campaign"]["targets"] = collect_targets_hour(cid, day, "", targets, errs)
 
-    groups = list_groups(cid, day)
+    groups = list_groups(cid, day) if opts.get("group", True) else []
     out["groups"] = []
     for g in groups:
         gid = str(g.get("id") or "")
@@ -439,17 +447,38 @@ def suggested_bids(cid: str, day: str, targets: List[Dict[str, Any]]) -> List[Di
     return out
 
 
-def competitor_pages(terms: List[str], limit: int = 8) -> Dict[str, Any]:
-    """调亚马逊搜索抓取（带缓存），失败不影响主流程"""
+def competitor_pages(terms: List[str], limit: int = 8, on_log=None,
+                     refresh: bool = False) -> Dict[str, Any]:
+    """调亚马逊搜索抓取（带缓存）；撞人机校验立即停止，不继续消耗会话。"""
     out: Dict[str, Any] = {}
     try:
         from backend import amazon
     except Exception:                       # noqa: BLE001
         return out
-    for term in terms[:limit]:
+    if amazon.blocked_remaining() > 0:
+        if on_log:
+            on_log("warn", "Amazon 抓取冷却中",
+                   f"剩余 {int(amazon.blocked_remaining())} 秒，跳过竞品抓取")
+        return out
+    failures = 0
+    total = min(len(terms), limit)
+    for idx, term in enumerate(terms[:limit], 1):
+        if on_log:
+            on_log("info", f"竞品词 {idx}/{min(len(terms), limit)}：{term}", "开始抓取搜索结果页")
         try:
-            r = amazon.fetch(term, domain="co.jp", scrolls=1)
+            r = amazon.fetch(term, domain="co.jp", scrolls=1,
+                             refresh=refresh, use_cache=not refresh)
             items = (r or {}).get("items") or []
+            if (r or {}).get("challenge_clicked") and on_log:
+                on_log("info", f"已自动点击确认框：{term}",
+                       "简单确认页已尝试，复检搜索结果")
+            if (r or {}).get("blocked"):
+                out[term] = []
+                failures += 1
+                if on_log:
+                    on_log("warn", f"竞品词触发人机校验：{term}",
+                           "已停止本批竞品抓取，进入全局冷却")
+                break
             # 保存搜索结果页的**全部**记录（不是只取前 12 条）
             out[term] = [{
                 "position": x.get("position"), "asin": x.get("asin"),
@@ -462,9 +491,31 @@ def competitor_pages(terms: List[str], limit: int = 8) -> Dict[str, Any]:
                 "free_shipping": x.get("free_shipping"),
                 "sponsored": x.get("sponsored"),
             } for x in items]
-        except Exception:                   # noqa: BLE001
+            failures = 0
+            if on_log:
+                on_log("success", f"竞品词完成：{term}", f"{len(out[term])} 条结果")
+        except Exception as exc:             # noqa: BLE001
             out[term] = []
-        time.sleep(1.0)
+            failures += 1
+            if on_log:
+                on_log("warn", f"竞品词失败：{term}", str(exc)[:200])
+            if failures >= config.AMAZON_COMPETITOR_MAX_FAIL:
+                if on_log:
+                    on_log("error", "竞品抓取连续失败，提前停止",
+                           f"连续 {failures} 次")
+                break
+        if idx < total:
+            gap = random.uniform(config.AMAZON_COMPETITOR_GAP_MIN_SEC,
+                                 config.AMAZON_COMPETITOR_GAP_MAX_SEC)
+            if on_log:
+                on_log("info", f"等待 {gap:.1f} 秒",
+                       "降低连续访问搜索页的频率")
+            time.sleep(gap)
+            if idx % config.AMAZON_COMPETITOR_BATCH_SIZE == 0:
+                if on_log:
+                    on_log("info", "竞品批次休息",
+                           f"{config.AMAZON_COMPETITOR_REST_SEC} 秒")
+                time.sleep(config.AMAZON_COMPETITOR_REST_SEC)
     return out
 
 
@@ -484,6 +535,14 @@ class StartReq(BaseModel):
     suggestedBid: bool = True
     competitor: bool = False
     competitorTerms: int = 8
+    # 精简采集关闭广告组/投放/产品，只保留活动分时和搜索词
+    group: bool = True
+    # 精简采集可关闭完整维度补齐，避免每个活动额外请求组/投放/产品
+    syncDims: bool = True
+    # 默认跳过本地已有活动日汇总的日期；取消勾选可强制重采
+    skipExisting: bool = True
+    # 当日活动点击为 0 时，只保留活动汇总，不再采集组/投放/产品/搜索词明细
+    skipNoClicks: bool = False
 
 
 def _date_list(start: str, end: str) -> List[str]:
@@ -494,39 +553,136 @@ def _date_list(start: str, end: str) -> List[str]:
     return [(s + timedelta(days=i)).isoformat() for i in range((e - s).days + 1)]
 
 
+def _existing_dates(campaign_id: str, days: List[str]) -> set:
+    """返回本地已有活动日汇总的日期。失败时按“没有”处理，宁可重采。"""
+    if not days:
+        return set()
+    try:
+        from backend import ads_store
+        conn = ads_store.get_conn()
+        try:
+            ads_store.init(conn)
+            placeholders = ",".join("?" for _ in days)
+            rows = conn.execute(
+                f"SELECT DISTINCT date FROM fact_campaign "
+                f"WHERE campaign_id=? AND date IN ({placeholders}) "
+                f"AND hour=-1 AND placement=''",
+                (str(campaign_id), *days)).fetchall()
+            return {str(r["date"] if hasattr(r, "keys") else r[0]) for r in rows}
+        finally:
+            conn.close()
+    except Exception:                       # noqa: BLE001
+        return set()
+
+
+def _remaining_days(campaign_id: str, days: List[str],
+                    skip_existing: bool) -> tuple[List[str], List[str]]:
+    if not skip_existing:
+        return list(days), []
+    existing = _existing_dates(campaign_id, days)
+    skipped = [d for d in days if d in existing]
+    return [d for d in days if d not in existing], skipped
+
+
+def _task_log(task: Dict[str, Any], level: str, message: str,
+              detail: str = "") -> None:
+    logs = task.setdefault("logs", [])
+    logs.append({
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "level": level,
+        "message": message,
+        "detail": detail,
+    })
+    if len(logs) > 500:
+        task["logs"] = logs[-500:]
+
+
+def _day_summary_text(data: Dict[str, Any]) -> str:
+    sm = (data.get("campaign") or {}).get("sum") or {}
+    return (f"点击 {_to_num(sm.get('clicks')):g} · "
+            f"花费 {_to_num(sm.get('adCost')):.2f} · "
+            f"订单 {_to_num(sm.get('adOrderNum')):g} · "
+            f"组 {len(data.get('groups') or [])} · "
+            f"产品 {len(data.get('products') or [])} · "
+            f"搜索词 {len(((data.get('search') or {}).get('keyword') or []))}")
+
+
 def _run_task(tid: str, req: StartReq) -> None:
     task = TASKS[tid]
     try:
         cid = req.campaignId
-        days = _date_list(req.startDate, req.endDate)
+        requested_days = _date_list(req.startDate, req.endDate)
+        days, skipped_days = _remaining_days(cid, requested_days,
+                                              req.skipExisting)
         opts = {"placement": req.placement, "target": req.target,
-                "product": req.product, "search": req.search}
+                "product": req.product, "search": req.search,
+                "group": req.group, "skipNoClicks": req.skipNoClicks}
 
         task["status"] = "running"
         task["totalDays"] = len(days)
+        task["skippedDays"] = len(skipped_days)
+        task["skippedDates"] = skipped_days
         day_dir = os.path.join(OUT_DIR, tid)
         os.makedirs(day_dir, exist_ok=True)
+        _task_log(task, "info", "开始采集",
+                  f"活动 {cid}，请求区间 {req.startDate} ~ {req.endDate}")
+        if skipped_days:
+            _task_log(task, "warn", f"跳过已采日期 {len(skipped_days)} 天",
+                      "、".join(skipped_days))
+
+        if not days:
+            task["status"] = "done"
+            task["progress"] = 100
+            task["doneDays"] = 0
+            task["current"] = f"全部日期已存在，已跳过 {len(skipped_days)} 天"
+            task["finishedAt"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            _task_log(task, "success", "任务完成", task["current"])
+            return
 
         # 区间级：产品信息 / 建议竞价（只做一次）
+        # 使用请求区间的最后一天，而不是剩余日期中的第一天；
+        # 这样跳采前面的日期时，上下文仍取区间最新状态。
         ctx: Dict[str, Any] = {}
+        context_day = req.endDate
         if req.productInfo or req.suggestedBid:
-            first = days[0]
+            _task_log(task, "info", f"读取区间上下文（{context_day}）",
+                      "产品基础信息和建议竞价只采一次")
             try:
-                prods = list_products(cid, first)
+                prods = list_products(cid, context_day)
                 asins = [p.get("asin") for p in prods if p.get("asin")]
                 if req.productInfo:
-                    task["current"] = "产品基础信息"
+                    task["current"] = f"产品基础信息（{context_day}）"
                     ctx["productInfo"] = product_basic_info(asins)
+                    _task_log(task, "success", "产品基础信息读取完成",
+                              f"{len(ctx['productInfo'] or {})} 条")
                 if req.suggestedBid:
-                    task["current"] = "建议竞价"
-                    targets = list_targets(cid, first)
-                    ctx["suggestedBid"] = suggested_bids(cid, first, targets)
+                    task["current"] = f"建议竞价（{context_day}）"
+                    targets = list_targets(cid, context_day)
+                    ctx["suggestedBid"] = suggested_bids(cid, context_day, targets)
+                    _task_log(task, "success", "建议竞价读取完成",
+                              f"{len(ctx['suggestedBid'] or {})} 条")
             except Exception as e:          # noqa: BLE001
                 task["errors"].append({"layer": "context", "msg": str(e)[:150]})
+                _task_log(task, "error", "区间上下文读取失败", str(e)[:200])
+
+        # 维度同步：dim_campaign 的 daily_budget / status 是当前状态，不是历史事实。
+        # 普通采集每次刷新一次；精简采集可关闭，避免 100+ 活动逐个补全维度太慢。
+        if req.syncDims:
+            try:
+                from backend import ads_store
+                dim_stat = ads_store.enrich_dims(campaign_id=cid, day=context_day)
+                _task_log(task, "success", "活动维度已同步",
+                          f"活动 {dim_stat.get('campaign', 0)} · 组 {dim_stat.get('group', 0)}"
+                          f" · 投放 {dim_stat.get('target', 0)} · 产品 {dim_stat.get('product', 0)}")
+            except Exception as e:          # noqa: BLE001
+                task["errors"].append({"layer": "dim_sync", "msg": str(e)[:150]})
+                _task_log(task, "warn", "活动维度同步失败", str(e)[:200])
 
         day_summaries = []
         for i, day in enumerate(days):
             task["current"] = f"{day} 采集中"
+            _task_log(task, "info", f"开始采集 {day}",
+                      f"进度 {i + 1}/{len(days)}")
             data = collect_one_day(cid, day, opts)
             path = os.path.join(day_dir, f"day_{day}.json")
             with open(path, "w", encoding="utf-8") as f:
@@ -535,49 +691,91 @@ def _run_task(tid: str, req: StartReq) -> None:
             try:
                 from backend import ads_store
                 ads_store.write_day(data, cid)
+                _task_log(task, "success", f"{day} 已写入本地库", _day_summary_text(data))
             except Exception as e:          # noqa: BLE001
                 task["errors"].append({"layer": f"store_write@{day}", "msg": str(e)[:150]})
-            task["errors"].extend(data.get("errors") or [])
+                _task_log(task, "error", f"{day} 写入本地库失败", str(e)[:200])
+            data_errors = data.get("errors") or []
+            if data.get("skippedNoClicks"):
+                task["skippedNoClickDays"] = int(task.get("skippedNoClickDays") or 0) + 1
+                _task_log(task, "warn", f"{day} 当日无点击",
+                          "已跳过组/投放/产品/搜索词明细")
+            task["errors"].extend(data_errors)
+            for err in data_errors[:3]:
+                _task_log(task, "warn", f"{day} 子接口异常",
+                          str(err.get("msg") if isinstance(err, dict) else err)[:200])
             day_summaries.append({
                 "date": day,
                 "campaignSum": (data.get("campaign") or {}).get("sum") or {},
                 "products": len(data.get("products") or []),
                 "groups": len(data.get("groups") or []),
                 "searchKeyword": len(((data.get("search") or {}).get("keyword") or [])),
-                "errors": len(data.get("errors") or []),
+                "errors": len(data_errors),
             })
             task["doneDays"] = i + 1
             task["progress"] = round((i + 1) / len(days) * 100)
             time.sleep(0.2)
 
-        # 竞品抓取（区间一次，取花费最高的词）
+        # 竞品抓取（区间一次）：按整个查询区间的广告花费全局排序，只取前 8。
         if req.competitor:
             task["current"] = "竞品页抓取"
+            _task_log(task, "info", "开始竞品页抓取",
+                      "按查询区间广告花费排序，最多前 8 个搜索词")
             terms: List[str] = []
-            seen = set()
-            for day in days:
-                p = os.path.join(day_dir, f"day_{day}.json")
+            try:
+                from backend import ads_store
+                conn = ads_store.get_conn()
                 try:
-                    d = json.load(open(p, encoding="utf-8"))
-                except Exception:           # noqa: BLE001
-                    continue
-                rows = ((d.get("search") or {}).get("keyword") or [])
-                rows.sort(key=lambda r: -_to_num(r.get("adCost")))
-                for r in rows:
-                    q = str(r.get("query") or "").strip()
-                    if q and q not in seen:
-                        seen.add(q)
-                        terms.append(q)
-                    if len(terms) >= req.competitorTerms:
+                    ads_store.init(conn)
+                    ranked = conn.execute(
+                        "SELECT term, SUM(cost) cost FROM fact_search_term "
+                        "WHERE campaign_id=? AND date BETWEEN ? AND ? "
+                        "AND scope='campaign' AND query_type='keyword' "
+                        "GROUP BY term HAVING SUM(cost)>0 "
+                        "ORDER BY SUM(cost) DESC, term LIMIT ?",
+                        (cid, req.startDate, req.endDate,
+                         min(max(1, req.competitorTerms), 8))).fetchall()
+                    terms = [str(r["term"]) for r in ranked if r["term"]]
+                finally:
+                    conn.close()
+            except Exception as exc:            # noqa: BLE001
+                _task_log(task, "warn", "竞品词排名读取失败", str(exc)[:200])
+            if not terms:
+                # 兜底：从本次剩余 day JSON 里取花费最高的唯一词。
+                seen = set()
+                for day in days:
+                    p = os.path.join(day_dir, f"day_{day}.json")
+                    try:
+                        d = json.load(open(p, encoding="utf-8"))
+                    except Exception:       # noqa: BLE001
+                        continue
+                    rows = ((d.get("search") or {}).get("keyword") or [])
+                    rows.sort(key=lambda r: -_to_num(r.get("adCost")))
+                    for r in rows:
+                        q = str(r.get("query") or "").strip()
+                        if q and q not in seen:
+                            seen.add(q)
+                            terms.append(q)
+                        if len(terms) >= min(max(1, req.competitorTerms), 8):
+                            break
+                    if len(terms) >= min(max(1, req.competitorTerms), 8):
                         break
-                if len(terms) >= req.competitorTerms:
-                    break
-            ctx["competitor"] = competitor_pages(terms, req.competitorTerms)
+            _task_log(task, "info", f"竞品词前 {len(terms)}",
+                      "、".join(terms) if terms else "无")
+            ctx["competitor"] = competitor_pages(
+                terms, len(terms),
+                on_log=lambda level, msg, detail="": _task_log(
+                    task, level, msg, detail))
+            _task_log(task, "success", "竞品页抓取结束",
+                      f"尝试 {len(terms)} 个，成功 {sum(1 for v in ctx['competitor'].values() if v)} 个，"
+                      f"结果 {sum(len(v or []) for v in ctx['competitor'].values())} 条")
 
         meta = {
             "taskId": tid, "campaignId": cid, "campaignName": req.campaignName,
             "startDate": req.startDate, "endDate": req.endDate,
-            "days": days, "fetchedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "days": days, "skippedDays": skipped_days,
+            "contextDay": context_day,
+            "fetchedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "options": req.model_dump(),
         }
         with open(os.path.join(day_dir, "meta.json"), "w", encoding="utf-8") as f:
@@ -606,10 +804,13 @@ def _run_task(tid: str, req: StartReq) -> None:
         task["progress"] = 100
         task["current"] = "完成"
         task["finishedAt"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _task_log(task, "success", "任务完成",
+                  f"采集 {task.get('doneDays') or 0} 天，跳过 {task.get('skippedDays') or 0} 天")
     except Exception as e:                  # noqa: BLE001
         task["status"] = "error"
         task["errors"].append({"layer": "task", "msg": str(e)[:200]})
         task["current"] = "失败"
+        _task_log(task, "error", "任务失败", str(e)[:300])
 
 
 @router.post("/start")
@@ -621,16 +822,25 @@ def start(req: StartReq) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(e))
     if len(days) > 31:
         raise HTTPException(status_code=400, detail="一次最多 31 天")
+    days, skipped_days = _remaining_days(req.campaignId, days,
+                                          req.skipExisting)
     tid = uuid.uuid4().hex[:12]
     TASKS[tid] = {
         "taskId": tid, "status": "pending", "progress": 0,
-        "doneDays": 0, "totalDays": len(days), "current": "排队中",
+        "doneDays": 0, "totalDays": len(days),
+        "skippedDays": len(skipped_days), "skippedDates": skipped_days,
+        "current": "排队中", "logs": [],
         "errors": [], "createdAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "campaignId": req.campaignId, "campaignName": req.campaignName,
         "startDate": req.startDate, "endDate": req.endDate,
     }
+    _task_log(TASKS[tid], "info", "任务已创建",
+              f"活动 {req.campaignName or req.campaignId}，"
+              f"{req.startDate} ~ {req.endDate}，待采 {len(days)} 天，"
+              f"跳过 {len(skipped_days)} 天")
     threading.Thread(target=_run_task, args=(tid, req), daemon=True).start()
-    return {"taskId": tid, "totalDays": len(days)}
+    return {"taskId": tid, "totalDays": len(days),
+            "skippedDays": len(skipped_days), "skippedDates": skipped_days}
 
 
 @router.get("/task/{tid}")
@@ -856,6 +1066,22 @@ def store_hourly(campaignId: str = Query(...)) -> Dict[str, Any]:
     return {"items": ads_store.hourly_avg(campaignId)}
 
 
+@router.get("/store/search-terms")
+def store_search_terms(campaignId: str = Query(...), start: str = Query(...),
+                       end: str = Query(...)) -> Dict[str, Any]:
+    from backend import ads_store
+    return {"items": ads_store.search_term_overview(campaignId, start, end)}
+
+
+@router.get("/store/search-terms/all")
+def store_search_terms_all(start: str = Query(...), end: str = Query(...),
+                           limit: int = 2000,
+                           kind: str = "keyword") -> Dict[str, Any]:
+    from backend import ads_store
+    qtype = "asin" if kind == "asin" else "keyword"
+    return {"items": ads_store.search_term_overview_all(start, end, limit, qtype)}
+
+
 @router.get("/store/competitor/terms")
 def store_comp_terms(campaignId: str = Query(...), start: str = "",
                      end: str = "") -> Dict[str, Any]:
@@ -897,3 +1123,61 @@ def store_parents(campaignId: str = Query(...)) -> Dict[str, Any]:
     """该活动的父体信息（图片/标题/子体数/价格/商品标识）"""
     from backend import ads_store
     return {"items": ads_store.parents_of(campaignId)}
+
+
+class SearchOpsTaskRequest(BaseModel):
+    items: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/search-ops/tasks")
+def create_search_ops_task(req: SearchOpsTaskRequest) -> Dict[str, Any]:
+    from backend import search_ops
+    return search_ops.create_task(req.items)
+
+
+@router.get("/search-ops/tasks")
+def list_search_ops_tasks(limit: int = 50) -> Dict[str, Any]:
+    from backend import search_ops
+    return {"items": search_ops.list_tasks(limit)}
+
+
+@router.get("/search-ops/tasks/{task_id}")
+def get_search_ops_task(task_id: str) -> Dict[str, Any]:
+    from backend import search_ops
+    task = search_ops.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="指令任务不存在")
+    return {"task": task}
+
+
+@router.post("/search-ops/tasks/{task_id}/confirm")
+def confirm_search_ops_task(task_id: str) -> Dict[str, Any]:
+    from backend import search_ops
+    task = search_ops.confirm_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="指令任务不存在")
+    return {"task": task}
+
+
+@router.delete("/search-ops/tasks/{task_id}")
+def delete_search_ops_task(task_id: str) -> Dict[str, Any]:
+    from backend import search_ops
+    result = search_ops.delete_task(task_id)
+    if result.get("reason") == "not_found":
+        raise HTTPException(status_code=404, detail="指令任务不存在")
+    if not result.get("ok"):
+        raise HTTPException(status_code=409, detail=result.get("message") or "任务不能删除")
+    return result
+
+
+@router.post("/search-ops/tasks/{task_id}/items/{item_id}/retry")
+def retry_search_ops_item(task_id: str, item_id: str) -> Dict[str, Any]:
+    from backend import search_ops
+    result = search_ops.retry_item(task_id, item_id)
+    if result.get("reason") == "not_found":
+        raise HTTPException(status_code=404, detail="指令任务不存在")
+    if result.get("reason") == "item_not_found":
+        raise HTTPException(status_code=404, detail="指令不存在")
+    if not result.get("ok"):
+        raise HTTPException(status_code=409, detail=result.get("message") or "重试失败")
+    return result

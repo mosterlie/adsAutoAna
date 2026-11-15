@@ -61,6 +61,155 @@ body{background:var(--bg)}
   border-bottom:2px solid transparent;margin-bottom:-1px;user-select:none}
 .ptab:hover{color:var(--blue)}
 .ptab.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue)}
+.simple-camps{max-height:340px;overflow:auto;border:1px solid var(--bd);border-radius:5px;background:#fbfcfe;margin-top:8px}
+.simple-camp{display:flex;align-items:center;gap:8px;padding:5px 9px;border-bottom:1px solid #f0f2f5;font-size:12.5px}
+.simple-camp:last-child{border-bottom:0}
+.simple-camp:hover{background:#f5f8ff}
+.simple-camp .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.simple-camp .mono{font-size:11px;color:var(--muted)}
+.simple-actions{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px}
+.simple-actions .muted{font-size:12px}
+.simple-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.simple-filters select,.simple-filters input{height:30px;border:1px solid var(--bd);border-radius:5px;padding:0 8px;font:inherit;font-size:12.5px;background:#fff}
+.simple-filters input{min-width:260px}
+.s-copy{border:1px solid var(--bd);background:#fff;color:var(--blue);border-radius:4px;padding:2px 7px;font:inherit;font-size:11px;cursor:pointer;white-space:nowrap}
+.s-copy:hover{background:#f0f6ff;border-color:#9db7e8}
+.simple-camp .mono.cid{flex:0 0 auto;cursor:pointer}
+#panelTermData{height:calc(100vh - 128px);min-height:430px;box-sizing:border-box;
+  flex-direction:column;overflow:hidden;padding:10px 12px}
+#panelTermData .row{flex:0 0 auto}
+.term-subtabs{display:flex;gap:2px;margin-top:8px;border-bottom:1px solid var(--bd);flex:0 0 auto}
+.term-sub{border:0;background:transparent;padding:6px 16px;font:inherit;font-size:13px;
+  color:var(--txt-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.term-sub:hover{color:var(--blue)}
+.term-sub.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue)}
+#termDataWrap{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:6px}
+#termDataWrap > .sub{flex:0 0 auto}
+#termDataWrap > .wrapx{flex:1;min-height:0;max-height:none;width:100%;overflow:auto;
+  overscroll-behavior:contain;border:1px solid var(--bd);border-radius:4px;background:#fff}
+#termDataWrap table.dt{width:max-content;min-width:100%}
+#termDataWrap thead th{position:sticky;top:0;z-index:2;background:#f8fafc}
+.term-table .ell{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.term-table .ell-term{max-width:190px}
+.term-table .ell-zh{max-width:110px}
+.term-table .ell-camp{max-width:150px}
+.term-table .ell-group{max-width:130px}
+.term-table .ell-asin{max-width:170px}
+.term-table .ell-sku{max-width:160px}
+.term-table .ell-parent{max-width:90px}
+.copy-jump{display:flex;align-items:center;gap:4px;min-width:0}
+.copy-jump .ell{flex:0 1 auto}
+.copy-text{cursor:pointer}
+.copy-text:hover{color:var(--blue);text-decoration:underline}
+.jump-btn{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border:1px solid var(--bd);border-radius:3px;background:#fff;
+  color:var(--blue);font-size:12px;line-height:1;text-decoration:none}
+.jump-btn:hover{background:#f0f6ff;border-color:#9db7e8}
+.term-table td.click-hot{color:#d94a3a;font-weight:700;background:#fff4f0}
+.metric-q{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;
+  margin-left:2px;border-radius:50%;background:#eef2f7;color:#667085;font-size:10px;
+  font-weight:700;line-height:1;cursor:help;vertical-align:middle}
+.metric-q:hover{background:#dbeafe;color:var(--blue)}
+.metric-tip-box{position:fixed;display:none;z-index:9999;max-width:320px;background:#1f2937;
+  color:#fff;padding:6px 9px;border-radius:4px;font-size:11.5px;line-height:1.5;
+  box-shadow:0 4px 14px rgba(15,23,42,.22);pointer-events:none;white-space:normal}
+.op-modal{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;
+  padding:20px;background:rgba(15,23,42,.42);backdrop-filter:blur(2.5px)}
+.op-modal.on{display:flex;animation:opMaskIn .18s ease-out}
+.op-dialog{width:min(430px,calc(100vw - 36px));background:#fff;border-radius:10px;
+  padding:20px 20px 16px;box-shadow:0 24px 70px rgba(15,23,42,.30);
+  position:relative;top:-7vh;
+  animation:opDialogIn .24s cubic-bezier(.2,.85,.3,1.2)}
+.op-dialog-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.op-dialog-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;
+  justify-content:center;background:#fff1f0;color:#d94a3a;font-weight:800;font-size:16px}
+.op-dialog-head h3{font-size:16px;margin:0;color:#1f2937}
+.op-dialog-msg{font-size:13px;line-height:1.65;color:#475467;padding:2px 0 18px 38px}
+.op-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+.op-confirm-ok{background:#d94a3a;border-color:#d94a3a;color:#fff}
+.op-confirm-ok.manual{background:#12a36b;border-color:#12a36b}
+@keyframes opMaskIn{from{opacity:0}to{opacity:1}}
+@keyframes opDialogIn{from{opacity:0;transform:translateY(10px) scale(.96)}
+  to{opacity:1;transform:translateY(0) scale(1)}}
+table.dt.term-table thead th{text-align:center}
+.ops-cell{min-width:118px;padding:4px 5px;white-space:nowrap;position:sticky;right:-2px;z-index:2;
+  background:#fff;border-left:0;border-right:0;
+  box-shadow:-5px 0 7px -5px rgba(15,23,42,.28)}
+.term-table thead th:last-child{position:sticky;right:-2px;z-index:4;background:#f8fafc;
+  border-left:0;border-right:0;box-shadow:-5px 0 7px -5px rgba(15,23,42,.28)}
+/* 独立左边线：横向滚动时跟随固定列，不会被表格边框合并掉。 */
+.ops-cell::before,.term-table thead th:last-child::before{content:"";position:absolute;
+  left:0;top:0;bottom:0;width:1px;background:#cbd5e1;pointer-events:none;z-index:3}
+.op-btns{display:flex;gap:4px;align-items:center;justify-content:center}
+.op-btn{border:1px solid var(--bd);background:#fff;color:#667085;border-radius:3px;
+  min-width:42px;padding:1px 4px;font:inherit;font-size:10.5px;line-height:15px;
+  text-align:center;cursor:pointer;white-space:nowrap}
+.op-btn.neg{color:#c0392b;border-color:#f1a7a0;background:#fff5f4}
+.op-btn.neg:hover{background:#ffe3df;border-color:#e28b82;color:#a93226}
+.op-btn.neg.on{background:#d94a3a;border-color:#d94a3a;color:#fff;font-weight:600}
+.op-btn.manual{color:#087f5b;border-color:#8fd3b9;background:#effcf5}
+.op-btn.manual:hover{background:#d9f7e8;border-color:#5ec49e;color:#066b4c}
+.op-btn.manual.on{background:#12a36b;border-color:#12a36b;color:#fff;font-weight:600}
+.op-status{border:0;border-radius:3px;min-width:70px;padding:2px 6px;font:inherit;
+  font-size:10.5px;line-height:15px;font-weight:600;color:#fff;cursor:pointer;text-align:center}
+.op-status.neg{background:#d94a3a}
+.op-status.manual{background:#12a36b}
+.op-status:hover{filter:brightness(.92)}
+.op-status-tag{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10.5px;
+  line-height:17px;color:#667085;background:#f2f4f7;white-space:nowrap}
+.op-status-tag.done{color:#3b5bdb;background:#eef2ff;font-weight:600}
+.op-status-tag.completed{color:#087f5b;background:#d3f9d8;font-weight:700}
+.op-status-cell{min-width:82px;text-align:center;white-space:nowrap}
+.plan-dialog{width:min(1520px,98vw)!important;height:min(92vh,980px);max-height:94vh;
+  display:flex;flex-direction:column;top:-1.5vh}
+.plan-body{flex:1;min-height:0;overflow:auto;border:1px solid var(--bd);border-radius:5px;
+  margin:0 0 14px 38px;background:#f8fafc;padding:10px}
+.plan-groups{display:flex;flex-direction:column;gap:14px}
+.plan-term-group{border:2px solid #aebfe3;border-radius:9px;background:#fff;overflow:hidden;
+  box-shadow:0 3px 12px rgba(59,91,219,.10)}
+.plan-term-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;
+  background:#e8efff;border-bottom:2px solid #cdd9f0}
+.plan-term-index{width:22px;height:22px;border-radius:50%;background:#3b5bdb;color:#fff;
+  font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.plan-term-name{font-size:14px;font-weight:700;color:#1f2937}
+.plan-term-tag{display:inline-block;padding:1px 7px;border-radius:10px;background:#e0e7ff;
+  color:#3b5bdb;font-size:10.5px;font-weight:600}
+.plan-term-meta{font-size:11px;color:var(--muted);max-width:440px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.plan-term-count{margin-left:auto;font-size:11px;color:#475467;white-space:nowrap}
+.plan-term-group .plan-cards{padding:8px;gap:8px}
+.plan-cards{display:flex;flex-direction:column;gap:9px}
+.plan-card{background:#fff;border:1px solid var(--bd);border-radius:7px;overflow:hidden}
+.plan-card.tone-neg{border-left:3px solid #e28b82}
+.plan-card.tone-create{border-left:3px solid #8b5cf6}
+.plan-card.tone-group{border-left:3px solid #5ec49e}
+.plan-card-head{display:flex;align-items:center;gap:8px;padding:8px 11px;
+  background:#fbfcfe;border-bottom:1px solid #f0f2f5;flex-wrap:wrap}
+.plan-card.tone-neg .plan-card-head{background:#fff8f7}
+.plan-card.tone-create .plan-card-head{background:#faf5ff}
+.plan-card.tone-group .plan-card-head{background:#f7fdfa}
+.plan-card-head .no{width:20px;height:20px;border-radius:50%;background:#eef2ff;color:#3b5bdb;
+  font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.plan-card-head .sp{flex:1}
+.plan-act{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10.5px;font-weight:600}
+.plan-act.neg{background:#fff1f0;color:#c0392b}
+.plan-act.create{background:#f3e8ff;color:#7c3aed}
+.plan-act.group{background:#e8f8ef;color:#087f5b}
+.plan-segments{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;
+  padding:9px 11px 11px}
+.plan-seg{display:flex;gap:6px;min-width:0;border-bottom:1px dashed #eef1f5;padding-bottom:4px}
+.plan-seg .k{flex:0 0 86px;color:var(--muted);font-size:10.5px}
+.plan-seg .v{font-size:11.5px;line-height:1.55;color:#344054;word-break:break-word}
+.plan-warn{padding:7px 9px;margin:0 0 8px;background:#fff7e6;border-left:3px solid #e8c97a;
+  color:#8a5a00;font-size:11.5px;border-radius:3px}
+@media(max-width:900px){.plan-segments{grid-template-columns:1fr}}
+.plan-empty{padding:24px;text-align:center;color:var(--muted)}
+.term-table td.order-hot{color:#087f5b;font-weight:800;background:#d3f9d8}
+.term-table th.tsort{cursor:pointer;user-select:none}
+.term-table th.tsort:hover{color:var(--blue)}
+.term-table th.tsort.on{color:var(--blue)}
+.tsort-arrow{margin-left:3px;font-size:10px;color:#98a2b3}
+.term-table th.tsort.on .tsort-arrow{color:var(--blue)}
 #dbRun{width:100%;height:30px;border:1px solid var(--bd-d);border-radius:4px;
   font-size:12.5px;padding:0 6px;background:#fff}
 .dbdate{height:28px;border:1px solid var(--bd-d);border-radius:4px;font-size:12.5px;
@@ -69,6 +218,34 @@ body{background:var(--bg)}
 .bar{height:8px;background:#eef1f5;border-radius:5px;overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--blue);transition:width .3s}
 .prog .txt{font-size:12.5px;color:var(--txt-2);margin-top:6px}
+.collect-log{display:none;margin-top:12px;border-top:1px solid var(--bd);padding-top:10px}
+.collect-log-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.collect-log-head b{font-size:13px}
+.collect-log-head span{font-size:11.5px;color:var(--muted)}
+.collect-log-body{max-height:360px;overflow:auto;border:1px solid var(--bd);
+  border-radius:5px;background:#fbfcfe;padding:5px 10px;
+  font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.log-line{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0f2f5}
+.log-line:last-child{border-bottom:0}
+.log-time{color:#98a2b3;flex:0 0 62px}
+.log-lvl{flex:0 0 46px;font-weight:600}
+.log-lvl.info{color:#2b5fd0}.log-lvl.success{color:#087a48}
+.log-lvl.warn{color:#a0610b}.log-lvl.error{color:#b63624}
+.log-msg{color:#344054;min-width:0;flex:1;word-break:break-word}
+.log-detail{color:#7b8494;margin-left:4px}
+.log-empty{color:var(--muted);padding:8px 0}
+.diag{padding:7px 9px;margin:5px 0;border-left:3px solid #cbd5e1;background:#fbfcfe;border-radius:3px}
+.diag.high{border-left-color:#d94a3a;background:#fff7f6}
+.diag.medium{border-left-color:#d99a2b;background:#fffaf0}
+.diag.low{border-left-color:#6d8fd0;background:#f7f9ff}
+.sheet-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:4px 0 9px;border-bottom:1px solid var(--bd)}
+.sheet-tab{border:1px solid var(--bd);background:#fff;color:var(--txt-2);border-radius:13px;
+  padding:3px 10px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.sheet-tab:hover{border-color:#9db7e8;color:var(--blue)}
+.sheet-tab.on{background:#eaf0ff;border-color:#cfdcff;color:var(--blue);font-weight:600}
+.sheet-row{cursor:pointer}
+.sheet-row:hover td{background:#f5f8ff}
+.sheet-row.on td{background:#eaf0ff;font-weight:600}
 
 .days{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .day{padding:5px 12px;border:1px solid var(--bd-d);border-radius:14px;font-size:12.5px;cursor:pointer}
@@ -169,7 +346,10 @@ table.dt td a:hover{text-decoration:underline}
   <!-- 页签：查询 / 采集 -->
   <div class="pagetabs">
     <div class="ptab on" id="tabQuery" onclick="switchTab('query')">查询数据</div>
+    <div class="ptab" id="tabTermData" onclick="switchTab('termData')">搜索数据</div>
+    <div class="ptab" id="tabSearchOps" onclick="location.href='/search-ops'">指令任务</div>
     <div class="ptab" id="tabCollect" onclick="switchTab('collect')">采集数据</div>
+    <div class="ptab" id="tabSimple" onclick="switchTab('simple')">精简采集</div>
     <span class="sp"></span>
     <button class="mbtn" onclick="openSchema()">表结构 &amp; SQL 说明</button>
   </div>
@@ -208,11 +388,112 @@ table.dt td a:hover{text-decoration:underline}
       <label><input type="checkbox" id="oInfo" checked> 产品基础信息</label>
       <label><input type="checkbox" id="oBid" checked> 建议竞价</label>
       <label><input type="checkbox" id="oComp" checked> 竞品页抓取(慢)</label>
+      <label title="本地已有活动日汇总的日期不再请求赛狐；取消勾选可强制重采"><input type="checkbox" id="oSkipExisting" checked> 跳过已采日期</label>
+      <label title="当日活动点击为 0 时，只记活动汇总，不采组/投放/产品/搜索词明细"><input type="checkbox" id="oSkipNoClick"> 无点击跳过明细</label>
     </div>
     <div class="cands" id="cands" style="display:none"></div>
     <div class="prog" id="prog">
       <div class="bar"><i id="barI"></i></div>
       <div class="txt" id="progTxt"></div>
+    </div>
+    <div class="collect-log" id="logPanel">
+      <div class="collect-log-head">
+        <b>采集日志</b><span id="logCount">0 条</span>
+      </div>
+      <div class="collect-log-body" id="logBody">
+        <div class="log-empty">任务启动后显示详细进度...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 精简采集 ========== -->
+  <div class="panel" id="panelSimple" style="display:none">
+    <div class="row">
+      <div class="fld"><label>采集开始</label><input type="date" id="sStart"></div>
+      <div class="fld"><label>采集结束</label><input type="date" id="sEnd"></div>
+      <button class="btn" id="sStartBtn">开始精简采集</button>
+      <span class="muted" id="sMsg" style="font-size:12.5px"></span>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="sCampaignHour" checked disabled> 广告活动分时</label>
+      <label><input type="checkbox" id="sSearch" checked> 搜索词</label>
+      <label title="本地已有活动日汇总的日期不再请求赛狐"><input type="checkbox" id="sSkipExisting" checked> 跳过已采日期</label>
+      <label title="当日活动点击为 0 时，只记活动汇总，不采明细"><input type="checkbox" id="sSkipNoClick" checked> 无点击跳过明细</label>
+    </div>
+    <div class="simple-filters">
+      <label for="sPortfolio" style="font-size:12px">广告组合</label>
+      <select id="sPortfolio"><option value="">全部广告组合</option></select>
+      <input id="sCampSearch" placeholder="搜索活动名称 / campaignId">
+      <span class="muted" id="sFilterCount" style="font-size:12px"></span>
+    </div>
+    <div class="simple-actions">
+      <b>广告活动（切换组合时默认全选该组合）</b>
+      <button class="btn ghost" id="sSelectAll" type="button">全选当前</button>
+      <button class="btn ghost" id="sSelectNone" type="button">清空当前</button>
+      <span class="muted" id="sCount">加载中…</span>
+    </div>
+    <div class="simple-camps" id="simpleCamps">
+      <div class="log-empty" style="padding:12px">正在加载活动…</div>
+    </div>
+    <div class="prog" id="sProg">
+      <div class="bar"><i id="sBarI"></i></div>
+      <div class="txt" id="sProgTxt"></div>
+    </div>
+    <div class="collect-log" id="sLogPanel">
+      <div class="collect-log-head"><b>精简采集日志</b><span id="sLogCount">0 条</span></div>
+      <div class="collect-log-body" id="sLogBody">
+        <div class="log-empty">任务启动后显示详细进度...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 跨活动搜索词数据 ========== -->
+  <div class="panel" id="panelTermData" style="display:none">
+    <div class="row">
+      <div class="fld"><label>开始日期</label><input type="date" id="tStart"></div>
+      <div class="fld"><label>结束日期</label><input type="date" id="tEnd"></div>
+      <button class="btn" id="tLoad">查询搜索词</button>
+      <button class="btn ghost" id="tGenOps">生成指令</button>
+      <div class="fld grow"><label>筛选</label>
+        <input type="text" id="tSearch" placeholder="搜索词 / 活动 / 广告组 / SKU">
+      </div>
+      <span class="muted" id="tInfo" style="font-size:12.5px"></span>
+    </div>
+    <div class="term-subtabs">
+      <button type="button" class="term-sub on" data-kind="keyword">搜索词</button>
+      <button type="button" class="term-sub" data-kind="asin">ASIN</button>
+    </div>
+    <div id="termDataWrap">
+      <div class="empty">选择日期后查询，数据跨所有广告活动，按广告花费从高到低排序。</div>
+    </div>
+  </div>
+
+  <div class="op-modal" id="opConfirmModal">
+    <div class="op-dialog" role="dialog" aria-modal="true" aria-labelledby="opConfirmTitle">
+      <div class="op-dialog-head">
+        <span class="op-dialog-icon" id="opConfirmIcon">!</span>
+        <h3 id="opConfirmTitle">确认操作</h3>
+      </div>
+      <div class="op-dialog-msg" id="opConfirmMsg"></div>
+      <div class="op-dialog-actions">
+        <button type="button" class="btn ghost" id="opConfirmCancel">取消</button>
+        <button type="button" class="btn op-confirm-ok" id="opConfirmOk">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="op-modal" id="opPlanModal">
+    <div class="op-dialog plan-dialog" role="dialog" aria-modal="true">
+      <div class="op-dialog-head">
+        <span class="op-dialog-icon" style="background:#eef2ff;color:#3b5bdb">≡</span>
+        <h3>指令预览</h3>
+      </div>
+      <div class="op-dialog-msg" id="opPlanMeta" style="padding-left:38px"></div>
+      <div class="plan-body" id="opPlanBody"></div>
+      <div class="op-dialog-actions">
+        <button type="button" class="btn ghost" id="opPlanClose">关闭</button>
+        <button type="button" class="btn" id="opPlanConfirm">打开指令任务</button>
+      </div>
     </div>
   </div>
 
@@ -230,10 +511,447 @@ const fmtN = (v, d = 0) => (v === null || v === undefined || v === "") ? "-"
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const money = v => (v === null || v === undefined || v === "") ? "-" : "¥" + fmtN(v, 2);
+const num = (v, d = 2) => (v === null || v === undefined || v === "") ? "-" : Number(v).toFixed(d);
 
 let CUR_CAMPAIGN = null, TASK = null, META = null, CONTEXT = null, DAYS = [], DATA = null;
 let curDay = "", curLevel = "campaign";
 let MODE = "db", DB_RUN = "", TREND = null, HOURAVG = null;
+let ANALYSIS = null, ANALYSIS_KEY = "", ANALYSIS_ERROR = "";
+let SEARCH_DATA = null, SEARCH_DATA_KEY = "", SEARCH_DATA_ERROR = "";
+let placementSheet = "summary", targetSheet = "summary";
+const openProducts = new Set();
+let ZH_TRANS = {}, TRANS_PENDING = new Set(), TRANS_REQUESTED = new Set();
+let TRANS_TIMER = null, TRANS_ERROR = "";
+let SIMPLE_CAMPS = [], SIMPLE_LOGS = [], SIMPLE_RUNNING = false;
+let SIMPLE_SELECTED = new Set();
+let TERM_DATA = null, TERM_DATA_KEY = "", TERM_DATA_ERROR = "";
+let TERM_SORT = { field: "clicks", dir: -1 };
+let TERM_KIND = "keyword";
+const OP_STORAGE_KEY = "daily_probe_term_ops";
+const OP_STATUS_KEY = "daily_probe_term_op_status_v2";
+const OP_PLAN_KEY = "daily_probe_op_plan";
+let OP_MARKS = {};
+let OP_STATUS = {};
+try { OP_MARKS = JSON.parse(localStorage.getItem(OP_STORAGE_KEY) || "{}") || {}; } catch (e) { OP_MARKS = {}; }
+try { OP_STATUS = JSON.parse(localStorage.getItem(OP_STATUS_KEY) || "{}") || {}; } catch (e) { OP_STATUS = {}; }
+try { localStorage.removeItem("daily_probe_term_op_status"); } catch (e) { /* ignore old key */ }
+let OPS_CAMPAIGNS = null;
+let OPS_CAMPAIGN_ERROR = "";
+let OP_PLAN = null;
+try { OP_PLAN = JSON.parse(localStorage.getItem(OP_PLAN_KEY) || "null"); } catch (e) { OP_PLAN = null; }
+function opKey(r, kind, action) {
+  return `${kind}|${r.campaign_id || ""}|${r.group_id || ""}|${r.term || ""}|${action}`;
+}
+function opMarked(r, kind, action) { return !!OP_MARKS[opKey(r, kind, action)]; }
+function opStatusKey(r, kind) { return opKey(r, kind, "status"); }
+function opStatus(r, kind) { return OP_STATUS[opStatusKey(r, kind)] || "未处置"; }
+function opStatusTag(r, kind) {
+  const st = opStatus(r, kind);
+  const cls = st === "已完成" ? "completed" : (st === "已转指令" ? "done" : "");
+  return `<span class="op-status-tag ${cls}">${esc(st)}</span>`;
+}
+// 指令任务执行完成后，另一个页签同步刷新处置状态。
+window.addEventListener("storage", (e) => {
+  if (e.key === OP_STATUS_KEY && TERM_DATA) renderTermData();
+});
+function opButtons(r, kind) {
+  const asin = kind === "asin";
+  const neg = opMarked(r, kind, "neg"), manual = opMarked(r, kind, "manual");
+  const negKey = opKey(r, kind, "neg"), manualKey = opKey(r, kind, "manual");
+  const orders = Number(r.orders) || 0;
+  if (neg) {
+    return `<div class="op-btns"><button type="button" class="op-status neg"
+      data-op-toggle="neg" data-op-key="${esc(negKey)}" data-op-other-key="${esc(manualKey)}"
+      title="点击撤销否定标记">已否定</button></div>`;
+  }
+  if (manual) {
+    return `<div class="op-btns"><button type="button" class="op-status manual"
+      data-op-toggle="manual" data-op-key="${esc(manualKey)}" data-op-other-key="${esc(negKey)}"
+      title="点击撤销转手工标记">已转手工</button></div>`;
+  }
+  return `<div class="op-btns">
+    <button type="button" class="op-btn neg" data-op-toggle="neg"
+      data-op-key="${esc(negKey)}" data-op-other-key="${esc(manualKey)}"
+      data-op-orders="${orders}" data-op-label="${esc(r.term || "")}"
+      data-op-kind="${kind}"
+      title="本地标记否定${asin ? " ASIN" : "搜索词"}，不会直接修改赛狐">否定</button>
+    <button type="button" class="op-btn manual" data-op-toggle="manual"
+      data-op-key="${esc(manualKey)}" data-op-other-key="${esc(negKey)}"
+      data-op-orders="${orders}" data-op-label="${esc(r.term || "")}"
+      data-op-kind="${kind}"
+      title="本地标记转手工，不会直接修改赛狐">转手工</button>
+  </div>`;
+}
+
+let _opConfirmResolve = null;
+function openOpConfirm({ title, message, okText = "确认", tone = "danger" }) {
+  const modal = $("opConfirmModal");
+  if (_opConfirmResolve) _opConfirmResolve(false);
+  return new Promise(resolve => {
+    _opConfirmResolve = resolve;
+    $("opConfirmTitle").textContent = title;
+    $("opConfirmMsg").textContent = message;
+    $("opConfirmIcon").textContent = tone === "manual" ? "✓" : "!";
+    $("opConfirmIcon").style.background = tone === "manual" ? "#e6fcf5" : "#fff1f0";
+    $("opConfirmIcon").style.color = tone === "manual" ? "#087f5b" : "#d94a3a";
+    const ok = $("opConfirmOk");
+    ok.textContent = okText;
+    ok.classList.toggle("manual", tone === "manual");
+    modal.classList.add("on");
+    setTimeout(() => ok.focus(), 40);
+  });
+}
+function closeOpConfirm(result) {
+  const modal = $("opConfirmModal");
+  modal.classList.remove("on");
+  const resolve = _opConfirmResolve;
+  _opConfirmResolve = null;
+  if (resolve) resolve(result);
+}
+$("opConfirmCancel").onclick = () => closeOpConfirm(false);
+$("opConfirmOk").onclick = () => closeOpConfirm(true);
+$("opConfirmModal").onclick = (e) => {
+  if (e.target.id === "opConfirmModal") closeOpConfirm(false);
+};
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("opConfirmModal").classList.contains("on")) {
+    closeOpConfirm(false);
+  }
+  if (e.key === "Escape" && $("opPlanModal").classList.contains("on")) closeOpPlan();
+});
+
+async function loadOpsCampaigns() {
+  if (OPS_CAMPAIGNS) return OPS_CAMPAIGNS;
+  OPS_CAMPAIGN_ERROR = "";
+  try {
+    const r = await fetch("/api/ads/campaign-groups");
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message || `HTTP ${r.status}`);
+    OPS_CAMPAIGNS = d.campaigns || [];
+  } catch (e) {
+    OPS_CAMPAIGN_ERROR = String(e.message || e).slice(0, 120);
+    OPS_CAMPAIGNS = [];
+  }
+  return OPS_CAMPAIGNS;
+}
+function findManualCampaign(parentAsin) {
+  if (!parentAsin) return null;
+  return (OPS_CAMPAIGNS || []).find(c =>
+    String(c.targeting_type || "").toLowerCase() === "manual"
+    && String(c.campaign_name || c.name || "").includes(parentAsin)) || null;
+}
+function closeOpPlan() {
+  $("opPlanModal").classList.remove("on");
+}
+function renderOpPlan(plan) {
+  const actionLabel = {
+    add_negative_keyword: "否定关键词",
+    add_negative_asin: "否定 ASIN",
+    add_manual_target: "添加手工投放",
+    create_manual_campaign: "新建手工活动",
+    create_campaign: "新建手工活动",
+    add_group: "手工活动追加组",
+  };
+  const toneOf = (x) => {
+    const a = String(x.action || "");
+    if (a.startsWith("add_negative")) return "neg";
+    if (a === "create_campaign" || a === "create_manual_campaign") return "create";
+    return "group";
+  };
+  const sectionsOf = (x) => (Array.isArray(x.sections) && x.sections.length)
+    ? x.sections : [["说明", x.detail || "-"]];
+  const cardHtml = (x, i) => {
+    const tone = toneOf(x);
+    const segs = sectionsOf(x).map(([k, v]) =>
+      `<div class="plan-seg"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("");
+    return `<div class="plan-card tone-${tone}">
+      <div class="plan-card-head">
+        <span class="no">${i + 1}</span>
+        <span class="plan-act ${tone}">${esc(x.label || actionLabel[x.action] || x.action)}</span>
+        <span class="muted">${x.executed ? "已执行" : "待执行"}</span>
+        <span class="sp"></span>
+        <span class="muted">${esc(x.date || "")}</span>
+      </div>
+      <div class="plan-segments">${segs}</div>
+    </div>`;
+  };
+  // 按“词/ASIN + 来源广告活动”分区，避免同一个词跨活动时混在一起。
+  const groups = new Map();
+  (plan.items || []).forEach(x => {
+    const key = `${x.kind || "keyword"}|${x.term || ""}|${x.source_campaign_id || x.campaign_id || ""}`;
+    if (!groups.has(key)) groups.set(key, { term: x.term || "未识别", kind: x.kind || "keyword",
+      campaign: x.source_campaign_name || x.campaign_name || x.source_campaign_id || x.campaign_id || "-",
+      items: [] });
+    groups.get(key).items.push(x);
+  });
+  const groupsHtml = [...groups.values()].map((g, gi) => {
+    const cards = g.items.map((x, i) => cardHtml(x, i)).join("");
+    return `<section class="plan-term-group">
+      <div class="plan-term-head">
+        <span class="plan-term-index">${gi + 1}</span>
+        <span class="plan-term-name" title="${esc(g.term)}">${esc(g.term)}</span>
+        <span class="plan-term-tag">${g.kind === "asin" ? "搜索 ASIN" : "搜索词"}</span>
+        <span class="plan-term-meta" title="${esc(g.campaign)}">来源：${esc(g.campaign)}</span>
+        <span class="plan-term-count">${g.items.length} 条指令</span>
+      </div>
+      <div class="plan-cards">${cards}</div>
+    </section>`;
+  }).join("");
+  $("opPlanMeta").textContent =
+    `${plan.created_at || ""} · 共 ${(plan.items || []).length} 条指令 · ${groups.size} 个词/ASIN · 任务 ${plan.task_id || "-"} · 仅预览，未执行赛狐变更` +
+    (plan.warnings && plan.warnings.length ? ` · ${plan.warnings.length} 条提醒` : "");
+  $("opPlanConfirm").textContent = plan.task_id ? "打开指令任务" : "关闭";
+  const warnHtml = (plan.warnings && plan.warnings.length)
+    ? `<div class="plan-warn">提醒：${plan.warnings.map(esc).join("；")}</div>` : "";
+  $("opPlanBody").innerHTML = (plan.items || []).length
+    ? `${warnHtml}<div class="plan-groups">${groupsHtml}</div>`
+    : `${warnHtml}<div class="plan-empty">没有可生成的标记记录</div>`;
+  $("opPlanModal").classList.add("on");
+}
+
+async function generateOpsPlan() {
+  if (!TERM_DATA || !TERM_DATA.length) return;
+  const marked = TERM_DATA.filter(r => opMarked(r, TERM_KIND, "neg") || opMarked(r, TERM_KIND, "manual"));
+  if (!marked.length) {
+    renderOpPlan({ created_at: new Date().toLocaleString("zh-CN"), items: [], warnings: [] });
+    return;
+  }
+  const btn = $("tGenOps");
+  btn.disabled = true; btn.textContent = "检查手工活动…";
+  await loadOpsCampaigns();
+  btn.disabled = false; btn.textContent = "生成指令";
+
+  const plan = {
+    id: `plan_${Date.now()}`,
+    created_at: new Date().toLocaleString("zh-CN"),
+    kind: TERM_KIND,
+    items: [],
+    warnings: [],
+    executed: false,
+  };
+  let seq = 0;
+  const add = (action, r, detail, extra = {}) => {
+    plan.items.push({
+      id: `${plan.id}_${++seq}`,
+      date: new Date().toISOString().slice(0, 10),
+      action,
+      kind: TERM_KIND,
+      campaign_id: r.campaign_id,
+      campaign_name: r.campaign_name,
+      group_id: r.group_id || "",
+      group_name: r.group_name || "",
+      term: r.term || "",
+      parent_asin: (r.parent_asins || [])[0] || "",
+      detail,
+      status: "preview",
+      executed: false,
+      ...extra,
+    });
+  };
+  for (const r of marked) {
+    const isAsin = TERM_KIND === "asin";
+    const objectLabel = isAsin ? "ASIN" : "搜索词";
+    const negativeDetail = `在广告组「${r.group_name || "-"}」添加否定${objectLabel}「${r.term}」`;
+    const negMarked = opMarked(r, TERM_KIND, "neg");
+    const manualMarked = opMarked(r, TERM_KIND, "manual");
+    if (negMarked) {
+      add(isAsin ? "add_negative_asin" : "add_negative_keyword", r, negativeDetail);
+    }
+    if (manualMarked) {
+      add(isAsin ? "add_negative_asin" : "add_negative_keyword", r, negativeDetail);
+      const parent = (r.parent_asins || [])[0] || "";
+      const manual = findManualCampaign(parent);
+      const suggested = Number(r.cpc) > 0 ? Math.round(Number(r.cpc)) : 30;
+      if (!parent) {
+        plan.warnings.push(`${r.term} 未识别父 ASIN，无法检查已有手工活动`);
+        add("add_manual_target", r,
+          `待人工确认父 ASIN 后，将${objectLabel}「${r.term}」加入手工活动，建议竞价 ¥${suggested}`);
+      } else if (manual) {
+        add("add_manual_target", r,
+          `已存在手工活动「${manual.campaign_name || manual.name || manual.campaign_id}」，` +
+          `添加${objectLabel}「${r.term}」，使用建议竞价 ¥${suggested}`, {
+            manual_campaign_id: manual.campaign_id,
+            suggested_bid: suggested,
+          });
+      } else {
+        add("create_manual_campaign", r,
+          `父 ASIN ${parent} 未发现手工活动，新建手工活动；组默认竞价 ¥30`, {
+            parent_asin: parent, group_default_bid: 30,
+          });
+        add("add_manual_target", r,
+          `在新手工活动中添加${objectLabel}「${r.term}」，词竞价 ¥30`, {
+            parent_asin: parent, suggested_bid: 30,
+          });
+      }
+    }
+  }
+  if (OPS_CAMPAIGN_ERROR) plan.warnings.push(`手工活动检查失败：${OPS_CAMPAIGN_ERROR}`);
+  marked.forEach(r => { OP_STATUS[opStatusKey(r, TERM_KIND)] = "已转指令"; });
+  try {
+    localStorage.setItem(OP_STATUS_KEY, JSON.stringify(OP_STATUS));
+    localStorage.setItem(OP_PLAN_KEY, JSON.stringify(plan));
+  } catch (e) { /* ignore */ }
+  OP_PLAN = plan;
+  renderTermData();
+  renderOpPlan(plan);
+}
+
+async function generateOpsTask() {
+  if (!TERM_DATA || !TERM_DATA.length) return;
+  const marked = TERM_DATA.filter(r => opMarked(r, TERM_KIND, "neg") || opMarked(r, TERM_KIND, "manual"));
+  if (!marked.length) {
+    renderOpPlan({ created_at: new Date().toLocaleString("zh-CN"), items: [], warnings: [] });
+    return;
+  }
+  const items = marked.map(r => ({
+    kind: TERM_KIND,
+    action: opMarked(r, TERM_KIND, "manual") ? "manual" : "neg",
+    campaign_id: r.campaign_id,
+    campaign_name: r.campaign_name,
+    group_id: r.group_id || "",
+    group_name: r.group_name || "",
+    term: r.term || "",
+    orders: Number(r.orders) || 0,
+    cpc: Number(r.cpc) || 0,
+    parent_asins: r.parent_asins || [],
+  }));
+  const btn = $("tGenOps");
+  btn.disabled = true; btn.textContent = "生成任务中…";
+  try {
+    const resp = await fetch("/api/daily/search-ops/tasks", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+    OP_PLAN = data.plan;
+    marked.forEach(r => { OP_STATUS[opStatusKey(r, TERM_KIND)] = "已转指令"; });
+    try {
+      localStorage.setItem(OP_STATUS_KEY, JSON.stringify(OP_STATUS));
+      localStorage.setItem(OP_PLAN_KEY, JSON.stringify(OP_PLAN));
+    } catch (e) { /* ignore */ }
+    renderTermData();
+    renderOpPlan(OP_PLAN);
+  } catch (e) {
+    renderOpPlan({ created_at: new Date().toLocaleString("zh-CN"), items: [],
+      warnings: [`生成指令任务失败：${String(e.message || e).slice(0, 160)}`] });
+  } finally {
+    btn.disabled = false; btn.textContent = "生成指令";
+  }
+}
+
+$("tGenOps").onclick = generateOpsTask;
+$("opPlanClose").onclick = closeOpPlan;
+$("opPlanConfirm").onclick = () => {
+  if (OP_PLAN && OP_PLAN.task_id) {
+    location.href = `/search-ops?task=${encodeURIComponent(OP_PLAN.task_id)}`;
+  } else {
+    closeOpPlan();
+  }
+};
+$("opPlanModal").onclick = (e) => { if (e.target.id === "opPlanModal") closeOpPlan(); };
+
+const PLACEMENT_CN = {
+  placementTop: "搜索结果顶部",
+  placementRestOfSearch: "搜索结果其余",
+  placementProductPage: "商品详情页",
+  placementSiteAmazonBusiness: "企业购",
+  offAmazon: "站外",
+};
+const TARGET_LABEL_CN = {
+  queryHighRelMatches: "紧密匹配",
+  queryBroadRelMatches: "宽泛匹配",
+  asinSubstituteRelated: "同类商品",
+  asinAccessoryRelated: "关联商品",
+  complements: "关联商品",
+  substitutes: "同类商品",
+};
+const METRIC_HELP = {
+  CTR: "Click-Through Rate，点击率 = 点击 ÷ 曝光",
+  CPC: "Cost Per Click，单次点击成本 = 花费 ÷ 点击",
+  CPA: "Cost Per Acquisition，单次转化成本 = 花费 ÷ 订单",
+  ACOS: "Advertising Cost of Sales，广告花费 ÷ 广告销售额",
+  ROAS: "Return on Ad Spend，广告销售额 ÷ 花费",
+  CVR: "Conversion Rate，转化率 = 订单 ÷ 点击",
+};
+function metricTip(label) {
+  const text = METRIC_HELP[label] || label;
+  return `<span class="metric-label">${label}</span><span class="metric-q" data-tip="${esc(text)}">?</span>`;
+}
+let _metricTipBox = null;
+function _showMetricTip(el) {
+  if (!_metricTipBox) {
+    _metricTipBox = document.createElement("div");
+    _metricTipBox.className = "metric-tip-box";
+    document.body.appendChild(_metricTipBox);
+  }
+  _metricTipBox.textContent = el.dataset.tip || "";
+  _metricTipBox.style.display = "block";
+  const rect = el.getBoundingClientRect();
+  const box = _metricTipBox.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - box.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - box.width - 8));
+  // 说明浮框优先显示在问号正上方。
+  let top = rect.top - box.height - 7;
+  if (top < 8) top = rect.bottom + 7;
+  _metricTipBox.style.left = `${left}px`;
+  _metricTipBox.style.top = `${Math.max(8, top)}px`;
+}
+function _hideMetricTip() {
+  if (_metricTipBox) _metricTipBox.style.display = "none";
+}
+document.addEventListener("mouseover", (e) => {
+  const el = e.target.closest && e.target.closest(".metric-q");
+  if (el) _showMetricTip(el);
+});
+document.addEventListener("mouseout", (e) => {
+  if (e.target.closest && e.target.closest(".metric-q")) _hideMetricTip();
+});
+window.addEventListener("scroll", _hideMetricTip, true);
+
+const MATCH_LABEL_CN = {
+  close_match: "紧密匹配",
+  loose_match: "宽泛匹配",
+  substitutes: "同类商品",
+  complements: "关联商品",
+  queryHighRelMatches: "紧密匹配",
+  queryBroadRelMatches: "宽泛匹配",
+  asinSubstituteRelated: "同类商品",
+  asinAccessoryRelated: "关联商品",
+  exact: "精确匹配",
+  phrase: "词组匹配",
+  broad: "广泛匹配",
+  search: "搜索匹配",
+  product: "商品匹配",
+};
+function matchCN(v) {
+  const raw = String(v || "").trim();
+  if (!raw || raw === "-") return "-";
+  return raw.split(/[,，|/]+/).map(x => MATCH_LABEL_CN[x.trim()] || x.trim()).join("、");
+}
+
+const PLACEMENT_ORDER = [
+  "placementTop", "placementRestOfSearch", "placementProductPage",
+  "placementSiteAmazonBusiness", "offAmazon",
+];
+function orderedEntries(obj, order) {
+  return Object.entries(obj || {}).sort((a, b) => {
+    const ia = order.indexOf(a[0]);
+    const ib = order.indexOf(b[0]);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
+}
+function placementCN(v) {
+  const s = String(v || "");
+  return PLACEMENT_CN[s] || s || "-";
+}
+function targetCN(v, id) {
+  const s = String(v || "");
+  if (TARGET_LABEL_CN[s]) return TARGET_LABEL_CN[s];
+  // 未知纯数字 targetId 不再直接暴露 id，统一归为自动投放。
+  if (!s || /^\d{6,}$/.test(s)) return "自动投放";
+  return s;
+}
 let ALL_DATES = [], TREND_ALL = [], SEL = "", CAMPS = [];
 let COMP_TERMS = null, COMP_TERM = "", COMP_ITEMS = null;
 
@@ -248,6 +966,7 @@ async function loadComp(term) {
   const it = await (await fetch(
     `/api/daily/store/competitor/items?term=${encodeURIComponent(COMP_TERM)}`)).json();
   COMP_ITEMS = it.items || [];
+  ensureTranslations(COMP_TERMS.map(x => x.term));
   renderBody();
 }
 
@@ -263,6 +982,9 @@ function compTermsTable(terms, our) {
     return `<tr class="${t.term === COMP_TERM ? "on" : ""}" data-term="${esc(t.term)}"
       style="cursor:pointer${t.term === COMP_TERM ? ";background:#f0f6ff" : ""}">
       <td>${esc(t.term)}</td>
+      <td>${esc(termZh(t.term))}</td>
+      <td class="num">${money(t.adCost)}</td>
+      <td class="num">${fmtN(t.clicks)}</td>
       <td class="num">${fmtN(t.count)}</td>
       <td class="num">${money(t.median)}</td>
       <td class="num">${money(t.min)} ~ ${money(t.max)}</td>
@@ -270,7 +992,7 @@ function compTermsTable(terms, our) {
       <td class="num">${our && t.median ? money(t.median - our) : "-"}</td></tr>`;
   }).join("");
   return `<div class="wrapx"><table class="dt"><thead><tr>
-    <th>搜索词（点击切换）</th><th>记录数</th><th>中位价</th><th>价格区间</th>
+    <th>搜索词（点击切换）</th><th>中文翻译</th><th>广告花费</th><th>广告点击量</th><th>记录数</th><th>中位价</th><th>价格区间</th>
     <th>平均评论</th><th>中位价 − 我方价</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -317,11 +1039,18 @@ function compItemsTable(items, our) {
 /* ---------- 模式切换 ---------- */
 function switchTab(t) {
   const isQuery = (t === "query");
-  MODE = isQuery ? "db" : "live";
-  $("tabCollect").classList.toggle("on", !isQuery);
+  const isSimple = (t === "simple");
+  const isTermData = (t === "termData");
+  MODE = isQuery ? "db" : (isTermData ? "term" : "live");
+  $("tabCollect").classList.toggle("on", t === "collect");
+  $("tabSimple").classList.toggle("on", isSimple);
+  $("tabTermData").classList.toggle("on", isTermData);
   $("tabQuery").classList.toggle("on", isQuery);
-  $("panelCollect").style.display = isQuery ? "none" : "block";
+  $("panelCollect").style.display = t === "collect" ? "block" : "none";
+  $("panelSimple").style.display = isSimple ? "block" : "none";
+  $("panelTermData").style.display = isTermData ? "flex" : "none";
   $("panelQuery").style.display = isQuery ? "block" : "none";
+  if (!isQuery) $("result").style.display = "none";
   if (isQuery) {
     if (!$("btnQuery").dataset.bound) {
       $("btnQuery").dataset.bound = "1";
@@ -333,6 +1062,12 @@ function switchTab(t) {
       $("dbEnd").onchange = onRangeChange;
     }
     loadDbRuns();
+  } else if (isSimple) {
+    $("dbInfo").textContent = "";
+    $("result").style.display = "none";
+    loadSimpleCampaigns();
+  } else if (isTermData) {
+    loadTermData();
   } else {
     $("dbInfo").textContent = "";
     $("result").style.display = "none";
@@ -341,6 +1076,230 @@ function switchTab(t) {
 
 // 兼容旧调用
 function switchMode(m) { switchTab(m === "db" ? "query" : "collect"); }
+
+/* ---------- 精简采集：全部活动，只采活动分时 + 搜索词 ---------- */
+function simplePortfolioId(c) {
+  return String(c.portfolio_id || c.portfolio_name || "");
+}
+function simplePortfolioName(c) {
+  return c.portfolio_name || c.portfolio_id || "未分组";
+}
+function simpleFiltered() {
+  const pid = $("sPortfolio").value;
+  const q = ($("sCampSearch").value || "").trim().toLowerCase();
+  return SIMPLE_CAMPS.filter(c => {
+    if (pid && simplePortfolioId(c) !== pid) return false;
+    if (!q) return true;
+    return [c.name, c.campaign_id, c.portfolio_name, c.portfolio_id]
+      .some(v => String(v || "").toLowerCase().includes(q));
+  });
+}
+function renderSimpleCamps() {
+  const box = $("simpleCamps");
+  const rows = simpleFiltered();
+  $("sFilterCount").textContent = `当前显示 ${rows.length} 个`;
+  if (!rows.length) {
+    box.innerHTML = `<div class="log-empty" style="padding:12px">没有匹配的广告活动</div>`;
+    updateSimpleCount();
+    return;
+  }
+  box.innerHTML = rows.map(c => {
+    const id = String(c.campaign_id || "");
+    const name = c.name || id;
+    return `<div class="simple-camp">
+      <input type="checkbox" class="sCamp" data-cid="${esc(id)}" ${SIMPLE_SELECTED.has(id) ? "checked" : ""}>
+      <span class="nm" title="${esc(name)}">${esc(name)}</span>
+      <span class="mono">${esc(id)}</span>
+      <button type="button" class="s-copy" data-copy="${esc(name)}" data-label="活动名称">复制名称</button>
+      <button type="button" class="s-copy" data-copy="${esc(id)}" data-label="campaignId">复制ID</button>
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".sCamp").forEach(el => el.onchange = () => {
+    const id = el.dataset.cid;
+    if (el.checked) SIMPLE_SELECTED.add(id); else SIMPLE_SELECTED.delete(id);
+    updateSimpleCount();
+  });
+  updateSimpleCount();
+}
+
+function renderSimplePortfolios() {
+  const map = new Map();
+  SIMPLE_CAMPS.forEach(c => {
+    const id = simplePortfolioId(c);
+    if (!map.has(id)) map.set(id, simplePortfolioName(c));
+  });
+  const cur = $("sPortfolio").value;
+  $("sPortfolio").innerHTML = [`<option value="">全部广告组合</option>`]
+    .concat([...map].map(([id, name]) =>
+      `<option value="${esc(id)}">${esc(name)}（${esc(id)}）</option>`)).join("");
+  $("sPortfolio").value = cur;
+}
+
+async function loadSimpleCampaigns() {
+  if (SIMPLE_CAMPS.length) return;
+  const box = $("simpleCamps");
+  try {
+    // 精简采集需要“当前赛狐全部活动”，不能只读本地已采集的 dim_campaign。
+    const r = await fetch("/api/ads/campaign-groups");
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.message || `HTTP ${r.status}`);
+    SIMPLE_CAMPS = (d.campaigns || []).map(c => ({
+      campaign_id: c.campaign_id,
+      name: c.campaign_name || c.name || c.campaign_id,
+      portfolio_id: c.portfolio_id || "",
+      portfolio_name: c.portfolio_name || "",
+      status: c.state || c.status || "",
+    }));
+    if (!SIMPLE_CAMPS.length) {
+      box.innerHTML = `<div class="log-empty" style="padding:12px">赛狐没有返回广告活动</div>`;
+      $("sCount").textContent = "0 个";
+      return;
+    }
+    SIMPLE_SELECTED = new Set(SIMPLE_CAMPS.map(c => String(c.campaign_id || "")).filter(Boolean));
+    renderSimplePortfolios();
+    renderSimpleCamps();
+  } catch (e) {
+    // 实时接口不可用时才退回本地已采集活动。
+    try {
+      const d = await (await fetch("/api/daily/store/campaigns")).json();
+      SIMPLE_CAMPS = d.items || [];
+      SIMPLE_SELECTED = new Set(SIMPLE_CAMPS.map(c => String(c.campaign_id || "")).filter(Boolean));
+      renderSimplePortfolios();
+      renderSimpleCamps();
+      $("sMsg").textContent = "赛狐实时接口不可用，当前显示本地已采集活动";
+    } catch (e2) {
+      box.innerHTML = `<div class="log-empty" style="padding:12px">活动加载失败：${esc(e.message)}</div>`;
+    }
+  }
+}
+
+function simpleSelected() {
+  return SIMPLE_CAMPS.filter(c => SIMPLE_SELECTED.has(String(c.campaign_id || "")));
+}
+
+function updateSimpleCount() {
+  const total = SIMPLE_CAMPS.length;
+  const n = simpleSelected().length;
+  const m = simpleFiltered().length;
+  $("sCount").textContent = `已选 ${n} / 全部 ${total} 个活动 · 当前显示 ${m} 个`;
+  $("sStartBtn").disabled = SIMPLE_RUNNING || n === 0;
+}
+
+function simpleLog(level, message, detail = "") {
+  SIMPLE_LOGS.push({ time: new Date().toTimeString().slice(0, 8), level, message, detail });
+  if (SIMPLE_LOGS.length > 300) SIMPLE_LOGS = SIMPLE_LOGS.slice(-300);
+  renderSimpleLogs();
+}
+
+function renderSimpleLogs() {
+  const body = $("sLogBody");
+  if (!SIMPLE_LOGS.length) {
+    $("sLogCount").textContent = "0 条";
+    body.innerHTML = '<div class="log-empty">等待任务日志...</div>';
+    return;
+  }
+  $("sLogCount").textContent = `${SIMPLE_LOGS.length} 条`;
+  const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+  body.innerHTML = SIMPLE_LOGS.map(x => `<div class="log-line">
+    <span class="log-time">${esc(x.time)}</span>
+    <span class="log-lvl ${esc(x.level)}">${esc(LOG_LEVEL_CN[x.level] || x.level)}</span>
+    <span class="log-msg">${esc(x.message)}${x.detail ? `<span class="log-detail">${esc(x.detail)}</span>` : ""}</span>
+  </div>`).join("");
+  if (nearBottom) body.scrollTop = body.scrollHeight;
+}
+
+async function pollSimpleTask(taskId, campaign, idx, total) {
+  let lastLogCount = 0;
+  for (;;) {
+    await new Promise(r => setTimeout(r, 1200));
+    let t;
+    try {
+      t = await (await fetch(`/api/daily/task/${taskId}`)).json();
+    } catch (e) {
+      simpleLog("error", `${campaign.name} 状态读取失败`, String(e.message || e));
+      return;
+    }
+    const prog = ((idx + (t.progress || 0) / 100) / total) * 100;
+    $("sBarI").style.width = Math.max(0, Math.min(100, prog)) + "%";
+    $("sProgTxt").textContent =
+      `[${t.status}] ${campaign.name} · 天 ${t.doneDays || 0}/${t.totalDays || 0}` +
+      (t.skippedDays ? ` · 跳过已采 ${t.skippedDays}` : "") +
+      (t.skippedNoClickDays ? ` · 无点击 ${t.skippedNoClickDays}` : "") +
+      (t.current ? ` · ${t.current}` : "");
+    if (t.logs && t.logs.length > lastLogCount) {
+      t.logs.slice(lastLogCount).forEach(x => {
+        SIMPLE_LOGS.push({
+          time: x.time, level: x.level,
+          message: `${campaign.name} · ${x.message}`, detail: x.detail || "",
+        });
+      });
+      lastLogCount = t.logs.length;
+      renderSimpleLogs();
+    }
+    if (t.status === "done" || t.status === "error") {
+      simpleLog(t.status === "done" ? "success" : "error",
+        `${campaign.name} ${t.status === "done" ? "完成" : "失败"}`,
+        `天 ${t.doneDays || 0}/${t.totalDays || 0}` +
+        (t.skippedDays ? ` · 跳过已采 ${t.skippedDays}` : "") +
+        (t.skippedNoClickDays ? ` · 无点击 ${t.skippedNoClickDays}` : "") +
+        (t.errors && t.errors.length ? ` · 错误 ${t.errors.length}` : ""));
+      return;
+    }
+  }
+}
+
+async function startSimpleCollect() {
+  if (SIMPLE_RUNNING) return;
+  const selected = simpleSelected();
+  const start = $("sStart").value, end = $("sEnd").value;
+  if (!selected.length) return simpleLog("warn", "没有选中广告活动");
+  if (!start || !end) return simpleLog("warn", "请选择采集日期");
+  if (end < start) return simpleLog("warn", "结束日期不能早于开始日期");
+  SIMPLE_RUNNING = true;
+  SIMPLE_LOGS = [];
+  $("sProg").style.display = "block";
+  $("sLogPanel").style.display = "block";
+  $("sBarI").style.width = "0%";
+  $("sStartBtn").disabled = true;
+  $("sMsg").textContent = `开始逐个采集 ${selected.length} 个活动…`;
+  simpleLog("info", "精简采集开始",
+    `${selected.length} 个活动，${start} ~ ${end}，只采活动分时 + 搜索词，不抓竞品页`);
+  for (let i = 0; i < selected.length; i++) {
+    const c = selected[i];
+    $("sMsg").textContent = `正在采集 ${i + 1}/${selected.length}：${c.name || c.campaign_id}`;
+    try {
+      const r = await fetch("/api/daily/start", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignId: String(c.campaign_id || ""), campaignName: c.name || "",
+          startDate: start, endDate: end,
+          placement: false, target: false, product: false,
+          group: false, search: $("sSearch").checked, syncDims: false,
+          productInfo: false, suggestedBid: false,
+          competitor: false, competitorTerms: 8,
+          skipExisting: $("sSkipExisting").checked,
+          skipNoClicks: $("sSkipNoClick").checked,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        simpleLog("error", `${c.name} 启动失败`, d.detail || `HTTP ${r.status}`);
+        continue;
+      }
+      simpleLog("info", `${c.name} 已启动`, `task ${d.taskId}，待采 ${d.totalDays} 天` +
+        (d.skippedDays ? `，跳过 ${d.skippedDays} 天` : ""));
+      await pollSimpleTask(d.taskId, c, i, selected.length);
+    } catch (e) {
+      simpleLog("error", `${c.name} 异常`, String(e.message || e));
+    }
+  }
+  SIMPLE_RUNNING = false;
+  $("sBarI").style.width = "100%";
+  $("sProgTxt").textContent = `全部完成：${selected.length} 个活动`;
+  $("sMsg").textContent = `精简采集完成：${selected.length} 个活动`;
+  $("sStartBtn").disabled = false;
+  simpleLog("success", "精简采集结束", `${selected.length} 个活动已逐个处理`);
+}
 
 async function loadDbRuns() {
   $("dbInfo").textContent = "读取已落库活动…";
@@ -483,6 +1442,11 @@ async function loadByRange() {
   const start = $("dbStart").value, end = $("dbEnd").value;
   if (!start || !end) return;
   if (end < start) { $("dbInfo").textContent = "结束日期不能早于开始日期"; return; }
+  const nextKey = `${DB_RUN}|${start}|${end}`;
+  if (ANALYSIS_KEY !== nextKey) { ANALYSIS = null; ANALYSIS_ERROR = ""; ANALYSIS_KEY = nextKey; }
+  if (SEARCH_DATA_KEY !== nextKey) {
+    SEARCH_DATA = null; SEARCH_DATA_ERROR = ""; SEARCH_DATA_KEY = nextKey;
+  }
   DAYS = ALL_DATES.filter(d => d >= start && d <= end);
   const expected = enumerateDays(start, end);
   const missing = expected.filter(d => !ALL_DATES.includes(d));
@@ -498,11 +1462,15 @@ async function loadByRange() {
   }
   // 趋势始终只保留所选区间
   TREND = TREND_ALL.filter(d => d.date >= start && d.date <= end);
-  // 默认「按天」：选中区间内最后一天
-  if (!DAYS.includes(SEL)) SEL = DAYS[DAYS.length - 1];
+  // 默认选中「汇总」，不默认跳到区间最后一天。
+  SEL = "__range__";
   $("days").style.display = "flex";
   renderDays();
   await loadSel();
+  // 查询数据后同步跑一次活动级广告分析；结果缓存，点击「广告分析」即可查看。
+  loadAnalysis().then(() => {
+    if (curLevel === "analysis") renderBody();
+  }).catch(() => {});
 }
 
 /* 日期球：汇总 + 每一天 */
@@ -541,6 +1509,90 @@ async function loadSel() {
     curDay = SEL;
     await loadDay();
   }
+  ensureTranslations();
+}
+
+/* 搜索词自动中文翻译：优先使用 WorkBuddy，结果落 translations 缓存。 */
+function currentSearchTerms() {
+  const s = (DATA && DATA.search) || {};
+  const terms = new Set();
+  (s.keyword || []).forEach(r => { if (r.query) terms.add(String(r.query)); });
+  Object.values(s.byGroup || {}).forEach(v => {
+    (v.keyword || []).forEach(r => { if (r.query) terms.add(String(r.query)); });
+  });
+  return [...terms].filter(q => {
+    const s = q.trim();
+    return s && !(s.length === 10 && s === s.toUpperCase() && /^[A-Z0-9]+$/.test(s));
+  });
+}
+
+function termZh(term) {
+  const q = String(term || "");
+  if (ZH_TRANS[q]) return ZH_TRANS[q];
+  if (TRANS_PENDING.has(q)) return "翻译中…";
+  return TRANS_ERROR ? "未配置" : "-";
+}
+
+async function ensureTranslations(extraTerms = []) {
+  const terms = [...new Set([
+    ...currentSearchTerms(),
+    ...(extraTerms || []).map(x => String(x || "").trim()).filter(Boolean),
+  ])];
+  if (!terms.length) return;
+  const missing = terms.filter(q => !ZH_TRANS[q] && !TRANS_REQUESTED.has(q));
+  if (!missing.length) {
+    if (TRANS_PENDING.size) pollTranslations();
+    return;
+  }
+  missing.forEach(q => TRANS_REQUESTED.add(q));
+  try {
+    const r = await fetch("/api/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "search_term", sources: missing }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    if (d.available === false) {
+      TRANS_ERROR = "WorkBuddy 未配置";
+      if (curLevel === "search" || curLevel === "competitor") renderBody();
+      refreshTermDataIfVisible();
+      return;
+    }
+    TRANS_ERROR = "";
+    Object.assign(ZH_TRANS, d.translations || {});
+    (d.pending || []).forEach(q => TRANS_PENDING.add(q));
+    if (curLevel === "search" || curLevel === "competitor") renderBody();
+    refreshTermDataIfVisible();
+    if (TRANS_PENDING.size) pollTranslations();
+  } catch (e) {
+    TRANS_ERROR = String(e.message || e).slice(0, 80);
+    if (curLevel === "search" || curLevel === "competitor") renderBody();
+    refreshTermDataIfVisible();
+  }
+}
+
+function pollTranslations() {
+  if (TRANS_TIMER) return;
+  TRANS_TIMER = setInterval(async () => {
+    const pending = [...TRANS_PENDING];
+    if (!pending.length) {
+      clearInterval(TRANS_TIMER); TRANS_TIMER = null; return;
+    }
+    try {
+      const r = await fetch("/api/translate/status?kind=search_term&sources="
+        + encodeURIComponent(pending.join(",")));
+      const d = await r.json();
+      let got = false;
+      Object.entries(d.translations || {}).forEach(([q, zh]) => {
+        if (zh) { ZH_TRANS[q] = zh; TRANS_PENDING.delete(q); got = true; }
+      });
+      if (got && (curLevel === "search" || curLevel === "competitor")) renderBody();
+      if (got) refreshTermDataIfVisible();
+      if (!pending.length || (d.job && d.job.running === false && !got)) {
+        clearInterval(TRANS_TIMER); TRANS_TIMER = null;
+      }
+    } catch (e) { /* 下轮继续 */ }
+  }, 2000);
 }
 
 function enumerateDays(a, b) {
@@ -558,13 +1610,44 @@ function todayStr(o = 0) { const d = new Date(); d.setDate(d.getDate() + o); ret
 
 (async function init() {
   $("start").value = todayStr(-1); $("end").value = todayStr(-1);
+  $("sStart").value = todayStr(-1); $("sEnd").value = todayStr(-1);
+  $("tStart").value = "2026-11-02"; $("tEnd").value = todayStr(0);
+  $("tLoad").onclick = () => loadTermData(true);
+  $("tSearch").oninput = () => renderTermData();
+  document.querySelectorAll(".term-sub").forEach(btn => btn.onclick = () => {
+    TERM_KIND = btn.dataset.kind;
+    TERM_SORT = { field: "clicks", dir: -1 };
+    TERM_DATA = null; TERM_DATA_ERROR = ""; TERM_DATA_KEY = "";
+    renderTermData();
+    loadTermData(true);
+  });
+  $("sStartBtn").disabled = true;
+  $("sStartBtn").onclick = startSimpleCollect;
+  $("sSelectAll").onclick = () => {
+    simpleFiltered().forEach(c => SIMPLE_SELECTED.add(String(c.campaign_id || "")));
+    renderSimpleCamps();
+  };
+  $("sSelectNone").onclick = () => {
+    simpleFiltered().forEach(c => SIMPLE_SELECTED.delete(String(c.campaign_id || "")));
+    renderSimpleCamps();
+  };
+  $("sCampSearch").oninput = renderSimpleCamps;
+  $("sPortfolio").onchange = () => {
+    const pid = $("sPortfolio").value;
+    const list = pid
+      ? SIMPLE_CAMPS.filter(c => simplePortfolioId(c) === pid)
+      : SIMPLE_CAMPS;
+    SIMPLE_SELECTED = new Set(list.map(c => String(c.campaign_id || "")).filter(Boolean));
+    renderSimpleCamps();
+  };
   try {
     const s = await (await fetch("/api/probe/status")).json();
     $("statusTag").textContent = s.has_cookie ? `登录态 OK（${s.cookie_count}）` : "未找到 Cookie";
     $("statusTag").className = s.has_cookie ? "muted" : "tag err";
   } catch (e) { $("statusTag").textContent = "后端未连接"; }
-  // 默认进入「查询数据」页签
-  switchTab("query");
+  // 默认进入「查询数据」页签；支持从指令任务页切回搜索数据/采集/精简采集
+  const tab = new URLSearchParams(location.search).get("tab");
+  switchTab(["termData", "collect", "simple"].includes(tab) ? tab : "query");
 })();
 
 /* 查活动 */
@@ -575,21 +1658,32 @@ $("btnSearch").onclick = async () => {
   const d = await (await fetch(`/api/probe/campaigns?q=${encodeURIComponent(q)}&start=${s}&end=${e}`)).json();
   if (d.detail) return $("msg").textContent = "失败：" + d.detail;
   const items = d.items || [];
-  const box = $("cands"); box.style.display = items.length ? "block" : "none";
+  const box = $("cands");
+  // 新查询先清空旧选择，避免 0 个结果时仍带着上一次活动。
+  CUR_CAMPAIGN = null;
+  $("btnStart").disabled = true;
+  box.style.display = items.length ? "block" : "none";
   box.innerHTML = items.map((c, i) => `<div class="cand" data-i="${i}">
       <span class="nm">${esc(c.name)}</span>
       <span class="tag">${esc(c.targetingType || "-")}</span>
       <span class="mt">花费 ${money(c.adCost)}</span>
       <span class="mt">单 ${fmtN(c.adOrderNum)}</span>
       <span class="mono mt">${esc(c.campaignId)}</span></div>`).join("");
-  box.querySelectorAll(".cand").forEach(el => el.onclick = () => {
+  const selectCandidate = (el) => {
     box.querySelectorAll(".cand").forEach(x => x.classList.remove("on"));
     el.classList.add("on");
     CUR_CAMPAIGN = items[+el.dataset.i];
     $("btnStart").disabled = false;
     $("msg").textContent = "已选：" + CUR_CAMPAIGN.name;
-  });
-  $("msg").textContent = `共 ${d.total} 个，显示 ${items.length}`;
+  };
+  box.querySelectorAll(".cand").forEach(el => el.onclick = () => selectCandidate(el));
+  if (items.length === 1) {
+    // 只有一个结果时默认选中，用户可直接开始采集。
+    selectCandidate(box.querySelector(".cand"));
+    $("msg").textContent = `仅 1 个结果，已自动选中：${CUR_CAMPAIGN.name}`;
+  } else {
+    $("msg").textContent = `共 ${d.total} 个，显示 ${items.length}`;
+  }
 };
 
 /* 启动 */
@@ -602,9 +1696,14 @@ $("btnStart").onclick = async () => {
     product: $("oProduct").checked, search: $("oSearch").checked,
     productInfo: $("oInfo").checked, suggestedBid: $("oBid").checked,
     competitor: $("oComp").checked, competitorTerms: 8,
+    skipExisting: $("oSkipExisting").checked,
+    skipNoClicks: $("oSkipNoClick").checked,
   };
   $("btnStart").disabled = true;
   $("prog").style.display = "block";
+  $("logPanel").style.display = "block";
+  $("logBody").innerHTML = '<div class="log-empty">任务启动中...</div>';
+  $("logCount").textContent = "0 条";
   $("msg").textContent = "";
   const r = await fetch("/api/daily/start", {method: "POST",
     headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
@@ -614,16 +1713,46 @@ $("btnStart").onclick = async () => {
   poll();
 };
 
+const LOG_LEVEL_CN = { info: "信息", success: "完成", warn: "警告", error: "错误" };
+function renderLogs(logs) {
+  const body = $("logBody");
+  if (!logs || !logs.length) {
+    $("logCount").textContent = "0 条";
+    if (!body.textContent.trim()) body.innerHTML = '<div class="log-empty">等待任务日志...</div>';
+    return;
+  }
+  const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+  $("logCount").textContent = `${logs.length} 条`;
+  body.innerHTML = logs.map((x) => {
+    const lvl = x.level || "info";
+    return `<div class="log-line">
+      <span class="log-time">${esc(x.time || "")}</span>
+      <span class="log-lvl ${esc(lvl)}">${esc(LOG_LEVEL_CN[lvl] || lvl)}</span>
+      <span class="log-msg">${esc(x.message || "")}${x.detail ? `<span class="log-detail">${esc(x.detail)}</span>` : ""}</span>
+    </div>`;
+  }).join("");
+  if (nearBottom) body.scrollTop = body.scrollHeight;
+}
+
 async function poll() {
   const t = await (await fetch(`/api/daily/task/${TASK}`)).json();
+  renderLogs(t.logs || []);
   $("barI").style.width = (t.progress || 0) + "%";
   $("progTxt").textContent = `[${t.status}] ${t.current || ""}  天 ${t.doneDays || 0}/${t.totalDays || 0}`
+    + (t.skippedDays ? `  跳过 ${t.skippedDays} 天` : "")
     + (t.errors && t.errors.length ? `  错误 ${t.errors.length}` : "");
   if (t.status === "done") {
+    if (t.totalDays === 0 && t.skippedDays) {
+      $("progTxt").textContent = `[done] ${t.skippedDays} 天已存在，已跳过，无需重复落库`;
+      await loadResult();
+      $("btnStart").disabled = false;
+      return;
+    }
     $("progTxt").textContent += "  正在落库…";
     try {
       const p = await (await fetch(`/api/daily/db/persist/${TASK}`, {method: "POST"})).json();
-      $("progTxt").textContent = `[done] 完成并已落库：${p.days} 天 / ${p.seriesRows} 条序列`;
+      $("progTxt").textContent = `[done] 完成并已落库：${p.days} 天 / ${p.seriesRows} 条序列`
+        + (t.skippedDays ? `（跳过 ${t.skippedDays} 天）` : "");
     } catch (e) {
       $("progTxt").textContent = "[done] 完成，但落库失败：" + e.message;
     }
@@ -646,15 +1775,348 @@ async function loadResult() {
 }
 
 function renderLevels() {
-  const lv = [["campaign", "广告活动"], ["groups", "广告组"], ["products", "广告产品"],
-              ["search", "搜索词"], ["competitor", "竞品(落库)"], ["context", "基础信息/建议价"]];
+  const lv = [["campaign", "广告活动"], ["analysis", "广告分析"],
+              ["groups", "广告组"], ["products", "广告产品"],
+              ["search", "搜索词"], ["competitor", "竞品(落库)"],
+              ["context", "基础信息/建议价"]];
   $("levels").innerHTML = lv.map(([k, t]) =>
     `<div class="lv ${k === curLevel ? "on" : ""}" data-k="${k}">${t}</div>`).join("");
   $("levels").querySelectorAll(".lv").forEach(el => el.onclick = async () => {
     curLevel = el.dataset.k; renderLevels();
     if (curLevel === "competitor" && MODE === "db") await loadComp();
-    else renderBody();
+    else if (curLevel === "analysis") {
+      try { await loadAnalysis(); } catch (e) { ANALYSIS_ERROR = e.message; }
+      renderBody();
+    } else renderBody();
   });
+}
+
+async function loadSearchData() {
+  const start = $("dbStart").value, end = $("dbEnd").value;
+  const key = `${DB_RUN}|${start}|${end}`;
+  if (SEARCH_DATA && SEARCH_DATA_KEY === key) return SEARCH_DATA;
+  SEARCH_DATA_ERROR = "";
+  const r = await fetch(`/api/daily/store/search-terms?campaignId=${DB_RUN}&start=${start}&end=${end}`);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.detail || `搜索词数据加载失败 HTTP ${r.status}`);
+  SEARCH_DATA = d.items || [];
+  SEARCH_DATA_KEY = key;
+  return SEARCH_DATA;
+}
+
+const AMZ_BASE = "https://www.amazon.co.jp";
+function amazonSearchUrl(term) {
+  return `${AMZ_BASE}/s?k=${encodeURIComponent(String(term || ""))}`;
+}
+function amazonProductUrl(asin) {
+  return `${AMZ_BASE}/dp/${encodeURIComponent(String(asin || ""))}`;
+}
+function copyTextCell(text, label, cls = "") {
+  return `<span class="copy-text ell ${cls}" title="点击复制${esc(label)}" data-copy="${esc(text)}" data-label="${esc(label)}">${esc(text)}</span>`;
+}
+function jumpButton(url, title) {
+  return `<a class="jump-btn" href="${esc(url)}" target="_blank" rel="noreferrer" title="${esc(title)}">↗</a>`;
+}
+function childAsinCell(r) {
+  const list = r.product_asins || [];
+  if (!list.length) return `<span class="muted">-</span>`;
+  const first = list[0];
+  const extra = list.length > 1
+    ? `<span class="muted" title="${esc(list.join("、"))}"> +${list.length - 1}</span>` : "";
+  return `<div class="copy-jump">${copyTextCell(first, "子 ASIN")}${jumpButton(amazonProductUrl(first), "打开子 ASIN 商品页")}${extra}</div>`;
+}
+
+function termDataRows(rows, kind = "keyword") {
+  const join = v => (v && v.length ? v.join("、") : "-");
+  return rows.map(r => {
+    const term = String(r.term || "");
+    const campaign = String(r.campaign_name || r.campaign_id || "-");
+    const group = String(r.group_name || "-");
+    const asins = join(r.product_asins);
+    const childSkus = join(r.child_skus);
+    const parentSkus = join(r.parent_skus);
+    const metrics = `
+      <td class="num">${fmtN(r.impressions)}</td>
+      <td class="num ${(Number(r.clicks) || 0) >= 10 ? "click-hot" : ""}">${fmtN(r.clicks)}</td>
+      <td class="num">${r.ctr == null ? "-" : num(r.ctr) + "%"}</td>
+      <td class="num">${money(r.cost)}</td>
+      <td class="num">${money(r.cpc)}</td>
+      <td class="num ${(Number(r.orders) || 0) > 0 ? "order-hot" : ""}">${fmtN(r.orders)}</td>
+      <td class="num">${fmtN(r.add_to_cart)}</td>
+      <td class="num">${money(r.cpa)}</td>
+      <td class="num">${fmtN(r.days)}</td>`;
+    const dims = `
+      <td>${copyTextCell(parentSkus, "父 SKU", "ell-parent")}</td>
+      <td>${copyTextCell(campaign, "广告活动", "ell-camp")}</td>
+      <td>${copyTextCell(group, "广告组", "ell-group")}</td>
+      <td><span class="ell ell-asin" title="${esc(asins)}">${esc(asins)}</span></td>
+      <td><span class="ell ell-sku" title="${esc(childSkus)}">${esc(childSkus)}</span></td>`;
+    if (kind === "asin") {
+      return `<tr>
+        <td><div class="copy-jump">${copyTextCell(term, "ASIN")}${jumpButton(amazonProductUrl(term), "打开亚马逊商品页")}</div></td>
+        <td>${esc(matchCN(r.match_type || "-"))}</td>
+        <td>${childAsinCell(r)}</td>
+        ${metrics}
+        <td class="op-status-cell">${opStatusTag(r, kind)}</td>
+        ${dims}
+        <td class="ops-cell">${opButtons(r, kind)}</td>
+      </tr>`;
+    }
+    return `<tr>
+      <td><div class="copy-jump">${copyTextCell(term, "搜索词")}${jumpButton(amazonSearchUrl(term), "打开亚马逊搜索结果页")}</div></td>
+      <td><span class="ell ell-zh" title="${esc(termZh(term))}">${esc(termZh(term))}</span></td>
+      <td>${childAsinCell(r)}</td>
+      ${metrics}
+      <td class="op-status-cell">${opStatusTag(r, kind)}</td>
+      ${dims}
+      <td>${esc(matchCN(r.match_type || "-"))}</td>
+      <td class="ops-cell">${opButtons(r, kind)}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderTermData() {
+  const box = $("termDataWrap");
+  if (TERM_DATA_ERROR) {
+    box.innerHTML = `<div class="empty">搜索词数据加载失败：${esc(TERM_DATA_ERROR)}</div>`;
+    return;
+  }
+  if (!TERM_DATA) {
+    box.innerHTML = `<div class="empty">正在加载跨活动搜索词数据…</div>`;
+    return;
+  }
+  const q = ($("tSearch").value || "").trim().toLowerCase();
+  const rows = TERM_DATA.filter(r => !q || [
+    r.term, r.campaign_name, r.group_name, r.match_type,
+    ...(r.product_asins || []), ...(r.child_skus || []),
+    ...(r.parent_skus || []),
+  ].some(v => String(v || "").toLowerCase().includes(q)));
+  const camps = new Set(rows.map(r => r.campaign_id));
+  const isAsin = TERM_KIND === "asin";
+  const fieldLabel = { term: isAsin ? "ASIN" : "搜索词", impressions: "曝光", clicks: "点击", ctr: "CTR", cost: "花费", cpc: "CPC", orders: "订单" };
+  rows.sort((a, b) => {
+    if (TERM_SORT.field === "term") {
+      return String(a.term || "").localeCompare(String(b.term || ""), "ja") * TERM_SORT.dir
+        || (Number(b.cost || 0) - Number(a.cost || 0));
+    }
+    const av = a[TERM_SORT.field], bv = b[TERM_SORT.field];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    const diff = (Number(av) - Number(bv)) * TERM_SORT.dir;
+    return diff || String(a.term || "").localeCompare(String(b.term || ""), "ja");
+  });
+  const dirText = TERM_SORT.field === "term"
+    ? (TERM_SORT.dir > 0 ? "升序" : "降序")
+    : (TERM_SORT.dir < 0 ? "从高到低" : "从低到高");
+  $("tInfo").textContent = `共 ${rows.length} 条 · ${camps.size} 个活动 · 按${fieldLabel[TERM_SORT.field] || "花费"}${dirText}`;
+  document.querySelectorAll(".term-sub").forEach(x => x.classList.toggle("on", x.dataset.kind === TERM_KIND));
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty">没有匹配的${isAsin ? " ASIN" : "搜索词"}</div>`;
+    return;
+  }
+  const sortTh = (key, label) => `<th class="tsort ${TERM_SORT.field === key ? "on" : ""}" data-tkey="${key}">${label}<span class="tsort-arrow">${
+    TERM_SORT.field === key ? (TERM_SORT.dir < 0 ? "↓" : "↑") : "↕"}</span></th>`;
+  const head = isAsin
+    ? `${sortTh("term", "ASIN")}<th>匹配</th><th>子品 ASIN</th>`
+    : `${sortTh("term", "搜索词")}<th>中文翻译</th><th>子品 ASIN</th>`;
+  const tail = isAsin ? "" : `<th>匹配</th>`;
+  const note = isAsin
+    ? "跨所有广告活动；搜索 ASIN 归因为活动/广告组级，产品/SKU 展示该活动投放产品集合；点击 ASIN/曝光/点击/CTR/花费/CPC/订单可排序。"
+    : "跨所有广告活动；搜索词归因为活动/广告组级，产品/SKU 展示该活动投放产品集合；点击搜索词/曝光/点击/CTR/花费/CPC/订单可排序。";
+  box.innerHTML = `<div class="sub">${note} 点击搜索词或子 ASIN 可复制，右侧 ↗ 打开亚马逊；操作列为本地标记，不会直接修改赛狐。</div>
+  <div class="wrapx"><table class="dt term-table"><thead><tr>
+    ${head}
+    ${sortTh("impressions", "曝光")}${sortTh("clicks", "点击")}${sortTh("ctr", metricTip("CTR"))}
+    ${sortTh("cost", "花费")}${sortTh("cpc", metricTip("CPC"))}${sortTh("orders", "订单")}
+    <th>加购</th><th>${metricTip("CPA")}</th><th>覆盖天数</th>
+    <th>处置状态</th>
+    <th>父 SKU</th><th>广告活动</th><th>广告组</th><th>广告产品 ASIN</th><th>子 SKU</th>
+    ${tail}<th>操作</th>
+  </tr></thead><tbody>${termDataRows(rows, TERM_KIND)}</tbody></table></div>`;
+  box.querySelectorAll("th[data-tkey]").forEach(th => th.onclick = () => {
+    const key = th.dataset.tkey;
+    if (TERM_SORT.field === key) TERM_SORT.dir *= -1;
+    else TERM_SORT = { field: key, dir: key === "term" ? 1 : -1 };
+    renderTermData();
+  });
+  box.querySelectorAll("[data-op-toggle]").forEach(btn => btn.onclick = async () => {
+    const key = btn.dataset.opKey;
+    const action = btn.dataset.opToggle;
+    const orders = Number(btn.dataset.opOrders) || 0;
+    const isAsin = btn.dataset.opKind === "asin";
+    const label = isAsin ? "ASIN" : "搜索词";
+    // 只在“新打标”时确认；取消标记直接生效。
+    if (!OP_MARKS[key]) {
+      if (action === "neg" && orders > 0) {
+        const ok = await openOpConfirm({
+          title: "确认否定",
+          message: `该${label}有转化订单 ${fmtN(orders)} 笔，是否确认否定？`,
+          okText: "确认否定",
+          tone: "danger",
+        });
+        if (!ok) return;
+      }
+      if (action === "manual" && orders <= 0) {
+        const ok = await openOpConfirm({
+          title: "确认转手工",
+          message: `该${label}无转化订单，是否确认转手工？`,
+          okText: "确认转手工",
+          tone: "manual",
+        });
+        if (!ok) return;
+      }
+    }
+    const statusKey = key.replace(/\|(neg|manual)$/, "|status");
+    if (OP_MARKS[key]) {
+      delete OP_MARKS[key];
+      delete OP_STATUS[statusKey];
+    } else {
+      OP_MARKS[key] = true;
+      delete OP_STATUS[statusKey];
+      // 否定和转手工互斥。
+      if (btn.dataset.opOtherKey) delete OP_MARKS[btn.dataset.opOtherKey];
+    }
+    try {
+      localStorage.setItem(OP_STORAGE_KEY, JSON.stringify(OP_MARKS));
+      localStorage.setItem(OP_STATUS_KEY, JSON.stringify(OP_STATUS));
+    } catch (e) { /* ignore */ }
+    const wrap = box.querySelector(".wrapx");
+    const top = wrap ? wrap.scrollTop : 0;
+    renderTermData();
+    const next = $("termDataWrap").querySelector(".wrapx");
+    if (next) next.scrollTop = top;
+  });
+}
+
+async function loadTermData(refresh = false) {
+  const start = $("tStart").value, end = $("tEnd").value;
+  if (!start || !end) { TERM_DATA_ERROR = "请选择开始和结束日期"; renderTermData(); return; }
+  if (end < start) { TERM_DATA_ERROR = "结束日期不能早于开始日期"; renderTermData(); return; }
+  const key = `${TERM_KIND}|${start}|${end}`;
+  if (!refresh && TERM_DATA && TERM_DATA_KEY === key) return;
+  TERM_DATA_ERROR = "";
+  TERM_DATA_KEY = key;
+  $("tInfo").textContent = "加载中…";
+  try {
+    const r = await fetch(`/api/daily/store/search-terms/all?start=${start}&end=${end}&kind=${TERM_KIND}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    TERM_DATA = d.items || [];
+    renderTermData();
+    if (TERM_KIND === "keyword") ensureTranslations(TERM_DATA.map(r => r.term));
+  } catch (e) {
+    TERM_DATA = null;
+    TERM_DATA_ERROR = String(e.message || e);
+    renderTermData();
+  }
+}
+
+function refreshTermDataIfVisible() {
+  if (MODE === "term") renderTermData();
+}
+
+function searchTermDataTable() {
+  if (SEARCH_DATA_ERROR) return `<div class="card"><div class="empty">搜索词数据加载失败：${esc(SEARCH_DATA_ERROR)}</div></div>`;
+  if (!SEARCH_DATA) return `<div class="card"><div class="empty">正在加载搜索词数据…</div></div>`;
+  if (!SEARCH_DATA.length) return `<div class="card"><div class="empty">当前区间没有采集到搜索词</div></div>`;
+  const join = v => (v && v.length ? v.join("、") : "-");
+  const rows = SEARCH_DATA.map(r => `<tr>
+    <td>${esc(r.term)}</td>
+    <td>${esc(termZh(r.term))}</td>
+    <td>${esc(matchCN(r.match_type || "-"))}</td>
+    <td>${esc(r.campaign_name || r.campaign_id || "-")}</td>
+    <td>${esc(r.group_name || "-")}</td>
+    <td title="${esc(join(r.product_asins))}">${esc(join(r.product_asins))}</td>
+    <td title="${esc(join(r.child_skus))}">${esc(join(r.child_skus))}</td>
+    <td title="${esc(join(r.parent_skus))}">${esc(join(r.parent_skus))}</td>
+    <td>${fmtN(r.days)}</td>
+    <td class="num">${fmtN(r.impressions)}</td>
+    <td class="num">${fmtN(r.clicks)}</td>
+    <td class="num">${r.ctr == null ? "-" : num(r.ctr) + "%"}</td>
+    <td class="num">${money(r.cost)}</td>
+    <td class="num">${money(r.cpc)}</td>
+    <td class="num">${fmtN(r.orders)}</td>
+    <td class="num">${fmtN(r.add_to_cart)}</td>
+    <td class="num">${money(r.cpa)}</td>
+  </tr>`).join("");
+  return `<div class="sub">搜索词归因为活动/广告组级；广告产品 ASIN / 子 SKU / 父 SKU 展示该活动当前投放的产品集合，指标为搜索词自身在区间内的汇总。</div>
+  <div class="wrapx"><table class="dt"><thead><tr>
+    <th>搜索词</th><th>中文翻译</th><th>匹配</th><th>广告活动</th><th>广告组</th>
+    <th>广告产品 ASIN</th><th>子 SKU</th><th>父 SKU</th>
+    <th>覆盖天数</th><th>曝光</th><th>点击</th><th>${metricTip("CTR")}</th><th>花费</th><th>${metricTip("CPC")}</th>
+    <th>订单</th><th>加购</th><th>${metricTip("CPA")}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+async function loadAnalysis() {
+  if (!DB_RUN || !$("dbStart").value || !$("dbEnd").value) {
+    throw new Error("请先查询活动数据");
+  }
+  const key = `${DB_RUN}|${$("dbStart").value}|${$("dbEnd").value}`;
+  if (ANALYSIS && ANALYSIS_KEY === key) return ANALYSIS;
+  ANALYSIS_ERROR = "";
+  const r = await fetch("/api/ads/campaign-analysis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      campaign_id: DB_RUN,
+      date_from: $("dbStart").value,
+      date_to: $("dbEnd").value,
+    }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.message || `分析失败 HTTP ${r.status}`);
+  ANALYSIS = d;
+  ANALYSIS_KEY = key;
+  return ANALYSIS;
+}
+
+function analysisKpis(sum) {
+  const items = [
+    ["曝光", fmtN(sum.impressions)], ["点击", fmtN(sum.clicks)],
+    ["花费", money(sum.cost)], ["订单", fmtN(sum.orders)],
+    ["销售额", money(sum.sales)], [metricTip("CTR"), sum.ctr == null ? "-" : `${num(sum.ctr)}%`],
+    [metricTip("CPC"), money(sum.cpc)], [metricTip("CVR"), sum.cvr == null ? "-" : `${num(sum.cvr)}%`],
+    [metricTip("ACOS"), sum.acos == null ? "-" : `${num(sum.acos)}%`],
+    [metricTip("ROAS"), sum.roas == null ? "-" : num(sum.roas)],
+  ];
+  return `<div class="kpis">${items.map(([k, v]) =>
+    `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>`;
+}
+
+function renderAnalysis() {
+  if (ANALYSIS_ERROR) return `<div class="card"><div class="empty">广告分析失败：${esc(ANALYSIS_ERROR)}</div></div>`;
+  if (!ANALYSIS) return `<div class="card"><div class="empty">正在同步广告分析…</div></div>`;
+  const a = ANALYSIS;
+  const sum = a.summary || {};
+  const cov = a.coverage || {};
+  const out = [];
+  out.push(card(`广告分析 · ${esc((a.campaign || {}).name || DB_RUN)} · ${esc(a.date_from || "")} ~ ${esc(a.date_to || "")}`,
+    analysisKpis(sum)
+    + `<div class="muted" style="font-size:12px;margin-top:6px">`
+    + `数据覆盖：活动 ${fmtN(cov.days)} 天`
+    + (cov.min_date ? ` · ${esc(cov.min_date)} ~ ${esc(cov.max_date)}` : "")
+    + (cov.warnings && cov.warnings.length ? ` · ${cov.warnings.map(esc).join("；")}` : "")
+    + `</div>`));
+
+  const diags = a.diagnostics || [];
+  out.push(card(`诊断问题（${diags.length}）`, diags.length ? diags.map(d => {
+    const ev = d.evidence ? Object.entries(d.evidence).map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ") : "";
+    return `<div class="diag ${esc(d.severity || "info")}"><b>${esc(d.title || d.type)}</b>`
+      + `<span class="tag">${esc(d.severity || "-")}</span>`
+      + `<div class="muted" style="font-size:11.5px">${esc(ev)}</div></div>`;
+  }).join("") : `<div class="empty">当前没有诊断问题</div>`));
+
+  const actions = (a.strategy || {}).actions || [];
+  const rows = actions.map(x => `<tr>
+    <td><b>${esc(x.action_label || x.action)}</b><div class="muted" style="font-size:10.5px">${esc(x.action)}</div></td>
+    <td>${esc(x.level || "-")}</td>
+    <td>${esc(x.explanation || x.reason || "")}</td>
+    <td>${esc(JSON.stringify(x.params || {}))}</td></tr>`).join("");
+  out.push(card(`策略建议（${actions.length}）`, actions.length
+    ? `<div class="wrapx"><table class="dt"><thead><tr><th>动作</th><th>等级</th><th>解释</th><th>参数</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<div class="empty">当前没有可执行策略</div>`));
+  return out.join("");
 }
 async function loadDay() {
   if (!curDay) return;
@@ -681,11 +2143,11 @@ function kpis(sum) {
   if (!sum) return "";
   return `<div class="kpis">${SUMCOLS.map(([k, key, f]) =>
     `<div class="kpi"><div class="k">${k}</div><div class="v">${f(sum[key])}</div></div>`).join("")}
-    <div class="kpi"><div class="k">CPC</div><div class="v">${
+    <div class="kpi"><div class="k">${metricTip("CPC")}</div><div class="v">${
       sum.clicks ? money(sum.adCost / sum.clicks) : "-"}</div></div>
-    <div class="kpi"><div class="k">CTR</div><div class="v">${
+    <div class="kpi"><div class="k">${metricTip("CTR")}</div><div class="v">${
       sum.impressions ? (sum.clicks / sum.impressions * 100).toFixed(2) + "%" : "-"}</div></div>
-    <div class="kpi"><div class="k">ACOS</div><div class="v">${
+    <div class="kpi"><div class="k">${metricTip("ACOS")}</div><div class="v">${
       sum.adSale ? (sum.adCost / sum.adSale * 100).toFixed(1) + "%" : "-"}</div></div>
   </div>`;
 }
@@ -713,17 +2175,35 @@ function hourTable(hours, title) {
     <tbody>${rows}</tbody></table></div>`;
 }
 
-function sumTable(items) {
-  const rows = items.map(([name, sum]) => `<tr>
+function sumTable(items, kind = "", active = "") {
+  const rows = items.map(([name, sum, key]) => {
+    const clickable = kind && key;
+    return `<tr class="${clickable ? "sheet-row" : ""}${clickable && key === active ? " on" : ""}"` +
+      (clickable ? ` data-sheet-kind="${kind}" data-sheet-key="${esc(key)}"` : "") + `>
     <td>${esc(name)}</td>
     <td class="num">${fmtN(sum.impressions)}</td>
     <td class="num">${fmtN(sum.clicks)}</td>
     <td class="num">${money(sum.adCost)}</td>
     <td class="num">${sum.clicks ? money(sum.adCost / sum.clicks) : "-"}</td>
     <td class="num">${sum.impressions ? (sum.clicks / sum.impressions * 100).toFixed(2) + "%" : "-"}</td>
-    <td class="num">${fmtN(sum.adOrderNum)}</td></tr>`).join("");
+    <td class="num">${fmtN(sum.adOrderNum)}</td></tr>`;
+  }).join("");
   return `<table class="dt"><thead><tr><th>维度</th><th>曝光</th><th>点击</th><th>花费</th>
-    <th>CPC</th><th>CTR</th><th>订单</th></tr></thead><tbody>${rows}</tbody></table>`;
+    <th>${metricTip("CPC")}</th><th>${metricTip("CTR")}</th><th>订单</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function sheetTable(entries, active, kind, nameFn) {
+  if (!entries || !entries.length) return `<div class="empty">无数据</div>`;
+  const keys = entries.map(([k]) => k);
+  // 不显示 sheet 标签行；默认展示排序后的第一个明细，点击汇总行切换。
+  const selected = keys.includes(active) ? active : keys[0];
+  const summary = `<div class="pad">${
+    sumTable(entries.map(([k, v]) => [nameFn(v.label || k, k), v.sum, k]),
+             kind, selected)
+  }</div>`;
+  const item = (entries.find(([k]) => k === selected) || [])[1] || {};
+  const detail = `<div class="pad">${hourTable(item.hours || [], "小时")}</div>`;
+  return `${summary}${detail}`;
 }
 
 function card(title, inner, tags = "") {
@@ -734,9 +2214,9 @@ function trendTable(rows) {
   const maxCost = Math.max(...rows.map(r => +r.cost || 0), 1);
   const totCost = rows.reduce((a, x) => a + (+x.cost || 0), 0);
   return `<div class="wrapx"><table class="dt"><thead><tr>
-    <th>日期</th><th>曝光</th><th>点击</th><th>CTR</th><th>花费</th>
+    <th>日期</th><th>曝光</th><th>点击</th><th>${metricTip("CTR")}</th><th>花费</th>
     <th title="该行花费占所选区间总花费的比例">花费占比</th>
-    <th>CPC</th><th>订单</th><th>加购</th></tr></thead><tbody>${
+    <th>${metricTip("CPC")}</th><th>订单</th><th>加购</th></tr></thead><tbody>${
     rows.map(r => `<tr>
       <td>${r.date}</td>
       <td class="num">${fmtN(r.impressions)}</td>
@@ -771,6 +2251,11 @@ function hourAggTable(rows) {
 }
 
 function renderBody() {
+  if (curLevel === "analysis") {
+    $("body").innerHTML = renderAnalysis();
+    return;
+  }
+
   const d = DATA || {};
   const out = [];
   if (MODE === "db" && curLevel === "campaign") {
@@ -782,20 +2267,13 @@ function renderBody() {
     const c = d.campaign || {};
     out.push(card(`广告活动 24 小时 · ${d.date}`, kpis(c.sum) + hourTable(c.hours, "小时")));
     if (c.placements) {
-      const items = Object.entries(c.placements).map(([k, v]) => [v.label || k, v.sum]);
-      out.push(card("活动 × 广告位（当日）", `<div class="pad">${sumTable(items)}</div>`));
-      for (const [k, v] of Object.entries(c.placements)) {
-        out.push(card(`活动 · ${v.label || k} · 24h`, hourTable(v.hours, "小时"),
-          `<span class="tag">${money(v.sum.adCost)}</span>`));
-      }
+      out.push(card("活动 × 广告位（当日）",
+        sheetTable(orderedEntries(c.placements, PLACEMENT_ORDER),
+                   placementSheet, "placement", placementCN)));
     }
     if (c.targets) {
-      const items = Object.entries(c.targets).map(([k, v]) => [v.label || k, v.sum]);
-      out.push(card("活动 × 投放（当日）", `<div class="pad">${sumTable(items)}</div>`));
-      for (const [k, v] of Object.entries(c.targets)) {
-        out.push(card(`活动 · 投放 ${v.label || k} · 24h`, hourTable(v.hours, "小时"),
-          `<span class="tag">${money(v.sum.adCost)}</span>`));
-      }
+      out.push(card("活动 × 投放（当日）",
+        sheetTable(Object.entries(c.targets), targetSheet, "target", targetCN)));
     }
   }
 
@@ -804,18 +2282,13 @@ function renderBody() {
       out.push(card(`广告组 · ${g.name}`, kpis(g.sum) + hourTable(g.hours, "小时"),
         `<span class="tag">id ${g.id}</span>`));
       if (g.placements) {
-        const items = Object.entries(g.placements).map(([k, v]) => [v.label || k, v.sum]);
-        out.push(card(`组 · 广告位（当日）`, `<div class="pad">${sumTable(items)}</div>`));
-        for (const [k, v] of Object.entries(g.placements)) {
-          out.push(card(`组 · ${v.label || k} · 24h`, hourTable(v.hours, "小时")));
-        }
+        out.push(card(`组 · 广告位（当日）`,
+          sheetTable(orderedEntries(g.placements, PLACEMENT_ORDER),
+                     placementSheet, "placement", placementCN)));
       }
       if (g.targets && Object.keys(g.targets).length) {
-        const items = Object.entries(g.targets).map(([k, v]) => [v.label || k, v.sum]);
-        out.push(card(`组 · 投放（当日）`, `<div class="pad">${sumTable(items)}</div>`));
-        for (const [k, v] of Object.entries(g.targets)) {
-          out.push(card(`组 · 投放 ${v.label || k} · 24h`, hourTable(v.hours, "小时")));
-        }
+        out.push(card(`组 · 投放（当日）`,
+          sheetTable(Object.entries(g.targets), targetSheet, "target", targetCN)));
       }
     });
     if (!(d.groups || []).length) out.push(card("广告组", `<div class="empty">无数据</div>`));
@@ -828,22 +2301,24 @@ function renderBody() {
       let inner = kpis(p.sum);
       inner += `<div class="sub">广告总量 · 24 小时</div>${hourTable(p.total, "小时")}`;
       if (pl.length) {
-        inner += `<div class="sub">广告位（${pl.length}）汇总</div>
-          <div class="pad">${sumTable(pl.map(x => [x.label || x.code, x.sum]))}</div>`;
-        pl.forEach(x => {
-          inner += `<div class="sub">广告位 · ${esc(x.label || x.code)} · 24 小时</div>`
-            + hourTable(x.hours, "小时");
+        const entries = pl.map(x => [String(x.code || x.label || ""),
+          { ...x, label: x.label || x.code || "" }]);
+        entries.sort((a, b) => {
+          const ia = PLACEMENT_ORDER.indexOf(a[0]);
+          const ib = PLACEMENT_ORDER.indexOf(b[0]);
+          return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
         });
+        inner += `<div class="sub">广告位（${pl.length}）</div>`
+          + sheetTable(entries, placementSheet, "placement", placementCN);
       }
       if (mt.length) {
-        inner += `<div class="sub">投放（${mt.length}）汇总</div>
-          <div class="pad">${sumTable(mt.map(x => [x.label || x.code, x.sum]))}</div>`;
-        mt.forEach(x => {
-          inner += `<div class="sub">投放 · ${esc(x.label || x.code)} · 24 小时</div>`
-            + hourTable(x.hours, "小时");
-        });
+        const entries = mt.map(x => [String(x.code || x.label || ""),
+          { ...x, label: x.label || x.code || "" }]);
+        inner += `<div class="sub">投放（${mt.length}）</div>`
+          + sheetTable(entries, targetSheet, "target", targetCN);
       }
-      out.push(`<details class="card"><summary>
+      const isOpen = openProducts.has(String(p.asin || ""));
+      out.push(`<details class="card" data-product="${esc(p.asin || "")}" ${isOpen ? "open" : ""}><summary>
         <b>${esc(p.asin)}</b> <span class="muted">${esc(p.sku || "")}</span>
         <span class="sp"></span>
         <span class="tag">点击 ${fmtN(sum.clicks)}</span>
@@ -920,6 +2395,22 @@ function renderBody() {
   }
 
   $("body").innerHTML = out.join("");
+  $("body").querySelectorAll("details[data-product]").forEach(el => {
+    el.addEventListener("toggle", () => {
+      if (el.open) openProducts.add(el.dataset.product || "");
+      else openProducts.delete(el.dataset.product || "");
+    });
+  });
+  $("body").querySelectorAll("[data-sheet-kind]").forEach(el => {
+    el.onclick = () => {
+      if (el.dataset.sheetKind === "placement") placementSheet = el.dataset.sheetKey;
+      if (el.dataset.sheetKind === "target") targetSheet = el.dataset.sheetKey;
+      const y = window.scrollY;
+      renderBody();
+      // 切换产品明细时保持当前视口位置，避免跳回顶部。
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    };
+  });
   if (curLevel === "competitor") {
     $("body").querySelectorAll("tr[data-term]").forEach(tr => {
       tr.onclick = () => loadComp(tr.dataset.term);
@@ -939,14 +2430,16 @@ async function importStore() {
 function kwTable(rows) {
   if (!rows || !rows.length) return `<div class="empty">当日无搜索词</div>`;
   return `<div class="wrapx"><table class="dt"><thead><tr>
-    <th>搜索词</th><th>匹配</th><th>曝光</th><th>点击</th><th>CTR</th>
+    <th>搜索词</th><th>中文翻译</th><th>匹配</th><th>曝光</th><th>点击</th><th>${metricTip("CTR")}</th>
     <th>花费</th><th>订单</th><th>加购</th></tr></thead><tbody>${
-    rows.map(r => `<tr>
-      <td>${esc(r.query)}</td><td>${esc(r.matchType || "-")}</td>
+    rows.map(r => {
+      return `<tr>
+      <td>${esc(r.query)}</td><td>${esc(termZh(r.query))}</td><td>${esc(matchCN(r.matchType || "-"))}</td>
       <td class="num">${fmtN(r.impressions)}</td><td class="num">${fmtN(r.clicks)}</td>
       <td class="num">${r.ctr ? (+r.ctr).toFixed(2) + "%" : "-"}</td>
       <td class="num">${money(r.adCost)}</td><td class="num">${fmtN(r.adOrderNum)}</td>
-      <td class="num">${fmtN(r.addToCart)}</td></tr>`).join("")}</tbody></table></div>`;
+      <td class="num">${fmtN(r.addToCart)}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
 }
 
 function asinTable(rows) {
@@ -954,7 +2447,7 @@ function asinTable(rows) {
   return `<div class="wrapx"><table class="dt"><thead><tr>
     <th>ASIN</th><th>匹配</th><th>曝光</th><th>点击</th><th>花费</th>
     <th>竞品价</th><th>评分</th></tr></thead><tbody>${
-    rows.map(r => `<tr><td class="mono">${esc(r.query)}</td><td>${esc(r.matchType || "-")}</td>
+    rows.map(r => `<tr><td class="mono">${esc(r.query)}</td><td>${esc(matchCN(r.matchType || "-"))}</td>
       <td class="num">${fmtN(r.impressions)}</td><td class="num">${fmtN(r.clicks)}</td>
       <td class="num">${money(r.adCost)}</td><td class="num">${money(r.price)}</td>
       <td class="num">${r.asinRating ? (+r.asinRating).toFixed(1) : "-"}</td></tr>`).join("")}</tbody></table></div>`;
@@ -1310,5 +2803,6 @@ function copySql(i, btn) {
 
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeSchema(); });
 </script>
+<script src="/static/nav.js"></script>
 </body>
 </html>
