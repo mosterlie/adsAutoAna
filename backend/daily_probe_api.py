@@ -830,6 +830,8 @@ LATEST_STATE: Dict[str, Any] = {
     "running": False, "stage": "", "day": "", "done": 0, "total": 0,
     "runId": 0, "current": "", "error": "", "progress": [],
     "startedAt": "", "finishedAt": "",
+    "fulfillment_status": "", "fulfillment_orders": 0,
+    "fulfillment_packages": 0,
 }
 _LATEST_LOCK = threading.Lock()
 
@@ -845,9 +847,23 @@ def _latest_ensure_table(conn) -> None:
           active_total INTEGER DEFAULT 0,
           search_done INTEGER DEFAULT 0,
           search_skipped INTEGER DEFAULT 0,
+          fulfillment_status TEXT DEFAULT '',
+          fulfillment_orders INTEGER DEFAULT 0,
+          fulfillment_packages INTEGER DEFAULT 0,
+          fulfillment_error TEXT DEFAULT '',
           errors_json TEXT
         )
     """)
+    cols = {str(r[1]) for r in conn.execute(
+        "PRAGMA table_info(latest_refresh_runs)").fetchall()}
+    for name, ddl in (
+        ("fulfillment_status", "TEXT DEFAULT ''"),
+        ("fulfillment_orders", "INTEGER DEFAULT 0"),
+        ("fulfillment_packages", "INTEGER DEFAULT 0"),
+        ("fulfillment_error", "TEXT DEFAULT ''"),
+    ):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE latest_refresh_runs ADD COLUMN {name} {ddl}")
     conn.commit()
 
 
@@ -861,7 +877,9 @@ def _latest_db_update(run_id: int, **fields: Any) -> None:
         _latest_ensure_table(conn)
         allowed = ("finished_at", "day", "status", "stage", "online_count",
                    "ad_data_status", "active_total", "search_done",
-                   "search_skipped", "errors_json")
+                   "search_skipped", "fulfillment_status",
+                   "fulfillment_orders", "fulfillment_packages",
+                   "fulfillment_error", "errors_json")
         pairs = [(k, fields[k]) for k in allowed if k in fields]
         if pairs:
             sql = "UPDATE latest_refresh_runs SET " + ", ".join(f"{k}=?" for k, _ in pairs) + " WHERE id=?"
@@ -896,6 +914,10 @@ def _run_latest_refresh(run_id: int = 0) -> None:
     active_total = 0
     search_done = 0
     search_skipped = 0
+    fulfillment_status = ""
+    fulfillment_orders = 0
+    fulfillment_packages = 0
+    fulfillment_error = ""
     try:
         # 1) 在线产品：保持原「采集最新」行为。
         _latest_log("info", "开始采集在线产品", "父体 + 子体全量")
@@ -975,6 +997,39 @@ def _run_latest_refresh(run_id: int = 0) -> None:
                 errors.append(f"{name}: {str(e)[:120]}")
                 _latest_log("error", f"{name} 精简采集失败", str(e)[:200])
                 _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
+
+        # 4) 履约同步：复用 browser_toolkit，默认近 30 天，先拉妙手再写履约表。
+        LATEST_STATE["stage"] = "fulfillment"
+        _latest_db_update(run_id, stage="fulfillment")
+        _latest_log("info", "开始履约同步", "近 30 天，妙手订单 → 履约订单/包裹")
+        try:
+            from backend.fulfillment_sync import DEFAULT_DAYS, sync_fulfillment
+            result = sync_fulfillment(days=DEFAULT_DAYS)
+            fulfillment_orders = int(result.get("orders") or 0)
+            fulfillment_packages = int(result.get("packages") or 0)
+            pull_error = str(result.get("pull_error") or "")
+            fulfillment_status = "partial" if pull_error else "success"
+            fulfillment_error = pull_error[:300]
+            if pull_error:
+                errors.append(f"履约拉取: {pull_error[:150]}")
+                _latest_log("warn", "履约同步完成，但妙手拉取有错误",
+                            f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}；{pull_error[:160]}")
+            else:
+                _latest_log("success", "履约同步完成",
+                            f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}")
+            _latest_db_update(run_id, fulfillment_status=fulfillment_status,
+                              fulfillment_orders=fulfillment_orders,
+                              fulfillment_packages=fulfillment_packages,
+                              fulfillment_error=fulfillment_error,
+                              errors_json=json.dumps(errors, ensure_ascii=False))
+        except Exception as e:      # noqa: BLE001
+            fulfillment_status = "failed"
+            fulfillment_error = str(e)[:300]
+            errors.append(f"履约同步: {str(e)[:150]}")
+            _latest_log("error", "履约同步失败", str(e)[:200])
+            _latest_db_update(run_id, fulfillment_status=fulfillment_status,
+                              fulfillment_error=fulfillment_error,
+                              errors_json=json.dumps(errors, ensure_ascii=False))
     except Exception as e:              # noqa: BLE001
         errors.append(str(e)[:200])
         _latest_log("error", "最新采集失败", str(e)[:300])
@@ -984,6 +1039,9 @@ def _run_latest_refresh(run_id: int = 0) -> None:
             "running": False, "stage": "done",
             "error": "；".join(errors)[:500],
             "finishedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "fulfillment_status": fulfillment_status,
+            "fulfillment_orders": fulfillment_orders,
+            "fulfillment_packages": fulfillment_packages,
         })
         _latest_db_update(run_id, finished_at=LATEST_STATE["finishedAt"],
                           status=final_status, stage="done",
@@ -992,6 +1050,10 @@ def _run_latest_refresh(run_id: int = 0) -> None:
                           active_total=active_total,
                           search_done=search_done,
                           search_skipped=search_skipped,
+                          fulfillment_status=fulfillment_status,
+                          fulfillment_orders=fulfillment_orders,
+                          fulfillment_packages=fulfillment_packages,
+                          fulfillment_error=fulfillment_error,
                           errors_json=json.dumps(errors, ensure_ascii=False))
         _latest_log("success" if not errors else "warn", "最新采集结束",
                     f"{day}，错误 {len(errors)} 个")
