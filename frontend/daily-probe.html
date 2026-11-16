@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>广告数据 - 赛狐ERP</title>
+<title>广告数据 - XI狐ERP</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
 body{background:var(--bg)}
@@ -83,6 +83,18 @@ body{background:var(--bg)}
   color:var(--txt-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .term-sub:hover{color:var(--blue)}
 .term-sub.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue)}
+.multi-dd{position:relative;min-width:168px}
+.multi-dd summary{list-style:none;cursor:pointer;height:30px;box-sizing:border-box;padding:0 24px 0 8px;
+  border:1px solid var(--bd);border-radius:4px;background:#fff;font-size:12px;line-height:28px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.multi-dd summary::-webkit-details-marker{display:none}
+.multi-dd summary::after{content:"▾";position:absolute;right:8px;color:var(--muted);font-size:10px}
+.multi-dd[open] summary{border-color:#9db7e8;color:var(--blue)}
+.multi-panel{position:absolute;top:33px;left:0;z-index:20;min-width:100%;background:#fff;
+  border:1px solid var(--bd);border-radius:5px;box-shadow:0 6px 18px rgba(15,23,42,.14);padding:6px}
+.multi-panel label{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:3px;
+  font-size:12px;white-space:nowrap;cursor:pointer}
+.multi-panel label:hover{background:#f2f6ff}
 #termDataWrap{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:6px}
 #termDataWrap > .sub{flex:0 0 auto}
 #termDataWrap > .wrapx{flex:1;min-height:0;max-height:none;width:100%;overflow:auto;
@@ -105,6 +117,17 @@ body{background:var(--bg)}
   width:18px;height:18px;border:1px solid var(--bd);border-radius:3px;background:#fff;
   color:var(--blue);font-size:12px;line-height:1;text-decoration:none}
 .jump-btn:hover{background:#f0f6ff;border-color:#9db7e8}
+.row-refresh{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border:1px solid var(--bd);border-radius:3px;background:#fff;
+  color:#667085;font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0}
+.row-refresh:hover{background:#f0f6ff;border-color:#9db7e8;color:var(--blue)}
+.row-refresh:disabled{opacity:.55;cursor:wait}
+.row-refresh.spin{animation:rowSpin .8s linear infinite}
+@keyframes rowSpin{to{transform:rotate(360deg)}}
+/* 第一列刷新按钮固定贴住列右侧边线 */
+#termDataWrap .term-table td:first-child{position:relative;padding-right:29px!important}
+#termDataWrap .term-table td:first-child .copy-jump{padding-right:1px}
+#termDataWrap .term-table td:first-child .row-refresh{position:absolute;right:0;top:50%;margin-top:-9px}
 .term-table td.click-hot{color:#d94a3a;font-weight:700;background:#fff4f0}
 .metric-q{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;
   margin-left:2px;border-radius:50%;background:#eef2f7;color:#667085;font-size:10px;
@@ -328,7 +351,7 @@ table.dt td a:hover{text-decoration:underline}
 </head>
 <body>
 <header class="topbar topbar-slim">
-  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">XI狐ERP</span></div>
   <div class="seg seg-top">
     <button class="seg-btn" onclick="location.href='/'">数据表格</button>
     <button class="seg-btn" onclick="location.href='/?view=product'">产品视角</button>
@@ -457,6 +480,24 @@ table.dt td a:hover{text-decoration:underline}
       <div class="fld grow"><label>筛选</label>
         <input type="text" id="tSearch" placeholder="搜索词 / 活动 / 广告组 / SKU">
       </div>
+      <div class="fld"><label>处置状态</label>
+        <details class="multi-dd" id="tStatusDD">
+          <summary id="tStatusSummary">未处置、已转指令</summary>
+          <div class="multi-panel">
+            <label><input type="checkbox" class="tStatusOpt" value="未处置" checked> 未处置</label>
+            <label><input type="checkbox" class="tStatusOpt" value="已转指令" checked> 已转指令</label>
+            <label><input type="checkbox" class="tStatusOpt" value="已完成"> 已完成</label>
+          </div>
+        </details>
+      </div>
+      <div class="fld"><label>标记状态</label>
+        <select id="tMarkFilter">
+          <option value="">全部</option>
+          <option value="none">未标记</option>
+          <option value="neg">已否定</option>
+          <option value="manual">已转手工</option>
+        </select>
+      </div>
       <span class="muted" id="tInfo" style="font-size:12.5px"></span>
     </div>
     <div class="term-subtabs">
@@ -549,6 +590,13 @@ function opStatusTag(r, kind) {
   const st = opStatus(r, kind);
   const cls = st === "已完成" ? "completed" : (st === "已转指令" ? "done" : "");
   return `<span class="op-status-tag ${cls}">${esc(st)}</span>`;
+}
+function termStatusFilterValues() {
+  return [...document.querySelectorAll(".tStatusOpt:checked")].map(x => x.value);
+}
+function updateTermStatusSummary() {
+  const vals = termStatusFilterValues();
+  $("tStatusSummary").textContent = vals.length ? vals.join("、") : "全部";
 }
 // 指令任务执行完成后，另一个页签同步刷新处置状态。
 window.addEventListener("storage", (e) => {
@@ -798,9 +846,15 @@ async function generateOpsPlan() {
 
 async function generateOpsTask() {
   if (!TERM_DATA || !TERM_DATA.length) return;
-  const marked = TERM_DATA.filter(r => opMarked(r, TERM_KIND, "neg") || opMarked(r, TERM_KIND, "manual"));
+  const allMarked = TERM_DATA.filter(r => opMarked(r, TERM_KIND, "neg") || opMarked(r, TERM_KIND, "manual"));
+  // 已完成处置的词/ASIN 默认不再重复生成指令。
+  const completed = allMarked.filter(r => opStatus(r, TERM_KIND) === "已完成");
+  const marked = allMarked.filter(r => opStatus(r, TERM_KIND) !== "已完成");
   if (!marked.length) {
-    renderOpPlan({ created_at: new Date().toLocaleString("zh-CN"), items: [], warnings: [] });
+    renderOpPlan({
+      created_at: new Date().toLocaleString("zh-CN"), items: [],
+      warnings: completed.length ? [`已跳过 ${completed.length} 条已完成记录`] : [],
+    });
     return;
   }
   const items = marked.map(r => ({
@@ -825,6 +879,10 @@ async function generateOpsTask() {
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
     OP_PLAN = data.plan;
+    if (completed.length) {
+      OP_PLAN.warnings = [...(OP_PLAN.warnings || []),
+        `已跳过 ${completed.length} 条处置状态为“已完成”的记录`];
+    }
     marked.forEach(r => { OP_STATUS[opStatusKey(r, TERM_KIND)] = "已转指令"; });
     try {
       localStorage.setItem(OP_STATUS_KEY, JSON.stringify(OP_STATUS));
@@ -1611,9 +1669,19 @@ function todayStr(o = 0) { const d = new Date(); d.setDate(d.getDate() + o); ret
 (async function init() {
   $("start").value = todayStr(-1); $("end").value = todayStr(-1);
   $("sStart").value = todayStr(-1); $("sEnd").value = todayStr(-1);
-  $("tStart").value = "2026-11-02"; $("tEnd").value = todayStr(0);
+  $("tStart").value = "2026-11-02"; $("tEnd").value = todayStr(-1);
   $("tLoad").onclick = () => loadTermData(true);
   $("tSearch").oninput = () => renderTermData();
+  document.querySelectorAll(".tStatusOpt").forEach(cb => cb.onchange = () => {
+    updateTermStatusSummary();
+    renderTermData();
+  });
+  updateTermStatusSummary();
+  document.addEventListener("click", (e) => {
+    const dd = $("tStatusDD");
+    if (dd && dd.open && !dd.contains(e.target)) dd.open = false;
+  });
+  $("tMarkFilter").onchange = () => renderTermData();
   document.querySelectorAll(".term-sub").forEach(btn => btn.onclick = () => {
     TERM_KIND = btn.dataset.kind;
     TERM_SORT = { field: "clicks", dir: -1 };
@@ -1817,6 +1885,11 @@ function copyTextCell(text, label, cls = "") {
 function jumpButton(url, title) {
   return `<a class="jump-btn" href="${esc(url)}" target="_blank" rel="noreferrer" title="${esc(title)}">↗</a>`;
 }
+function rowRefreshButton(r, kind) {
+  return `<button type="button" class="row-refresh" data-refresh-row="1"
+    data-campaign="${esc(r.campaign_id || "")}" data-term="${esc(r.term || "")}"
+    data-kind="${esc(kind)}" title="刷新本行：补翻译 / 产品 / 维度">↻</button>`;
+}
 function childAsinCell(r) {
   const list = r.product_asins || [];
   if (!list.length) return `<span class="muted">-</span>`;
@@ -1853,7 +1926,7 @@ function termDataRows(rows, kind = "keyword") {
       <td><span class="ell ell-sku" title="${esc(childSkus)}">${esc(childSkus)}</span></td>`;
     if (kind === "asin") {
       return `<tr>
-        <td><div class="copy-jump">${copyTextCell(term, "ASIN")}${jumpButton(amazonProductUrl(term), "打开亚马逊商品页")}</div></td>
+        <td><div class="copy-jump">${copyTextCell(term, "ASIN")}${jumpButton(amazonProductUrl(term), "打开亚马逊商品页")}${rowRefreshButton(r, kind)}</div></td>
         <td>${esc(matchCN(r.match_type || "-"))}</td>
         <td>${childAsinCell(r)}</td>
         ${metrics}
@@ -1863,7 +1936,7 @@ function termDataRows(rows, kind = "keyword") {
       </tr>`;
     }
     return `<tr>
-      <td><div class="copy-jump">${copyTextCell(term, "搜索词")}${jumpButton(amazonSearchUrl(term), "打开亚马逊搜索结果页")}</div></td>
+      <td><div class="copy-jump">${copyTextCell(term, "搜索词")}${jumpButton(amazonSearchUrl(term), "打开亚马逊搜索结果页")}${rowRefreshButton(r, kind)}</div></td>
       <td><span class="ell ell-zh" title="${esc(termZh(term))}">${esc(termZh(term))}</span></td>
       <td>${childAsinCell(r)}</td>
       ${metrics}
@@ -1886,17 +1959,38 @@ function renderTermData() {
     return;
   }
   const q = ($("tSearch").value || "").trim().toLowerCase();
-  const rows = TERM_DATA.filter(r => !q || [
-    r.term, r.campaign_name, r.group_name, r.match_type,
-    ...(r.product_asins || []), ...(r.child_skus || []),
-    ...(r.parent_skus || []),
-  ].some(v => String(v || "").toLowerCase().includes(q)));
+  const statusFilter = termStatusFilterValues();
+  const markFilter = $("tMarkFilter").value;
+  const rows = TERM_DATA.filter(r => {
+    if (q && ![
+      r.term, r.campaign_name, r.group_name, r.match_type,
+      ...(r.product_asins || []), ...(r.child_skus || []),
+      ...(r.parent_skus || []),
+    ].some(v => String(v || "").toLowerCase().includes(q))) return false;
+    if (statusFilter.length && !statusFilter.includes(opStatus(r, TERM_KIND))) return false;
+    const neg = opMarked(r, TERM_KIND, "neg");
+    const manual = opMarked(r, TERM_KIND, "manual");
+    if (markFilter === "none" && (neg || manual)) return false;
+    if (markFilter === "neg" && !neg) return false;
+    if (markFilter === "manual" && !manual) return false;
+    return true;
+  });
   const camps = new Set(rows.map(r => r.campaign_id));
   const isAsin = TERM_KIND === "asin";
-  const fieldLabel = { term: isAsin ? "ASIN" : "搜索词", impressions: "曝光", clicks: "点击", ctr: "CTR", cost: "花费", cpc: "CPC", orders: "订单" };
+  const fieldLabel = { term: isAsin ? "ASIN" : "搜索词", campaign_name: "广告活动", impressions: "曝光", clicks: "点击", ctr: "CTR", cost: "花费", cpc: "CPC", orders: "订单" };
   rows.sort((a, b) => {
     if (TERM_SORT.field === "term") {
       return String(a.term || "").localeCompare(String(b.term || ""), "ja") * TERM_SORT.dir
+        || (Number(b.cost || 0) - Number(a.cost || 0));
+    }
+    if (TERM_SORT.field === "campaign_name") {
+      const an = String(a.campaign_name || "");
+      const bn = String(b.campaign_name || "");
+      // 没有活动名的行放到最后，避免裸 campaignId 混在正常活动名之前。
+      if (!an && !bn) return Number(b.cost || 0) - Number(a.cost || 0);
+      if (!an) return 1;
+      if (!bn) return -1;
+      return an.localeCompare(bn, "ja") * TERM_SORT.dir
         || (Number(b.cost || 0) - Number(a.cost || 0));
     }
     const av = a[TERM_SORT.field], bv = b[TERM_SORT.field];
@@ -1906,7 +2000,7 @@ function renderTermData() {
     const diff = (Number(av) - Number(bv)) * TERM_SORT.dir;
     return diff || String(a.term || "").localeCompare(String(b.term || ""), "ja");
   });
-  const dirText = TERM_SORT.field === "term"
+  const dirText = ["term", "campaign_name"].includes(TERM_SORT.field)
     ? (TERM_SORT.dir > 0 ? "升序" : "降序")
     : (TERM_SORT.dir < 0 ? "从高到低" : "从低到高");
   $("tInfo").textContent = `共 ${rows.length} 条 · ${camps.size} 个活动 · 按${fieldLabel[TERM_SORT.field] || "花费"}${dirText}`;
@@ -1931,13 +2025,13 @@ function renderTermData() {
     ${sortTh("cost", "花费")}${sortTh("cpc", metricTip("CPC"))}${sortTh("orders", "订单")}
     <th>加购</th><th>${metricTip("CPA")}</th><th>覆盖天数</th>
     <th>处置状态</th>
-    <th>父 SKU</th><th>广告活动</th><th>广告组</th><th>广告产品 ASIN</th><th>子 SKU</th>
+    <th>父 SKU</th>${sortTh("campaign_name", "广告活动")}<th>广告组</th><th>广告产品 ASIN</th><th>子 SKU</th>
     ${tail}<th>操作</th>
   </tr></thead><tbody>${termDataRows(rows, TERM_KIND)}</tbody></table></div>`;
   box.querySelectorAll("th[data-tkey]").forEach(th => th.onclick = () => {
     const key = th.dataset.tkey;
     if (TERM_SORT.field === key) TERM_SORT.dir *= -1;
-    else TERM_SORT = { field: key, dir: key === "term" ? 1 : -1 };
+    else TERM_SORT = { field: key, dir: ["term", "campaign_name"].includes(key) ? 1 : -1 };
     renderTermData();
   });
   box.querySelectorAll("[data-op-toggle]").forEach(btn => btn.onclick = async () => {
@@ -1987,6 +2081,46 @@ function renderTermData() {
     const next = $("termDataWrap").querySelector(".wrapx");
     if (next) next.scrollTop = top;
   });
+  box.querySelectorAll("[data-refresh-row]").forEach(btn => {
+    btn.onclick = () => refreshTermRow(btn);
+  });
+}
+
+async function refreshTermRow(btn) {
+  const campaignId = btn.dataset.campaign || "";
+  const term = btn.dataset.term || "";
+  const kind = btn.dataset.kind || TERM_KIND;
+  const start = $("tStart").value, end = $("tEnd").value;
+  if (!campaignId || !term || !start || !end) return;
+  btn.disabled = true;
+  btn.classList.add("spin");
+  $("tInfo").textContent = "刷新该行中…";
+  try {
+    const qs = new URLSearchParams({ campaignId, term, kind, start, end });
+    const r = await fetch(`/api/daily/store/search-terms/refresh?${qs}`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    await loadTermData(true);
+    if (kind === "keyword") await ensureTranslations([term]);
+    $("tInfo").textContent = (d.warnings && d.warnings.length)
+      ? `刷新完成，${d.warnings.join("；")}` : "刷新完成";
+  } catch (e) {
+    $("tInfo").textContent = "刷新失败：" + String(e.message || e).slice(0, 120);
+    btn.disabled = false;
+    btn.classList.remove("spin");
+  }
+}
+
+async function loadServerStatuses() {
+  try {
+    const r = await fetch("/api/daily/search-ops/statuses");
+    const d = await r.json();
+    if (!r.ok) return;
+    (d.items || []).forEach(x => {
+      const key = `${x.kind || "keyword"}|${x.campaign_id || ""}|${x.group_id || ""}|${x.term || ""}|status`;
+      if (x.status) OP_STATUS[key] = x.status;
+    });
+  } catch (e) { /* 状态接口不可用时保留本地状态 */ }
 }
 
 async function loadTermData(refresh = false) {
@@ -2003,6 +2137,7 @@ async function loadTermData(refresh = false) {
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
     TERM_DATA = d.items || [];
+    await loadServerStatuses();
     renderTermData();
     if (TERM_KIND === "keyword") ensureTranslations(TERM_DATA.map(r => r.term));
   } catch (e) {

@@ -675,6 +675,15 @@ def last_run() -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
+def has_successful_run(start: str, end: str) -> bool:
+    """指定日期区间是否已有成功的全量广告采集。"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM crawl_runs WHERE range_start=? AND range_end=? "
+            "AND status='success' LIMIT 1", (start, end)).fetchone()
+        return bool(row)
+
+
 # ---------------------------------------------------------------------------
 # 查询
 # ---------------------------------------------------------------------------

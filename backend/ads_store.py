@@ -917,6 +917,10 @@ def enrich_dims(conn: Optional[sqlite3.Connection] = None,
                                rating=_num(b.get("rating")) or None,
                                rating_count=b.get("ratingCount"),
                                quantity=b.get("quantity"))
+                # 维度同步时顺便补活动-产品映射，避免搜索数据缺 ASIN/SKU。
+                upsert_campaign_product(conn, str(cid), asin,
+                                        sku=p.get("sku") or b.get("sku") or "",
+                                        parent_asin=b.get("parentAsin") or "")
                 stat["product"] += 1
         except Exception:                   # noqa: BLE001
             pass
@@ -938,6 +942,53 @@ def enrich_dims(conn: Optional[sqlite3.Connection] = None,
         if own:
             conn.close()
     return stat
+
+
+def campaign_has_day(campaign_id: str, day: str) -> bool:
+    """是否已有该活动当天汇总，用于采集前跳过。"""
+    conn = get_conn()
+    try:
+        init(conn)
+        row = conn.execute(
+            "SELECT 1 FROM fact_campaign WHERE campaign_id=? AND date=? "
+            "AND hour=-1 AND placement='' LIMIT 1",
+            (str(campaign_id), day)).fetchone()
+        return bool(row)
+    finally:
+        conn.close()
+
+
+def repair_search_dims(campaign_id: str, day: str) -> Dict[str, Any]:
+    """精简采集后按需补齐活动/组/产品维度；完整活动直接跳过。"""
+    conn = get_conn()
+    try:
+        init(conn)
+        camp = conn.execute(
+            "SELECT name FROM dim_campaign WHERE campaign_id=?",
+            (str(campaign_id),)).fetchone()
+        missing_campaign = not camp or not str(camp["name"] or "").strip()
+        # 检查本次搜索词里出现的 Amazon 组 id 是否已有对应组维度。
+        owners = [str(r["owner_id"]) for r in conn.execute(
+            "SELECT DISTINCT owner_id FROM fact_search_term "
+            "WHERE campaign_id=? AND date=? AND scope='group'",
+            (str(campaign_id), day)).fetchall() if r["owner_id"]]
+        known = set()
+        for r in conn.execute(
+                "SELECT group_id,amazon_group_id FROM dim_group WHERE campaign_id=?",
+                (str(campaign_id),)).fetchall():
+            if r["group_id"]:
+                known.add(str(r["group_id"]))
+            if r["amazon_group_id"]:
+                known.add(str(r["amazon_group_id"]))
+        missing_groups = [x for x in owners if x not in known]
+        if not missing_campaign and not missing_groups:
+            return {"repaired": False, "campaign": campaign_id, "day": day}
+        stat = enrich_dims(campaign_id=str(campaign_id), day=day)
+        return {"repaired": True, "campaign": campaign_id, "day": day,
+                "missingCampaign": missing_campaign,
+                "missingGroups": len(missing_groups), "stat": stat}
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------

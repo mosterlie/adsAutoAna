@@ -716,6 +716,19 @@ def _run_task(tid: str, req: StartReq) -> None:
             task["progress"] = round((i + 1) / len(days) * 100)
             time.sleep(0.2)
 
+        # 精简采集后按需补维度：只对新活动/新组触发，完整活动不重复请求。
+        if req.search and days:
+            try:
+                from backend import ads_store
+                repair = ads_store.repair_search_dims(cid, days[-1])
+                if repair.get("repaired"):
+                    stat = repair.get("stat") or {}
+                    _task_log(task, "success", "已自动补齐搜索数据维度",
+                              f"活动 {stat.get('campaign', 0)} · 组 {stat.get('group', 0)}"
+                              f" · 产品 {stat.get('product', 0)}")
+            except Exception as e:          # noqa: BLE001
+                _task_log(task, "warn", "搜索数据维度自动补齐失败", str(e)[:200])
+
         # 竞品抓取（区间一次）：按整个查询区间的广告花费全局排序，只取前 8。
         if req.competitor:
             task["current"] = "竞品页抓取"
@@ -811,6 +824,226 @@ def _run_task(tid: str, req: StartReq) -> None:
         task["errors"].append({"layer": "task", "msg": str(e)[:200]})
         task["current"] = "失败"
         _task_log(task, "error", "任务失败", str(e)[:300])
+
+
+LATEST_STATE: Dict[str, Any] = {
+    "running": False, "stage": "", "day": "", "done": 0, "total": 0,
+    "runId": 0, "current": "", "error": "", "progress": [],
+    "startedAt": "", "finishedAt": "",
+}
+_LATEST_LOCK = threading.Lock()
+
+
+def _latest_ensure_table(conn) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS latest_refresh_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          started_at TEXT, finished_at TEXT, day TEXT,
+          status TEXT, stage TEXT,
+          online_count INTEGER DEFAULT 0,
+          ad_data_status TEXT DEFAULT '',
+          active_total INTEGER DEFAULT 0,
+          search_done INTEGER DEFAULT 0,
+          search_skipped INTEGER DEFAULT 0,
+          errors_json TEXT
+        )
+    """)
+    conn.commit()
+
+
+def _latest_db_update(run_id: int, **fields: Any) -> None:
+    if not run_id:
+        return
+    from backend import ads_store
+    conn = ads_store.get_conn()
+    try:
+        ads_store.init(conn)
+        _latest_ensure_table(conn)
+        allowed = ("finished_at", "day", "status", "stage", "online_count",
+                   "ad_data_status", "active_total", "search_done",
+                   "search_skipped", "errors_json")
+        pairs = [(k, fields[k]) for k in allowed if k in fields]
+        if pairs:
+            sql = "UPDATE latest_refresh_runs SET " + ", ".join(f"{k}=?" for k, _ in pairs) + " WHERE id=?"
+            conn.execute(sql, [v for _, v in pairs] + [run_id])
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def _latest_log(level: str, message: str, detail: str = "") -> None:
+    with _LATEST_LOCK:
+        LATEST_STATE["progress"].append({
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "level": level, "message": message, "detail": detail,
+        })
+        if len(LATEST_STATE["progress"]) > 500:
+            LATEST_STATE["progress"] = LATEST_STATE["progress"][-300:]
+        LATEST_STATE["current"] = message
+
+
+def _run_latest_refresh(run_id: int = 0) -> None:
+    """在线产品 + 昨日全量广告数据 + 昨日在投活动搜索词/ASIN。"""
+    day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    LATEST_STATE.update({
+        "running": True, "stage": "online", "day": day, "done": 0, "total": 0,
+        "runId": run_id, "current": "", "error": "", "progress": [],
+        "startedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "finishedAt": "",
+    })
+    errors: List[str] = []
+    online_count = 0
+    ad_data_status = ""
+    active_total = 0
+    search_done = 0
+    search_skipped = 0
+    try:
+        # 1) 在线产品：保持原「采集最新」行为。
+        _latest_log("info", "开始采集在线产品", "父体 + 子体全量")
+        try:
+            from backend.api import crawl_online_products
+            online_count = crawl_online_products()
+            _latest_log("success", "在线产品采集完成", f"{online_count} 条")
+            _latest_db_update(run_id, online_count=online_count, stage="online")
+        except Exception as e:          # noqa: BLE001
+            errors.append(f"在线产品: {str(e)[:150]}")
+            _latest_log("error", "在线产品采集失败", str(e)[:200])
+            _latest_db_update(run_id, stage="online",
+                              errors_json=json.dumps(errors, ensure_ascii=False))
+
+        # 2) 昨日全量广告数据：复用原「同步数据」爬虫，只跑上一日。
+        LATEST_STATE["stage"] = "ad_data"
+        _latest_db_update(run_id, stage="ad_data")
+        from backend import crawler, database as db
+        if db.has_successful_run(day, day):
+            ad_data_status = "skipped"
+            _latest_log("info", f"{day} 全量广告数据已存在，跳过")
+        else:
+            _latest_log("info", f"开始同步 {day} 全量广告数据")
+            try:
+                crawler.start_crawl_async(start_date=day, end_date=day,
+                                          keep_history=True)
+                while crawler.get_state().get("running"):
+                    time.sleep(2)
+                st = crawler.get_state()
+                if st.get("error"):
+                    ad_data_status = "failed"
+                    errors.append(f"全量广告数据: {st['error'][:150]}")
+                    _latest_log("error", "全量广告数据失败", st["error"][:200])
+                else:
+                    ad_data_status = "success"
+                    _latest_log("success", f"{day} 全量广告数据完成")
+            except Exception as e:      # noqa: BLE001
+                ad_data_status = "failed"
+                errors.append(f"全量广告数据: {str(e)[:150]}")
+                _latest_log("error", "全量广告数据启动失败", str(e)[:200])
+        _latest_db_update(run_id, ad_data_status=ad_data_status,
+                          errors_json=json.dumps(errors, ensure_ascii=False))
+
+        # 3) 昨日精简采集：只处理 enabled 活动，已有当天数据则跳过。
+        LATEST_STATE["stage"] = "search"
+        from backend import ads_store
+        from backend.ads_ops.campaign_groups import CampaignGroupsService
+        campaigns = CampaignGroupsService().load().get("campaigns") or []
+        active = [c for c in campaigns
+                  if str(c.get("state") or c.get("status") or "").lower() == "enabled"]
+        active_total = len(active)
+        LATEST_STATE["total"] = active_total
+        _latest_db_update(run_id, active_total=active_total, stage="search")
+        _latest_log("info", f"{day} 在投活动 {active_total} 个，开始精简采集")
+        opts = {"placement": False, "target": False, "product": False,
+                "search": True, "group": False, "skipNoClicks": True}
+        for i, c in enumerate(active, 1):
+            cid = str(c.get("campaign_id") or "")
+            name = c.get("campaign_name") or c.get("name") or cid
+            LATEST_STATE["done"] = i
+            if not cid:
+                continue
+            if ads_store.campaign_has_day(cid, day):
+                search_skipped += 1
+                _latest_log("info", f"{name} 已有 {day} 数据，跳过")
+                _latest_db_update(run_id, search_skipped=search_skipped)
+                continue
+            try:
+                data = collect_one_day(cid, day, opts)
+                ads_store.write_day(data, cid)
+                ads_store.repair_search_dims(cid, day)
+                search_done += 1
+                _latest_log("success", f"{name} 精简采集完成",
+                            _day_summary_text(data))
+                _latest_db_update(run_id, search_done=search_done)
+            except Exception as e:      # noqa: BLE001
+                errors.append(f"{name}: {str(e)[:120]}")
+                _latest_log("error", f"{name} 精简采集失败", str(e)[:200])
+                _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
+    except Exception as e:              # noqa: BLE001
+        errors.append(str(e)[:200])
+        _latest_log("error", "最新采集失败", str(e)[:300])
+    finally:
+        final_status = "done" if not errors else ("partial" if (search_done or online_count) else "failed")
+        LATEST_STATE.update({
+            "running": False, "stage": "done",
+            "error": "；".join(errors)[:500],
+            "finishedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        _latest_db_update(run_id, finished_at=LATEST_STATE["finishedAt"],
+                          status=final_status, stage="done",
+                          online_count=online_count,
+                          ad_data_status=ad_data_status,
+                          active_total=active_total,
+                          search_done=search_done,
+                          search_skipped=search_skipped,
+                          errors_json=json.dumps(errors, ensure_ascii=False))
+        _latest_log("success" if not errors else "warn", "最新采集结束",
+                    f"{day}，错误 {len(errors)} 个")
+
+
+@router.post("/latest/start")
+def latest_start() -> Dict[str, Any]:
+    with _LATEST_LOCK:
+        if LATEST_STATE.get("running"):
+            raise HTTPException(status_code=409, detail="最新采集正在运行")
+        from backend import ads_store
+        day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        started = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = ads_store.get_conn()
+        try:
+            ads_store.init(conn)
+            _latest_ensure_table(conn)
+            cur = conn.execute(
+                "INSERT INTO latest_refresh_runs(started_at,day,status,stage) "
+                "VALUES(?,?,?,?)", (started, day, "running", "pending"))
+            run_id = int(cur.lastrowid)
+            conn.commit()
+        finally:
+            conn.close()
+        LATEST_STATE.update({"running": True, "stage": "pending", "error": "",
+                             "progress": [], "done": 0, "total": 0,
+                             "runId": run_id, "day": day,
+                             "startedAt": started, "finishedAt": ""})
+    thread = threading.Thread(target=_run_latest_refresh, args=(run_id,), daemon=True)
+    thread.start()
+    time.sleep(0.1)
+    return {"ok": True, "state": dict(LATEST_STATE)}
+
+
+@router.get("/latest/status")
+def latest_status() -> Dict[str, Any]:
+    return dict(LATEST_STATE)
+
+
+@router.get("/latest/history")
+def latest_history(limit: int = 50) -> Dict[str, Any]:
+    from backend import ads_store
+    conn = ads_store.get_conn()
+    try:
+        ads_store.init(conn)
+        _latest_ensure_table(conn)
+        rows = conn.execute(
+            "SELECT * FROM latest_refresh_runs ORDER BY id DESC LIMIT ?",
+            (max(1, min(int(limit), 200)),)).fetchall()
+        return {"items": [dict(r) for r in rows]}
+    finally:
+        conn.close()
 
 
 @router.post("/start")
@@ -1082,6 +1315,47 @@ def store_search_terms_all(start: str = Query(...), end: str = Query(...),
     return {"items": ads_store.search_term_overview_all(start, end, limit, qtype)}
 
 
+@router.post("/store/search-terms/refresh")
+def store_search_term_refresh(campaignId: str = Query(...),
+                              term: str = Query(...),
+                              kind: str = "keyword",
+                              start: str = Query(...),
+                              end: str = Query(...)) -> Dict[str, Any]:
+    """单行修复：补活动/组/产品维度与产品映射，再返回最新行。
+
+    这是行级元数据刷新，不重采当天指标；指标仍以已入库事实为准。
+    """
+    from backend import ads_store
+    warnings = []
+    try:
+        ads_store.enrich_dims(campaign_id=campaignId, day=end)
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"维度刷新失败：{str(e)[:120]}")
+    try:
+        prods = list_products(campaignId, end) or []
+        conn = ads_store.get_conn()
+        try:
+            for p in prods:
+                asin = str(p.get("asin") or "")
+                if not asin:
+                    continue
+                ads_store.upsert_campaign_product(
+                    conn, campaignId, asin,
+                    sku=p.get("sku") or "",
+                    parent_asin=p.get("parentAsin") or p.get("parent_asin") or "")
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"产品刷新失败：{str(e)[:120]}")
+    qtype = "asin" if kind == "asin" else "keyword"
+    rows = ads_store.search_term_overview_all(start, end, limit=5000, query_type=qtype)
+    matched = [r for r in rows
+               if str(r.get("campaign_id")) == str(campaignId)
+               and str(r.get("term")) == str(term)]
+    return {"ok": True, "rows": matched, "warnings": warnings}
+
+
 @router.get("/store/competitor/terms")
 def store_comp_terms(campaignId: str = Query(...), start: str = "",
                      end: str = "") -> Dict[str, Any]:
@@ -1129,10 +1403,49 @@ class SearchOpsTaskRequest(BaseModel):
     items: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class SearchOpStatusRequest(BaseModel):
+    campaign_id: str
+    group_id: str = ""
+    term: str
+    kind: str = "keyword"
+    status: str = "已完成"
+
+
+@router.get("/search-ops/statuses")
+def list_search_op_statuses(kind: str = "") -> Dict[str, Any]:
+    from backend import search_ops
+    return {"items": search_ops.list_statuses(kind)}
+
+
+@router.post("/search-ops/statuses")
+def set_search_op_status(req: SearchOpStatusRequest) -> Dict[str, Any]:
+    from backend import search_ops
+    return search_ops.set_status(req.campaign_id, req.group_id, req.term,
+                                 req.kind, req.status)
+
+
+@router.delete("/search-ops/statuses")
+def delete_search_op_status(campaign_id: str = Query(...),
+                            group_id: str = "",
+                            term: str = Query(...),
+                            kind: str = "keyword") -> Dict[str, Any]:
+    from backend import search_ops
+    return search_ops.set_status(campaign_id, group_id, term, kind, "")
+
+
 @router.post("/search-ops/tasks")
 def create_search_ops_task(req: SearchOpsTaskRequest) -> Dict[str, Any]:
     from backend import search_ops
     return search_ops.create_task(req.items)
+
+
+@router.post("/search-ops/auto-campaigns")
+def create_auto_campaign_search_ops() -> Dict[str, Any]:
+    from backend import search_ops
+    try:
+        return search_ops.create_auto_campaign_task()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(e)[:300])
 
 
 @router.get("/search-ops/tasks")

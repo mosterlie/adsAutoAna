@@ -19,6 +19,7 @@ JOBS: Dict[str, Dict[str, Any]] = {}
 
 KIND_TERM = "search_term"        # 搜索词
 KIND_PRODUCT = "product_name"    # 父SKU品名 (由 ai_label 写入)
+KIND_PRODUCT_EN = "product_name_en"  # 商品标识的英文翻译
 
 _PROMPT = (
     "你是跨境电商关键词翻译助手。下面是一个亚马逊日本站的用户搜索词，"
@@ -49,15 +50,27 @@ def clean_zh(text: str, limit: int = 20) -> str:
     return ai_label._clean_label(line, max_words=8)[:limit]
 
 
-def _generate_one(text: str, cfg: Dict[str, Any]) -> Tuple[str, str]:
-    """返回 (中文短语, 模型名); 模型管道与「配置」里的品名解析共用"""
-    prompt = _PROMPT.format(q=str(text)[:120])
+_PROMPT_EN = (
+    "You are a cross-border e-commerce product naming assistant. "
+    "Translate the following Chinese product phrase into a concise English product identifier.\n"
+    "Requirements: output only the English phrase, at most 5 words; "
+    "no quotes, no Japanese, no explanation.\n\n"
+    "Chinese: {q}\nEnglish:"
+)
+
+
+def _generate_one(text: str, cfg: Dict[str, Any], kind: str = KIND_TERM) -> Tuple[str, str]:
+    """返回 (短标识, 模型名); 中文标识和英文标识共用模型管道。"""
+    prompt = (_PROMPT_EN if kind == KIND_PRODUCT_EN else _PROMPT).format(q=str(text)[:120])
     if cfg.get("provider") == "workbuddy":
         raw = ai_label._workbuddy_generate(prompt, cfg)
         model = cfg.get("workbuddy_model") or config.WORKBUDDY_MODEL
     else:
         raw = ai_label._ollama_generate(prompt, cfg)
         model = cfg.get("ollama_model") or config.OLLAMA_MODEL
+    if kind == KIND_PRODUCT_EN:
+        # 英文标识只保留首行、去引号，限制长度。
+        return str(raw or "").strip().splitlines()[0].strip(' "\'')[:80], model
     return clean_zh(raw), model
 
 
@@ -100,8 +113,11 @@ def _key_of(items: List[str]) -> str:
 
 
 def job_state(kind: str, sources: List[str]) -> Dict[str, Any]:
+    items = [s for s in (sources or []) if s]
+    if kind == KIND_TERM:
+        items = [s for s in items if not is_asin(s)]
     with _LOCK:
-        j = JOBS.get(_key_of([s for s in (sources or []) if not is_asin(s)]))
+        j = JOBS.get(_key_of(items))
         return dict(j) if j else {"running": False, "done": 0, "total": 0}
 
 
@@ -113,7 +129,7 @@ def _work(key: str, kind: str, sources: List[str]) -> None:
             if key in JOBS:
                 JOBS[key]["current"] = s
         try:
-            zh, model = _generate_one(s, cfg)
+            zh, model = _generate_one(s, cfg, kind)
             if zh:
                 db.save_translation(kind, s, zh, model)
                 with _LOCK:

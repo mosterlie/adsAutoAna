@@ -732,7 +732,8 @@ def translate_ensure(req: TranslateReq = Body(default=TranslateReq())) -> Dict[s
 
     已翻译过的直接返回(不再调模型); ASIN 形态的 query 自动跳过。
     """
-    kind = req.kind if req.kind in (translate.KIND_TERM, translate.KIND_PRODUCT) \
+    kind = req.kind if req.kind in (translate.KIND_TERM, translate.KIND_PRODUCT,
+                                    translate.KIND_PRODUCT_EN) \
         else translate.KIND_TERM
     try:
         res = translate.ensure(kind, req.sources, refresh=req.refresh)

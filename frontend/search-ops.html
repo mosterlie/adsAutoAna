@@ -145,7 +145,7 @@ body{background:var(--bg)}
 </head>
 <body>
 <header class="topbar topbar-slim">
-  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">赛狐ERP</span></div>
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">XI狐ERP</span></div>
   <div class="seg seg-top">
     <button class="seg-btn" onclick="location.href='/'">数据表格</button>
     <button class="seg-btn active">指令任务</button>
@@ -165,6 +165,7 @@ body{background:var(--bg)}
   <div class="panel">
     <div class="toolbar">
       <input id="searchInput" class="searchbox" placeholder="搜索任务ID / 状态 / 活动 / 词或ASIN / 指令内容">
+      <button class="btn ghost" id="autoCampaignBtn" type="button">生成未建活动商品指令</button>
       <button class="btn ghost" id="refreshBtn" type="button">刷新</button>
       <span class="muted" id="taskSummary">加载中…</span>
       <span class="sp"></span>
@@ -265,6 +266,7 @@ function instructionGroups(items) {
     if (!map.has(key)) map.set(key, {
       term: x.term || "未识别",
       kind: x.kind || "keyword",
+      autoCampaign: String(x.action || "") === "create_campaign",
       campaign: x.source_campaign_name || x.campaign_name || x.source_campaign_id || x.campaign_id || "-",
       items: [],
     });
@@ -303,7 +305,7 @@ function groupedInstructionHtml(items, modal = false, taskId = "") {
       <div class="ins-term-head">
         <span class="ins-term-index">${gi + 1}</span>
         <span class="ins-term-name" title="${esc(g.term)}">${esc(g.term)}</span>
-        <span class="ins-term-tag">${g.kind === "asin" ? "搜索 ASIN" : "搜索词"}</span>
+        <span class="ins-term-tag">${g.autoCampaign ? "新建自动活动" : (g.kind === "asin" ? "搜索 ASIN" : "搜索词")}</span>
         <span class="ins-term-meta" title="${esc(g.campaign)}">来源：${esc(g.campaign)}</span>
         <span class="ins-term-count">${g.items.length} 条指令</span>
       </div>
@@ -466,6 +468,22 @@ async function deleteTask(taskId, btn) {
   }
 }
 
+function persistServerStatus(items, status = "已完成") {
+  const x = (items || [])[0];
+  if (!x) return;
+  const body = {
+    campaign_id: x.source_campaign_id || x.campaign_id || "",
+    group_id: x.source_group_id ?? x.group_id ?? "",
+    term: x.term || "",
+    kind: x.kind || "keyword",
+    status,
+  };
+  fetch("/api/daily/search-ops/statuses", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
 function syncTaskStatuses(task) {
   const groups = new Map();
   (taskItems(task) || []).forEach(x => {
@@ -479,9 +497,12 @@ function syncTaskStatuses(task) {
   let changed = false;
   groups.forEach((items, key) => {
     // 只有该词的所有指令都执行成功，才把处置状态推进到“已完成”。
-    if (items.length && items.every(x => x.executed) && store[key] !== "已完成") {
-      store[key] = "已完成";
-      changed = true;
+    if (items.length && items.every(x => x.executed)) {
+      if (store[key] !== "已完成") {
+        store[key] = "已完成";
+        changed = true;
+      }
+      persistServerStatus(items, "已完成");
     }
   });
   if (changed) {
@@ -560,6 +581,21 @@ async function confirmTask(taskId, btn) {
 }
 
 $("searchInput").oninput = renderTasks;
+$("autoCampaignBtn").onclick = async () => {
+  const btn = $("autoCampaignBtn");
+  btn.disabled = true; btn.textContent = "生成中…";
+  try {
+    const r = await fetch("/api/daily/search-ops/auto-campaigns", { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    await loadTasks(d.task_id);
+    openDetail(d.task_id);
+  } catch (e) {
+    alert("生成指令失败：" + String(e.message || e));
+  } finally {
+    btn.disabled = false; btn.textContent = "生成未建活动商品指令";
+  }
+};
 $("refreshBtn").onclick = () => loadTasks(OPEN_TASK);
 $("backBtn").onclick = () => { location.href = "/static/daily-probe.html?tab=termData"; };
 $("detailClose").onclick = closeDetail;

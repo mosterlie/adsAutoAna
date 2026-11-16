@@ -808,17 +808,44 @@ function exportCsv() {
 }
 
 /* ---------- 采集 ---------- */
-async function doCrawl() {
-  const body = {
-    start_date: $("fStart").value || state.defaultStart,
-    end_date: $("fEnd").value || state.today,
-  };
-  if (!confirm(`将采集「广告管理」下全部子菜单数据\n时间范围: ${body.start_date} ~ ${body.end_date}\n其他筛选: 全状态\n\n开始?`)) return;
-  const r = await api("/api/crawl", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  if (r.started) { toast("采集已启动"); openDrawer(); startPolling(); }
-  else toast(r.detail || "启动失败");
+async function startLatestRefresh() {
+  const b = $("btnLatest");
+  if (!b || b.disabled) return;
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  const day = d.toISOString().slice(0, 10);
+  if (!confirm(`将执行采集最新：\n\n1. 在线产品全量\n2. ${day} 全量广告数据（已有则跳过）\n3. ${day} 在投活动精简采集（已有则跳过）\n\n开始?`)) return;
+  b.disabled = true; b.textContent = "采集中…";
+  try {
+    const r = await api("/api/daily/latest/start", { method: "POST" });
+    if (!r.ok) throw new Error(r.detail || "启动失败");
+    openDrawer(); startLatestPolling();
+  } catch (e) {
+    toast("采集最新启动失败：" + ((e && e.message) || e));
+    b.disabled = false; b.textContent = "采集最新";
+  }
+}
+
+let latestTimer = null;
+async function startLatestPolling() {
+  if (latestTimer) clearInterval(latestTimer);
+  latestTimer = setInterval(async () => {
+    let s;
+    try { s = await api("/api/daily/latest/status"); } catch (e) { return; }
+    const lines = (s.progress || []).map(x =>
+      `[${x.time || ""}] ${x.message || ""}${x.detail ? " · " + x.detail : ""}`);
+    $("drawerBody").textContent = lines.join("\n") || "等待中...";
+    $("drawerBody").scrollTop = $("drawerBody").scrollHeight;
+    const b = $("btnLatest");
+    if (b && s.running) b.textContent = `采集中…${s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : ""}`;
+    if (!s.running) {
+      clearInterval(latestTimer); latestTimer = null;
+      if (b) { b.disabled = false; b.textContent = "采集最新"; }
+      await loadOnlineMeta();
+      if (!$("onlineView") || $("onlineView").style.display !== "none") await loadOnlineProducts();
+      if (s.error) toast("采集最新完成，但有错误：" + s.error.slice(0, 80));
+      else toast("采集最新完成");
+    }
+  }, 2000);
 }
 
 function openDrawer() { $("drawer").classList.add("open"); }
@@ -856,8 +883,7 @@ $("fSearchMode").onchange = (e) => { state.searchMode = e.target.value; state.pa
 $("fStart").onchange = () => { state.page = 1; loadAll(); };
 $("fEnd").onchange = () => { state.page = 1; loadAll(); };
 $("btnRefresh").onclick = () => loadAll();
-$("btnCrawl").onclick = doCrawl;
-$("btnCampaignGroups").onclick = () => { location.href = "/campaign-groups?refresh=1"; };
+$("btnLatest").onclick = startLatestRefresh;
 $("btnSyncCookie").onclick = syncCookies;
 $("btnExport").onclick = exportCsv;
 $("pageSize").onchange = (e) => { state.pageSize = +e.target.value; state.page = 1; loadRecords(); };
@@ -2283,8 +2309,11 @@ const ol = {
   keyword: "", searchField: "asin", filters: { isVariation: ["1"] }, pageType: "parent",
   orderField: "", orderDir: "desc",
   fields: [], shops: [], filterMeta: [], updated: "", counts: { child: 0, parent: 0, total: 0 },
+  loading: false,         // 防止触底重复请求
   visible: null,          // Set(列 key)
   aiLabels: {},           // asin -> AI 品名(本地 Ollama 解析)
+  enLabels: {},           // 中文商品标识 -> 英文标识
+  enRequested: new Set(), // 已发起英文翻译的中文标识
   markCounts: { pass: 0, fail: 0 },   // 打标统计(通过 / 不通过)
   loaded: false,
 };
@@ -2296,6 +2325,7 @@ const OL_COLUMNS = [
   { key: "asinSku", label: "ASIN/MSKU", fields: ["asin", "sku"], type: "asinlink" },
   // 商品标识 = 本地 Ollama 解析标题得到的「这是什么」(≤5 个词), 展示在标题列之前
   { key: "aiTitle", label: "商品标识", fields: [], type: "ai" },
+  { key: "aiTitleEn", label: "英文标识", fields: [], type: "aiEn" },
   // 打标 = 操作列「通过 / 不通过」按钮写入的人工标记(按父 ASIN), 紧跟品名显示
   { key: "mark", label: "打标", fields: [], type: "mark" },
   // 来源链接(店小秘 parents CSV 关联): 1=亚马逊商品链接, 2=采购源链接(带站点图标)
@@ -2382,6 +2412,13 @@ function olNum(v, digits) {
 function olRowParent(r) {
   return String((r && (r.parentAsin || r.asin)) || "");
 }
+/* 商品标识只按父体解析：父体用父 ASIN，子体只复用 parentAsin。 */
+function olRowAiAsin(r) {
+  if (!r) return "";
+  const isChild = String(r.isVariation || "") === "2"
+    || (r.parentAsin && String(r.parentAsin) !== String(r.asin));
+  return String(isChild ? (r.parentAsin || "") : (r.asin || ""));
+}
 
 async function toggleMark(r, mark) {
   const pa = olRowParent(r);
@@ -2437,10 +2474,23 @@ function olCell(col, r) {
              title="点击复制 MSKU：${esc(s)}">${esc(String(s).slice(0, 22))}</div>`;
     }
     case "ai": {
-      const a = esc(r.asin || "");
-      const lab = (ol.aiLabels || {})[r.asin];
+      const aiAsin = olRowAiAsin(r);
+      if (!aiAsin) return `<span class="ol-na" title="该子体没有父 ASIN，无法复用父体商品标识">-</span>`;
+      const a = esc(aiAsin);
+      const lab = (ol.aiLabels || {})[aiAsin];
       return `<span class="ol-ai${lab ? "" : " ol-ai-empty"}" data-ai-asin="${a}"
-        title="${lab ? esc(lab) : "正在解析商品标识(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
+        ${lab ? `data-copy="${esc(lab)}" data-copy-label="商品标识"` : ""}
+        title="${lab ? `点击复制商品标识：${esc(lab)}` : "正在解析父体商品标识(模型可在右上角「配置」里切换)…"}">${lab ? esc(lab) : "解析中…"}</span>`;
+    }
+    case "aiEn": {
+      const aiAsin = olRowAiAsin(r);
+      if (!aiAsin) return `<span class="ol-na" title="该子体没有父 ASIN，无法复用父体英文标识">-</span>`;
+      const a = esc(aiAsin);
+      const lab = (ol.aiLabels || {})[aiAsin];
+      const en = lab ? (ol.enLabels || {})[lab] : "";
+      return `<span class="ol-ai ol-ai-en${en ? "" : " ol-ai-empty"}" data-ai-en-asin="${a}"
+        ${en ? `data-copy="${esc(en)}" data-copy-label="英文标识"` : ""}
+        title="${en ? `点击复制英文标识：${esc(en)}` : (lab ? "正在翻译父体商品标识…" : "等待父体中文商品标识…")}">${en ? esc(en) : "翻译中…"}</span>`;
     }
     case "amazonlink": {
       // 店小秘没导出亚马逊链接时, 退回用 ASIN 拼详情页 —— 与点 ASIN/MSKU 跳的是同一个地址
@@ -2579,10 +2629,27 @@ function olParams() {
   return q;
 }
 
-async function loadOnlineProducts() {
-  const d = await api("/api/online/products?" + olParams().toString());
-  ol.rows = d.rows; ol.total = d.total;
-  renderOnline();
+async function loadOnlineProducts(append = false) {
+  if (ol.loading) return;
+  const wrap = $("olWrap");
+  const oldTop = wrap ? wrap.scrollTop : 0;
+  const targetPage = append ? ol.page + 1 : 1;
+  const oldPage = ol.page;
+  ol.loading = true;
+  ol.page = targetPage;
+  try {
+    const d = await api("/api/online/products?" + olParams().toString());
+    if (append) ol.rows = [...ol.rows, ...(d.rows || [])];
+    else ol.rows = d.rows || [];
+    ol.total = d.total;
+    renderOnline();
+    if (wrap) wrap.scrollTop = oldTop;
+  } catch (e) {
+    ol.page = oldPage;
+    toast("加载在线产品失败：" + ((e && e.message) || e));
+  } finally {
+    ol.loading = false;
+  }
 }
 
 /* 打标筛选: 全部 / 通过 / 不通过 / 未标记 (这是人工标记, 不是接口字段, 单独一个下拉) */
@@ -2633,7 +2700,6 @@ function renderOnline() {
       <button class="btn btn-primary" id="olQuery">查询</button>
       <button class="btn" id="olReset">重置</button>
       <div class="colpick" id="olColPick"></div>
-      <button class="btn" id="olCrawl">采集最新</button>
     </div>
     <div class="p-sum">
       <span>在线产品 <b>${ol.total}</b></span>
@@ -2671,7 +2737,6 @@ function renderOnline() {
     ol.orderField = ""; olSetPageType("parent");     // 默认页签 = 父体
     renderOnline(); loadOnlineProducts();
   };
-  $("olCrawl").onclick = doOnlineCrawl;
   renderOnlineColPick();
   renderOlStatusPick();
 
@@ -2682,6 +2747,7 @@ function renderOnline() {
     && (showSrcLink || !SRC_LINK_KEYS.has(c.key)));
   const HEAD_TIPS = {
     aiTitle: "本地模型解析标题得出的「这是什么」(≤5 个词)",
+    aiTitleEn: "商品标识的英文翻译，由本地模型生成并缓存",
     priceMedian: "父体价格 = 该父体下全部子体售价的中位数；点击排序",
   };
   const head = cols.map((c) => {
@@ -2705,7 +2771,15 @@ function renderOnline() {
 
   $("olWrap").innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` +
     (ol.rows.length ? "" : `<div class="empty">暂无数据，点击「采集最新」拉取在线产品</div>`) + olPager();
-  hoistPager("olWrap");                      // 分页条挂到表格容器外, 固定在视口最底端
+  hoistPager("olWrap");                      // 状态条挂到表格容器外
+  // 滚动到接近底部时追加下一页。
+  const olScroll = $("olWrap");
+  if (olScroll) olScroll.onscroll = () => {
+    if (ol.loading || ol.rows.length >= ol.total) return;
+    if (olScroll.scrollHeight - olScroll.scrollTop - olScroll.clientHeight < 180) {
+      loadOnlineProducts(true);
+    }
+  };
 
   $("olWrap").querySelectorAll("img[data-preview]").forEach((img) => img.onclick = () =>
     openImagePreview(img.dataset.preview, img.dataset.cap, img.dataset.fallback));
@@ -2741,10 +2815,8 @@ function renderOnline() {
     }
     // 其余空白处点击: 什么都不做(不再打开详情)
   });
-  // 父体: 拉取「品名」AI 标签(本地 Ollama, 后台生成 + 轮询回填)
-  if (ol.pageType === "parent") {
-    ensureAiLabels(ol.rows.map((r) => r.asin).filter(Boolean));
-  }
+  // 只对父体解析商品标识；子体行统一用 parentAsin 复用父体结果。
+  ensureAiLabels(ol.rows.map((r) => olRowAiAsin(r)).filter(Boolean));
   olBindPager();
 }
 
@@ -2766,6 +2838,7 @@ async function aiEnsure(asins, key, store, sel) {
     // 库里没有这些 ASIN 的标题 → 无从解析, 直接标掉, 免得一直「解析中…」
     (r.no_title || []).forEach((a) => { if (!store[a]) store[a] = "—"; });
     aiPaint(store, sel);
+    if (key === "ol") ensureOlEnLabels();
     if ((r.pending || []).length) aiPoll(list, key, store, sel);
   } catch (e) { /* 模型不可用时保持「解析中…」 */ }
 }
@@ -2775,8 +2848,12 @@ function aiPaint(store, sel) {
     const v = store[el.dataset.aiAsin];
     if (!v) return;
     el.textContent = v;
-    el.title = v;
+    el.title = sel === "#olWrap" ? `点击复制商品标识：${v}` : v;
     el.classList.remove("ol-ai-empty");   // 去掉「解析中」占位样式 -> 变蓝色标签
+    if (sel === "#olWrap") {
+      el.dataset.copy = v;
+      el.dataset.copyLabel = "商品标识";
+    }
   });
 }
 
@@ -2791,6 +2868,7 @@ function aiPoll(asins, key, store, sel) {
     } catch (e) { return; }
     Object.assign(store, d.labels || {});
     aiPaint(store, sel);
+    if (key === "ol") ensureOlEnLabels();
     // 以「本页 ASIN 是否都拿到标签」为准, 不依赖后台任务状态
     const left = asins.filter((a) => !store[a]);
     if (!left.length || rounds > 120) {
@@ -2820,6 +2898,60 @@ function pollAiLabels(asins) {
 }
 function markAiGaveUp() { aiGaveUp("#olWrap"); }
 
+/* 商品标识的英文翻译：中文标识生成后再翻译，结果按中文标识缓存。 */
+let OL_EN_POLL = null;
+function paintOlEnLabels() {
+  document.querySelectorAll("#olWrap span[data-ai-en-asin]").forEach((el) => {
+    const lab = (ol.aiLabels || {})[el.dataset.aiEnAsin];
+    const en = lab ? (ol.enLabels || {})[lab] : "";
+    if (!en) return;
+    el.textContent = en;
+    el.title = `点击复制英文标识：${en}`;
+    el.classList.remove("ol-ai-empty");
+    el.dataset.copy = en;
+    el.dataset.copyLabel = "英文标识";
+  });
+}
+async function ensureOlEnLabels() {
+  const labels = [...new Set(Object.values(ol.aiLabels || {})
+    .filter((v) => v && v !== "—"))];
+  const missing = labels.filter((v) => !ol.enLabels[v] && !ol.enRequested.has(v));
+  if (!missing.length) { paintOlEnLabels(); return; }
+  missing.forEach((v) => ol.enRequested.add(v));
+  try {
+    const d = await api("/api/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "product_name_en", sources: missing }),
+    });
+    Object.assign(ol.enLabels, d.translations || {});
+    paintOlEnLabels();
+    if (d.available === false) return;
+    const pending = (d.pending || []).filter((v) => !ol.enLabels[v]);
+    if (pending.length) pollOlEnLabels(pending);
+  } catch (e) {
+    missing.forEach((v) => ol.enRequested.delete(v));
+  }
+}
+function pollOlEnLabels(pending) {
+  if (OL_EN_POLL) clearInterval(OL_EN_POLL);
+  let rounds = 0;
+  OL_EN_POLL = setInterval(async () => {
+    rounds += 1;
+    let d;
+    try {
+      d = await api("/api/translate/status?kind=product_name_en&sources="
+        + encodeURIComponent(pending.join(",")));
+    } catch (e) { return; }
+    Object.assign(ol.enLabels, d.translations || {});
+    paintOlEnLabels();
+    const left = pending.filter((v) => !ol.enLabels[v]);
+    if (!left.length || rounds > 120) {
+      clearInterval(OL_EN_POLL); OL_EN_POLL = null;
+      pending.forEach((v) => ol.enRequested.delete(v));
+    }
+  }, 1500);
+}
+
 /* 产品视角(父体) */
 function ensurePvLabels(asins) {
   return aiEnsure(asins, "pv", pv.aiLabels || (pv.aiLabels = {}), "#pWrap");
@@ -2831,27 +2963,12 @@ function pvAiHtml(asin) {
 }
 
 function olPager() {
-  const pages = Math.max(1, Math.ceil(ol.total / ol.pageSize));
   return `<div class="pager">
-    <span>共 ${ol.total} 条</span>
-    <select id="olPageSize">
-      ${[50, 100, 200].map((n) => `<option value="${n}"${ol.pageSize === n ? " selected" : ""}>${n}条/页</option>`).join("")}
-    </select>
-    <button class="btn btn-mini" id="olPrev">上一页</button>
-    <span>${ol.page} / ${pages}</span>
-    <button class="btn btn-mini" id="olNext">下一页</button>
-    <span>前往</span><input type="number" class="jump" id="olJump" value="${ol.page}"><span>页</span>
+    <span>共 ${ol.total} 条 · 已加载 ${ol.rows.length} 条</span>
+    <span class="ol-load-hint">${ol.rows.length < ol.total ? "继续向下滚动自动加载" : "已全部加载"}</span>
   </div>`;
 }
-function olBindPager() {
-  $("olPageSize").onchange = (e) => { ol.pageSize = +e.target.value; ol.page = 1; loadOnlineProducts(); };
-  $("olPrev").onclick = () => { if (ol.page > 1) { ol.page--; loadOnlineProducts(); } };
-  $("olNext").onclick = () => {
-    const pages = Math.max(1, Math.ceil(ol.total / ol.pageSize));
-    if (ol.page < pages) { ol.page++; loadOnlineProducts(); }
-  };
-  $("olJump").onchange = (e) => { ol.page = Math.max(1, +e.target.value || 1); loadOnlineProducts(); };
-}
+function olBindPager() { /* 无限滚动：不再绑定上一页/下一页 */ }
 
 /* 列选择器: 列出与原站一致的 47 个显示列 */
 function renderOnlineColPick() {
@@ -4298,6 +4415,10 @@ async function relabelCurrentPage() {
 }
 
 $("btnAiConfig").onclick = openAiConfig;
+// 从其它菜单的「配置」按钮跳回首页时自动打开配置。
+if (new URLSearchParams(location.search).get("openConfig") === "1") {
+  setTimeout(() => { const b = $("btnAiConfig"); if (b) b.click(); }, 350);
+}
 $("cfgClose").onclick = () => $("cfgModal").classList.remove("open");
 $("cfgModal").onclick = (e) => { if (e.target.id === "cfgModal") $("cfgModal").classList.remove("open"); };
 document.querySelectorAll('input[name=cfgProvider]').forEach((el) => el.onchange = syncCfgGroups);

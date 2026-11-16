@@ -30,6 +30,17 @@ def _ensure_table(conn) -> None:
           executed_at TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS search_op_status (
+          campaign_id TEXT NOT NULL,
+          group_id TEXT NOT NULL DEFAULT '',
+          term TEXT NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'keyword',
+          status TEXT NOT NULL,
+          updated_at TEXT,
+          PRIMARY KEY (campaign_id, group_id, term, kind)
+        )
+    """)
     conn.commit()
 
 
@@ -396,6 +407,207 @@ def create_task(items: List[Dict[str, Any]]) -> Dict[str, Any]:
             (task_id, plan["created_at"], "pending", json.dumps(plan, ensure_ascii=False)))
         conn.commit()
         return {"task_id": task_id, "status": "pending", "plan": plan}
+    finally:
+        conn.close()
+
+
+def create_auto_campaign_task() -> Dict[str, Any]:
+    """为尚无广告活动的父体生成「新建自动活动」指令（只预览，不执行）。"""
+    import config
+    from backend.cookies import load_cookies
+    from backend.ad_creator.suggest_bid import fetch_bids
+
+    conn = ads_store.get_conn()
+    try:
+        ads_store.init(conn)
+        _ensure_table(conn)
+        parents = [dict(r) for r in conn.execute(
+            "SELECT asin,sku,parent_asin,raw_json FROM online_products "
+            "WHERE is_variation='1'").fetchall()]
+        kids: Dict[str, List[Dict[str, Any]]] = {}
+        for r in conn.execute(
+                "SELECT asin,sku,parent_asin,online_status,raw_json FROM online_products "
+                "WHERE is_variation='2'").fetchall():
+            kids.setdefault(str(r["parent_asin"] or ""), []).append(dict(r))
+        labels = {str(r["asin"]): str(r["label"] or "") for r in conn.execute(
+            "SELECT asin,label FROM ol_ai_labels").fetchall()}
+        try:
+            live = CampaignGroupsService().load().get("campaigns") or []
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"读取赛狐活动失败：{str(exc)[:160]}") from exc
+        campaign_names = {str(c.get("campaign_name") or "") for c in live}
+        mapped = {str(r["asin"]) for r in conn.execute(
+            "SELECT DISTINCT asin FROM dim_campaign_product").fetchall()}
+        cookies = load_cookies()
+        warnings: List[str] = []
+        items: List[Dict[str, Any]] = []
+
+        def has_campaign(parent_asin: str) -> bool:
+            if any(parent_asin in n for n in campaign_names):
+                return True
+            if parent_asin in mapped:
+                return True
+            return any(str(k.get("asin") or "") in mapped
+                       for k in kids.get(parent_asin, []))
+
+        def clip(s: str, n: int = 120) -> str:
+            return str(s or "")[:n]
+
+        def mid(band: Any, fallback: float = 25) -> float:
+            if isinstance(band, list) and len(band) >= 2:
+                try:
+                    v = float(band[1])
+                    if v > 0:
+                        return round(v, 2)
+                except (TypeError, ValueError):
+                    pass
+            return fallback
+
+        for p in parents:
+            parent_asin = str(p.get("asin") or "")
+            if not parent_asin or has_campaign(parent_asin):
+                continue
+            label = labels.get(parent_asin) or str(p.get("sku") or parent_asin)
+            children = []
+            for k in kids.get(parent_asin, []):
+                price = _price(k.get("raw_json"))
+                if price > 0 and str(k.get("online_status") or "").lower() == "active":
+                    children.append((price, str(k.get("asin") or "")))
+            children = [(price, asin) for price, asin in children if asin]
+            children.sort(key=lambda x: (x[0], x[1]))
+            child_asins = [asin for _, asin in children[:5]]
+            if not child_asins:
+                warnings.append(f"{parent_asin} 没有 Active 子 ASIN，无法创建广告，跳过")
+                continue
+            campaign_name = clip(f"CA_{label}_{parent_asin}")
+            group_name = clip(f"GR_{label}_{parent_asin}")
+            if campaign_name in campaign_names:
+                warnings.append(f"{campaign_name} 已存在，跳过")
+                continue
+            try:
+                raw = json.loads(p.get("raw_json") or "{}")
+            except Exception:  # noqa: BLE001
+                raw = {}
+            shop_id = str(raw.get("shopId") or getattr(config, "DEFAULT_SHOP_ID", ""))
+            try:
+                bands = fetch_bids(cookies, shop_id, child_asins, "AUTO_FOR_SALES")
+            except Exception as exc:  # noqa: BLE001
+                bands = {}
+                warnings.append(f"{parent_asin} 建议竞价读取失败，使用 25：{str(exc)[:80]}")
+            auto_bids = {
+                "queryHighRelMatches": mid(bands.get("close-match")),
+                "queryBroadRelMatches": mid(bands.get("loose-match")),
+                "asinSubstituteRelated": mid(bands.get("substitutes")),
+                "asinAccessoryRelated": mid(bands.get("complements")),
+            }
+            params = {
+                "name": campaign_name,
+                "start_date": date.today().isoformat(),
+                "end_date": "",
+                "daily_budget": 300,
+                "targeting_type": "auto",
+                "strategy": "autoForSales",
+                "portfolio": "自动生成指令缓冲区",
+                "group_name": group_name,
+                "default_bid": 25,
+                "products": [{"asin": a} for a in child_asins],
+                "auto_bids": auto_bids,
+            }
+            bid_text = " · ".join([
+                f"紧密 ¥{auto_bids['queryHighRelMatches']}",
+                f"宽泛 ¥{auto_bids['queryBroadRelMatches']}",
+                f"同类 ¥{auto_bids['asinSubstituteRelated']}",
+                f"关联 ¥{auto_bids['asinAccessoryRelated']}",
+            ])
+            sections = [
+                ["活动名称", campaign_name],
+                ["广告组合", "自动生成指令缓冲区"],
+                ["每日预算", "¥300"],
+                ["广告组", group_name],
+                ["组默认竞价", "¥25"],
+                ["推广子 ASIN", "、".join(child_asins)],
+                ["投放竞价", bid_text],
+            ]
+            items.append({
+                "id": "ins_" + uuid.uuid4().hex[:10],
+                "action": "create_campaign",
+                "label": "新建自动活动",
+                "kind": "asin",
+                "term": parent_asin,
+                "campaign_id": "",
+                "campaign_name": "未建活动",
+                "source_campaign_id": "",
+                "source_campaign_name": "未建活动",
+                "group_id": "",
+                "group_name": group_name,
+                "parent_asin": parent_asin,
+                "selector": {},
+                "params": params,
+                "sections": sections,
+                "detail": f"为父体 {parent_asin} 新建自动活动 {campaign_name}，"
+                          f"广告组 {group_name}，推广 {len(child_asins)} 个子 ASIN",
+                "status": "pending",
+                "executed": False,
+            })
+        task_id = "op_" + datetime.now().strftime("%Y%m%d%H%M%S") + "_" + uuid.uuid4().hex[:6]
+        plan = {
+            "task_id": task_id,
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": "auto_campaign",
+            "items": items,
+            "warnings": warnings,
+        }
+        conn.execute(
+            "INSERT INTO search_op_tasks(task_id,created_at,status,plan_json) VALUES(?,?,?,?)",
+            (task_id, plan["created_at"], "pending", json.dumps(plan, ensure_ascii=False)))
+        conn.commit()
+        return {"task_id": task_id, "status": "pending", "plan": plan}
+    finally:
+        conn.close()
+
+
+def list_statuses(kind: str = "") -> List[Dict[str, Any]]:
+    conn = ads_store.get_conn()
+    try:
+        ads_store.init(conn)
+        _ensure_table(conn)
+        if kind:
+            rows = conn.execute(
+                "SELECT campaign_id,group_id,term,kind,status,updated_at "
+                "FROM search_op_status WHERE kind=? ORDER BY updated_at DESC",
+                (kind,)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT campaign_id,group_id,term,kind,status,updated_at "
+                "FROM search_op_status ORDER BY updated_at DESC").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def set_status(campaign_id: str, group_id: str, term: str, kind: str,
+               status: str) -> Dict[str, Any]:
+    conn = ads_store.get_conn()
+    try:
+        ads_store.init(conn)
+        _ensure_table(conn)
+        key = (str(campaign_id or ""), str(group_id or ""),
+               str(term or ""), "asin" if kind == "asin" else "keyword")
+        if not key[0] or not key[2]:
+            return {"ok": False, "message": "campaign_id/term 不能为空"}
+        if status:
+            conn.execute(
+                "INSERT INTO search_op_status(campaign_id,group_id,term,kind,status,updated_at) "
+                "VALUES(?,?,?,?,?,?) ON CONFLICT(campaign_id,group_id,term,kind) "
+                "DO UPDATE SET status=excluded.status,updated_at=excluded.updated_at",
+                (*key, str(status), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        else:
+            conn.execute(
+                "DELETE FROM search_op_status WHERE campaign_id=? AND group_id=? "
+                "AND term=? AND kind=?", key)
+        conn.commit()
+        return {"ok": True, "campaign_id": key[0], "group_id": key[1],
+                "term": key[2], "kind": key[3], "status": str(status or "")}
     finally:
         conn.close()
 

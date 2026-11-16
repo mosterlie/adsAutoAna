@@ -35,7 +35,8 @@ def today_str() -> str:
 
 def run_crawl(start_date: Optional[str] = None, end_date: Optional[str] = None,
               tabs: Optional[List[str]] = None, shop_ids: Optional[List[int]] = None,
-              cookie_string: Optional[str] = None, run_id: Optional[int] = None) -> int:
+              cookie_string: Optional[str] = None, run_id: Optional[int] = None,
+              keep_history: bool = False) -> int:
     """同步执行一次采集, 返回 run_id (供后台线程调用)
 
     健壮性: 从 create_run / init_db 到采集结束的全部逻辑都包在 try 内,
@@ -83,9 +84,10 @@ def run_crawl(start_date: Optional[str] = None, end_date: Optional[str] = None,
                     try:
                         records = client.fetch_list(tab, [sid], start, end, scope)
                         fetched_ok = True
-                        # 一次采集=一个快照: 先删掉该维度下其它时间区间的旧数据,
-                        # 否则跨天采集(区间变化)会让同一条记录再插一份, 指标翻倍
-                        purged = db.purge_stale_ranges(tab, scope, sid, start, end)
+                        # 普通同步=快照：清掉其它区间；最新采集保留历史，只补当日。
+                        purged = 0
+                        if not keep_history:
+                            purged = db.purge_stale_ranges(tab, scope, sid, start, end)
                         n = db.upsert_records(tab, scope, records, start, end)
                         tab_total += n
                         if purged:
@@ -105,7 +107,7 @@ def run_crawl(start_date: Optional[str] = None, end_date: Optional[str] = None,
 
         # 3) 收尾: 库里只保留本次采集的快照区间
         #    (防止历史/失败维度残留的旧区间数据混进统计口径, 导致指标翻倍)
-        leftover = db.purge_all_other_ranges(start, end)
+        leftover = 0 if keep_history else db.purge_all_other_ranges(start, end)
         if leftover:
             _log(f"  🧹 清理其它区间的历史快照 {leftover} 条")
 
