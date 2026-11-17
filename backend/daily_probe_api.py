@@ -1108,6 +1108,12 @@ def latest_status() -> Dict[str, Any]:
     return dict(LATEST_STATE)
 
 
+@router.get("/latest/schedule")
+def latest_schedule() -> Dict[str, Any]:
+    from backend.scheduler import scheduler_status
+    return scheduler_status()
+
+
 @router.get("/latest/history")
 def latest_history(limit: int = 50) -> Dict[str, Any]:
     from backend import ads_store

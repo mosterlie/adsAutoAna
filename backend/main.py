@@ -36,6 +36,15 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 db.init_db()
+
+
+@app.on_event("startup")
+def _start_daily_scheduler() -> None:
+    """每天 02:00 触发采集最新；失败不补偿。"""
+    from backend.scheduler import start_scheduler
+    start_scheduler()
+
+
 app.include_router(router)
 app.include_router(ad_creator_router)      # 广告创建(自 autoAds 平移)
 app.include_router(ads_fact_router)        # 广告产品级分时查询
