@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 DEFAULT_DAYS = 30
+DEFAULT_BACKFILL_LIMIT = 20
 MARKER = "__FULFILLMENT_RESULT__"
 
 
@@ -22,7 +23,9 @@ def toolkit_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "browser_toolkit"
 
 
-def sync_fulfillment(days: int = DEFAULT_DAYS, timeout: int = 1800) -> Dict[str, Any]:
+def sync_fulfillment(days: int = DEFAULT_DAYS,
+                     backfill_limit: int = DEFAULT_BACKFILL_LIMIT,
+                     timeout: int = 1800) -> Dict[str, Any]:
     root = toolkit_dir()
     if not root.is_dir():
         raise RuntimeError(f"browser_toolkit 不存在: {root}")
@@ -31,6 +34,13 @@ def sync_fulfillment(days: int = DEFAULT_DAYS, timeout: int = 1800) -> Dict[str,
         "from server.services.fulfillment_service import FulfillmentService\n"
         f"r = FulfillmentService.sync_from_miaoshou(days={int(days)}, pull=True, "
         "username='adsAutoAna-daily')\n"
+        "try:\n"
+        "    from server.services.dxm_order_service import DxmOrderService\n"
+        f"    r['tracking_backfill'] = DxmOrderService.backfill_missing_tracking("
+        f"limit={int(backfill_limit)})\n"
+        "except Exception as exc:\n"
+        "    r['tracking_backfill'] = {'checked': 0, 'filled': 0, 'not_found': 0, "
+        "'failed': 0, 'samples': [], 'error': str(exc)[:300]}\n"
         f"print({MARKER!r} + json.dumps(r, ensure_ascii=False))\n"
     )
     env = os.environ.copy()

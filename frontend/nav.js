@@ -180,7 +180,7 @@
     if (!btn || btn.disabled) return;
     const d = new Date(); d.setDate(d.getDate() - 1);
     const day = d.toISOString().slice(0, 10);
-    if (!confirm(`将执行采集最新：\n\n1. 在线产品全量\n2. ${day} 全量广告数据（已有则跳过）\n3. ${day} 在投活动精简采集（已有则跳过）\n4. 近 30 天履约同步（妙手订单 → 履约订单/包裹）\n\n开始?`)) return;
+    if (!confirm(`将执行采集最新：\n\n1. 在线产品全量\n2. ${day} 全量广告数据（已有则跳过）\n3. ${day} 在投活动精简采集（已有则跳过）\n4. 近 30 天履约同步（妙手订单 → 履约订单/包裹，并回填缺失运单号）\n\n开始?`)) return;
     btn.disabled = true; btn.textContent = "采集中…";
     try {
       const r = await fetch("/api/daily/latest/start", { method: "POST" });
@@ -267,6 +267,7 @@
             fulfillment_status: s.fulfillment_status || "",
             fulfillment_orders: s.fulfillment_orders || 0,
             fulfillment_packages: s.fulfillment_packages || 0,
+            fulfillment_backfilled: s.fulfillment_backfilled || 0,
             errors_json: s.error || "当前任务尚未写入历史库，重启服务后历史接口生效",
           }];
         } else {
@@ -295,7 +296,8 @@
           <td>${Number(x.search_done || 0)}</td>
           <td>${Number(x.search_skipped || 0)}</td>
           <td>${escapeHtml(FULFILL_STATUS[x.fulfillment_status] || x.fulfillment_status || "-")}<br>
-            <span class="muted">订单 ${Number(x.fulfillment_orders || 0)} / 包裹 ${Number(x.fulfillment_packages || 0)}</span></td>
+            <span class="muted">订单 ${Number(x.fulfillment_orders || 0)} / 包裹 ${Number(x.fulfillment_packages || 0)}
+              / 回填 ${Number(x.fulfillment_backfilled || 0)}</span></td>
           <td class="nav-history-err">${escapeHtml(x.errors_json && x.errors_json !== "[]" ? x.errors_json : "-")}</td>
         </tr>`).join("")}</tbody></table>`;
     } catch (e) {
