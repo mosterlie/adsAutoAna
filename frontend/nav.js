@@ -28,7 +28,20 @@
     return "";
   }
 
+  function bindLogo() {
+    document.querySelectorAll(".logo").forEach((el) => {
+      if (el.dataset.fulfillmentBound) return;
+      el.dataset.fulfillmentBound = "1";
+      el.style.cursor = "pointer";
+      el.title = "打开履约中心";
+      el.addEventListener("click", () => {
+        window.open("http://127.0.0.1:8000/fulfillment", "_blank", "noopener");
+      });
+    });
+  }
+
   function render() {
+    bindLogo();
     const bar = document.querySelector(".seg-top");
     if (!bar) return;
     const active = activeKey();
