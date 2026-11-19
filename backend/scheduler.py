@@ -36,34 +36,42 @@ def next_run_at(now: Optional[datetime] = None) -> datetime:
 
 def _loop() -> None:
     global _NEXT_RUN, _LAST_TRIGGER, _LAST_RESULT
-    while not _STOP.is_set():
-        target = next_run_at()
-        with _LOCK:
-            _NEXT_RUN = target
-        wait_seconds = max(0.0, (target - datetime.now()).total_seconds())
-        _log(f"下一次采集：{target:%Y-%m-%d %H:%M:%S}")
-        if _STOP.wait(wait_seconds):
-            return
+    # 短轮询而不是一次睡到第二天：电脑休眠唤醒后可重新对比真实时间。
+    check_seconds = 30
+    target = next_run_at()
+    with _LOCK:
+        _NEXT_RUN = target
+    _log(f"下一次采集：{target:%Y-%m-%d %H:%M:%S}")
 
+    while not _STOP.is_set():
         now = datetime.now()
-        # 进程休眠/卡顿导致错过触发窗口时，不补跑。
-        if now > target + timedelta(minutes=5):
-            _LAST_TRIGGER = now.strftime("%Y-%m-%d %H:%M:%S")
-            _LAST_RESULT = f"missed：已错过 {target:%H:%M}，不补偿"
-            _log(_LAST_RESULT)
+        if now >= target:
+            # 超过 5 分钟视为错过；只记录，不补跑。
+            if now > target + timedelta(minutes=5):
+                _LAST_TRIGGER = now.strftime("%Y-%m-%d %H:%M:%S")
+                _LAST_RESULT = f"missed：已错过 {target:%H:%M}，不补偿"
+                _log(_LAST_RESULT)
+            else:
+                _LAST_TRIGGER = now.strftime("%Y-%m-%d %H:%M:%S")
+                _log("触发每日采集最新")
+                try:
+                    from backend.daily_probe_api import latest_start
+                    latest_start()
+                    _LAST_RESULT = "started"
+                    _log("每日采集最新已启动")
+                except Exception as exc:  # noqa: BLE001
+                    # 不重试、不补偿。
+                    _LAST_RESULT = f"failed：{type(exc).__name__}: {str(exc)[:200]}"
+                    _log(f"每日采集启动失败（不补偿）：{_LAST_RESULT}")
+            target = next_run_at(now)
+            with _LOCK:
+                _NEXT_RUN = target
+            _log(f"下一次采集：{target:%Y-%m-%d %H:%M:%S}")
             continue
 
-        _LAST_TRIGGER = now.strftime("%Y-%m-%d %H:%M:%S")
-        _log("触发每日采集最新")
-        try:
-            from backend.daily_probe_api import latest_start
-            latest_start()
-            _LAST_RESULT = "started"
-            _log("每日采集最新已启动")
-        except Exception as exc:  # noqa: BLE001
-            # 不重试、不补偿。
-            _LAST_RESULT = f"failed：{type(exc).__name__}: {str(exc)[:200]}"
-            _log(f"每日采集启动失败（不补偿）：{_LAST_RESULT}")
+        wait_seconds = min(check_seconds, max(0.0, (target - now).total_seconds()))
+        if _STOP.wait(wait_seconds):
+            return
 
 
 def start_scheduler() -> None:

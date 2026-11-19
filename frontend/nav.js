@@ -281,6 +281,7 @@
             fulfillment_orders: s.fulfillment_orders || 0,
             fulfillment_packages: s.fulfillment_packages || 0,
             fulfillment_backfilled: s.fulfillment_backfilled || 0,
+            fulfillment_labeled: s.fulfillment_labeled || 0,
             errors_json: s.error || "当前任务尚未写入历史库，重启服务后历史接口生效",
           }];
         } else {
@@ -310,7 +311,7 @@
           <td>${Number(x.search_skipped || 0)}</td>
           <td>${escapeHtml(FULFILL_STATUS[x.fulfillment_status] || x.fulfillment_status || "-")}<br>
             <span class="muted">订单 ${Number(x.fulfillment_orders || 0)} / 包裹 ${Number(x.fulfillment_packages || 0)}
-              / 回填 ${Number(x.fulfillment_backfilled || 0)}</span></td>
+              / 标识 ${Number(x.fulfillment_labeled || 0)} / 回填 ${Number(x.fulfillment_backfilled || 0)}</span></td>
           <td class="nav-history-err">${escapeHtml(x.errors_json && x.errors_json !== "[]" ? x.errors_json : "-")}</td>
         </tr>`).join("")}</tbody></table>`;
     } catch (e) {

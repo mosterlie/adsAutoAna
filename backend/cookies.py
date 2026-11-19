@@ -35,35 +35,61 @@ def parse_cookie_string(raw: str) -> Dict[str, str]:
 
 
 def sync_from_browser(cdp_url: str = config.CDP_URL) -> Dict[str, str]:
-    """从 9222 调试 Chrome 导出 www.sellfox.com 的 Cookie (需已登录赛狐)
+    """从 9222 调试 Chrome 导出 www.sellfox.com 的 Cookie（需已登录赛狐）。
 
-    依赖 playwright; 只做 Cookie 导出, 数据采集本身走 requests。
+    不经过 Playwright 的 browser context：Chrome 157 已不支持
+    Browser.setDownloadBehavior，改用页面级 CDP Network.getAllCookies。
     """
-    import asyncio
-    from playwright.async_api import async_playwright
+    import json
+    import urllib.request
 
-    async def _run():
-        pw = await async_playwright().start()
+    import websocket
+
+    base = cdp_url.rstrip("/")
+    pages = json.load(urllib.request.urlopen(f"{base}/json", timeout=5))
+    target = next((p for p in pages if p.get("type") == "page"
+                   and "sellfox.com" in (p.get("url") or "")), None) \
+        or next((p for p in pages if p.get("type") == "page"
+                 and p.get("webSocketDebuggerUrl")), None)
+    temp_id = ""
+    if not target:
+        req = urllib.request.Request(f"{base}/json/new?about:blank", method="PUT")
+        target = json.load(urllib.request.urlopen(req, timeout=5))
+        temp_id = target.get("id") or ""
+    ws_url = (target or {}).get("webSocketDebuggerUrl")
+    if not ws_url:
+        raise RuntimeError("调试 Chrome 没有可用页面，请启动 9222 并登录赛狐")
+    cookies = []
+    try:
+        ws = websocket.create_connection(ws_url, max_size=16 * 1024 * 1024, timeout=10)
         try:
-            try:
-                browser = await pw.chromium.connect_over_cdp(cdp_url, timeout=20000)
-            except Exception as e:      # Chrome 154+ 握手兼容
-                if "setDownloadBehavior" in str(e) or "context management" in str(e):
-                    import sys
-                    sys.path.insert(0, os.path.join(os.path.dirname(config.BASE_DIR), "browser_toolkit"))
-                    from core.cdp_proxy import get_proxy   # noqa
-                    browser = await pw.chromium.connect_over_cdp(
-                        get_proxy(cdp_url).ws_endpoint, timeout=20000)
-                else:
-                    raise
-            ctx = browser.contexts[0]
-            cookies = await ctx.cookies("https://www.sellfox.com")
-            return {c["name"]: c["value"] for c in cookies if c.get("name")}
+            ws.send(json.dumps({"id": 1, "method": "Network.getAllCookies"}))
+            for _ in range(30):
+                msg = json.loads(ws.recv())
+                if msg.get("id") != 1:
+                    continue
+                if msg.get("error"):
+                    raise RuntimeError(f"读取 Cookie 失败: {msg['error']}")
+                cookies = ((msg.get("result") or {}).get("cookies")) or []
+                break
         finally:
-            await pw.stop()
+            try:
+                ws.close()
+            except Exception:
+                pass
+    finally:
+        if temp_id:
+            try:
+                urllib.request.urlopen(f"{base}/json/close/{temp_id}", timeout=5).read()
+            except Exception:
+                pass
 
-    cookies = asyncio.run(_run())
-    if not cookies:
-        raise RuntimeError("未能从调试浏览器读取到 Cookie, 请确认已启动 9222 并登录赛狐")
-    save_cookies(cookies)
-    return cookies
+    out = {str(c.get("name")): str(c.get("value") or "")
+           for c in cookies
+           if c.get("name") and "sellfox.com" in str(c.get("domain") or "")}
+    if not out:
+        raise RuntimeError("调试 Chrome 未读取到赛狐 Cookie，请先在调试 Chrome 登录赛狐")
+    if not out.get("sf_u"):
+        raise RuntimeError("调试 Chrome 当前未登录赛狐（缺少 sf_u），请先在调试 Chrome 登录赛狐")
+    save_cookies(out)
+    return out

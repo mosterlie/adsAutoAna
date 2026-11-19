@@ -832,6 +832,7 @@ LATEST_STATE: Dict[str, Any] = {
     "startedAt": "", "finishedAt": "",
     "fulfillment_status": "", "fulfillment_orders": 0,
     "fulfillment_packages": 0, "fulfillment_backfilled": 0,
+    "fulfillment_labeled": 0,
 }
 _LATEST_LOCK = threading.Lock()
 
@@ -851,6 +852,7 @@ def _latest_ensure_table(conn) -> None:
           fulfillment_orders INTEGER DEFAULT 0,
           fulfillment_packages INTEGER DEFAULT 0,
           fulfillment_backfilled INTEGER DEFAULT 0,
+          fulfillment_labeled INTEGER DEFAULT 0,
           fulfillment_error TEXT DEFAULT '',
           errors_json TEXT
         )
@@ -862,6 +864,7 @@ def _latest_ensure_table(conn) -> None:
         ("fulfillment_orders", "INTEGER DEFAULT 0"),
         ("fulfillment_packages", "INTEGER DEFAULT 0"),
         ("fulfillment_backfilled", "INTEGER DEFAULT 0"),
+        ("fulfillment_labeled", "INTEGER DEFAULT 0"),
         ("fulfillment_error", "TEXT DEFAULT ''"),
     ):
         if name not in cols:
@@ -881,8 +884,8 @@ def _latest_db_update(run_id: int, **fields: Any) -> None:
                    "ad_data_status", "active_total", "search_done",
                    "search_skipped", "fulfillment_status",
                    "fulfillment_orders", "fulfillment_packages",
-                   "fulfillment_backfilled", "fulfillment_error",
-                   "errors_json")
+                   "fulfillment_backfilled", "fulfillment_labeled",
+                   "fulfillment_error", "errors_json")
         pairs = [(k, fields[k]) for k in allowed if k in fields]
         if pairs:
             sql = "UPDATE latest_refresh_runs SET " + ", ".join(f"{k}=?" for k, _ in pairs) + " WHERE id=?"
@@ -921,6 +924,7 @@ def _run_latest_refresh(run_id: int = 0) -> None:
     fulfillment_orders = 0
     fulfillment_packages = 0
     fulfillment_backfilled = 0
+    fulfillment_labeled = 0
     fulfillment_error = ""
     try:
         # 1) 在线产品：保持原「采集最新」行为。
@@ -966,41 +970,47 @@ def _run_latest_refresh(run_id: int = 0) -> None:
                           errors_json=json.dumps(errors, ensure_ascii=False))
 
         # 3) 昨日精简采集：只处理 enabled 活动，已有当天数据则跳过。
+        # 单独兜底：这一阶段依赖赛狐，失败不能阻断后面的履约同步。
         LATEST_STATE["stage"] = "search"
-        from backend import ads_store
-        from backend.ads_ops.campaign_groups import CampaignGroupsService
-        campaigns = CampaignGroupsService().load().get("campaigns") or []
-        active = [c for c in campaigns
-                  if str(c.get("state") or c.get("status") or "").lower() == "enabled"]
-        active_total = len(active)
-        LATEST_STATE["total"] = active_total
-        _latest_db_update(run_id, active_total=active_total, stage="search")
-        _latest_log("info", f"{day} 在投活动 {active_total} 个，开始精简采集")
-        opts = {"placement": False, "target": False, "product": False,
-                "search": True, "group": False, "skipNoClicks": True}
-        for i, c in enumerate(active, 1):
-            cid = str(c.get("campaign_id") or "")
-            name = c.get("campaign_name") or c.get("name") or cid
-            LATEST_STATE["done"] = i
-            if not cid:
-                continue
-            if ads_store.campaign_has_day(cid, day):
-                search_skipped += 1
-                _latest_log("info", f"{name} 已有 {day} 数据，跳过")
-                _latest_db_update(run_id, search_skipped=search_skipped)
-                continue
-            try:
-                data = collect_one_day(cid, day, opts)
-                ads_store.write_day(data, cid)
-                ads_store.repair_search_dims(cid, day)
-                search_done += 1
-                _latest_log("success", f"{name} 精简采集完成",
-                            _day_summary_text(data))
-                _latest_db_update(run_id, search_done=search_done)
-            except Exception as e:      # noqa: BLE001
-                errors.append(f"{name}: {str(e)[:120]}")
-                _latest_log("error", f"{name} 精简采集失败", str(e)[:200])
-                _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
+        try:
+            from backend import ads_store
+            from backend.ads_ops.campaign_groups import CampaignGroupsService
+            campaigns = CampaignGroupsService().load().get("campaigns") or []
+            active = [c for c in campaigns
+                      if str(c.get("state") or c.get("status") or "").lower() == "enabled"]
+            active_total = len(active)
+            LATEST_STATE["total"] = active_total
+            _latest_db_update(run_id, active_total=active_total, stage="search")
+            _latest_log("info", f"{day} 在投活动 {active_total} 个，开始精简采集")
+            opts = {"placement": False, "target": False, "product": False,
+                    "search": True, "group": False, "skipNoClicks": True}
+            for i, c in enumerate(active, 1):
+                cid = str(c.get("campaign_id") or "")
+                name = c.get("campaign_name") or c.get("name") or cid
+                LATEST_STATE["done"] = i
+                if not cid:
+                    continue
+                if ads_store.campaign_has_day(cid, day):
+                    search_skipped += 1
+                    _latest_log("info", f"{name} 已有 {day} 数据，跳过")
+                    _latest_db_update(run_id, search_skipped=search_skipped)
+                    continue
+                try:
+                    data = collect_one_day(cid, day, opts)
+                    ads_store.write_day(data, cid)
+                    ads_store.repair_search_dims(cid, day)
+                    search_done += 1
+                    _latest_log("success", f"{name} 精简采集完成",
+                                _day_summary_text(data))
+                    _latest_db_update(run_id, search_done=search_done)
+                except Exception as e:      # noqa: BLE001
+                    errors.append(f"{name}: {str(e)[:120]}")
+                    _latest_log("error", f"{name} 精简采集失败", str(e)[:200])
+                    _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
+        except Exception as e:          # noqa: BLE001
+            errors.append(f"精简采集: {str(e)[:150]}")
+            _latest_log("error", "精简采集阶段失败，继续履约同步", str(e)[:200])
+            _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
 
         # 4) 履约同步：复用 browser_toolkit，默认近 30 天，先拉妙手再写履约表。
         LATEST_STATE["stage"] = "fulfillment"
@@ -1013,26 +1023,33 @@ def _run_latest_refresh(run_id: int = 0) -> None:
             fulfillment_packages = int(result.get("packages") or 0)
             bf = result.get("tracking_backfill") or {}
             fulfillment_backfilled = int(bf.get("filled") or 0)
+            fulfillment_labeled = int(result.get("labeled") or 0)
             pull_error = str(result.get("pull_error") or "")
+            label_error = str(result.get("label_error") or "")
             backfill_error = str(bf.get("error") or "")
-            fulfillment_status = "partial" if (pull_error or backfill_error) else "success"
-            fulfillment_error = (pull_error or backfill_error)[:300]
+            fulfillment_status = "partial" if (pull_error or label_error or backfill_error) else "success"
+            fulfillment_error = (pull_error or label_error or backfill_error)[:300]
             if pull_error:
                 errors.append(f"履约拉取: {pull_error[:150]}")
+            if label_error:
+                errors.append(f"商品标识: {label_error[:150]}")
             if backfill_error:
                 errors.append(f"运单号回填: {backfill_error[:150]}")
-            if pull_error or backfill_error:
+            if pull_error or label_error or backfill_error:
                 _latest_log("warn", "履约同步完成，但有错误",
                             f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}"
-                            f" / 回填 {fulfillment_backfilled}；{(pull_error or backfill_error)[:160]}")
+                            f" / 标识 {fulfillment_labeled} / 回填 {fulfillment_backfilled}"
+                            f"；{(pull_error or label_error or backfill_error)[:160]}")
             else:
                 _latest_log("success", "履约同步完成",
                             f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}"
+                            f" / 商品标识 {fulfillment_labeled}"
                             f" / 运单号回填 {fulfillment_backfilled}")
             _latest_db_update(run_id, fulfillment_status=fulfillment_status,
                               fulfillment_orders=fulfillment_orders,
                               fulfillment_packages=fulfillment_packages,
                               fulfillment_backfilled=fulfillment_backfilled,
+                              fulfillment_labeled=fulfillment_labeled,
                               fulfillment_error=fulfillment_error,
                               errors_json=json.dumps(errors, ensure_ascii=False))
         except Exception as e:      # noqa: BLE001
@@ -1047,7 +1064,8 @@ def _run_latest_refresh(run_id: int = 0) -> None:
         errors.append(str(e)[:200])
         _latest_log("error", "最新采集失败", str(e)[:300])
     finally:
-        final_status = "done" if not errors else ("partial" if (search_done or online_count) else "failed")
+        final_status = "done" if not errors else (
+            "partial" if (search_done or online_count or fulfillment_orders) else "failed")
         LATEST_STATE.update({
             "running": False, "stage": "done",
             "error": "；".join(errors)[:500],
@@ -1056,6 +1074,7 @@ def _run_latest_refresh(run_id: int = 0) -> None:
             "fulfillment_orders": fulfillment_orders,
             "fulfillment_packages": fulfillment_packages,
             "fulfillment_backfilled": fulfillment_backfilled,
+            "fulfillment_labeled": fulfillment_labeled,
         })
         _latest_db_update(run_id, finished_at=LATEST_STATE["finishedAt"],
                           status=final_status, stage="done",
@@ -1068,6 +1087,7 @@ def _run_latest_refresh(run_id: int = 0) -> None:
                           fulfillment_orders=fulfillment_orders,
                           fulfillment_packages=fulfillment_packages,
                           fulfillment_backfilled=fulfillment_backfilled,
+                          fulfillment_labeled=fulfillment_labeled,
                           fulfillment_error=fulfillment_error,
                           errors_json=json.dumps(errors, ensure_ascii=False))
         _latest_log("success" if not errors else "warn", "最新采集结束",
