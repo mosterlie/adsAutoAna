@@ -83,6 +83,14 @@ body{background:var(--bg)}
   color:var(--txt-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .term-sub:hover{color:var(--blue)}
 .term-sub.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue)}
+.search-mode-wrap{position:relative;display:flex;align-items:center;min-width:260px}
+.search-mode-wrap #tSearch{width:100%;box-sizing:border-box;padding-right:38px!important}
+.search-mode-btn{position:absolute;right:0;top:0;bottom:0;width:32px;border:0;
+  border-left:1px solid var(--bd);border-radius:0 4px 4px 0;background:#f8fafc;
+  color:#667085;font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0;
+  line-height:1}
+.search-mode-btn:hover{background:#eef4ff;color:var(--blue)}
+.search-mode-btn.exact{background:#eef2ff;color:var(--blue);border-left-color:#9db7e8}
 .multi-dd{position:relative;min-width:168px}
 .multi-dd summary{list-style:none;cursor:pointer;height:30px;box-sizing:border-box;padding:0 24px 0 8px;
   border:1px solid var(--bd);border-radius:4px;background:#fff;font-size:12px;line-height:28px;
@@ -478,7 +486,15 @@ table.dt td a:hover{text-decoration:underline}
       <button class="btn" id="tLoad">查询搜索词</button>
       <button class="btn ghost" id="tGenOps">生成指令</button>
       <div class="fld grow"><label>筛选</label>
-        <input type="text" id="tSearch" placeholder="搜索词 / 活动 / 广告组 / SKU">
+        <div class="search-mode-wrap">
+          <input type="text" id="tSearch" placeholder="搜索词 / 活动 / 广告组 / SKU">
+          <select id="tSearchMode" style="display:none">
+            <option value="fuzzy">模糊</option>
+            <option value="exact">精准</option>
+          </select>
+          <button type="button" class="search-mode-btn" id="tSearchModeBtn"
+                  title="当前：模糊匹配，点击切换精准">模</button>
+        </div>
       </div>
       <div class="fld"><label>处置状态</label>
         <details class="multi-dd" id="tStatusDD">
@@ -1672,6 +1688,21 @@ function todayStr(o = 0) { const d = new Date(); d.setDate(d.getDate() + o); ret
   $("tStart").value = "2026-11-02"; $("tEnd").value = todayStr(-1);
   $("tLoad").onclick = () => loadTermData(true);
   $("tSearch").oninput = () => renderTermData();
+  const syncSearchModeBtn = () => {
+    const exact = $("tSearchMode").value === "exact";
+    const btn = $("tSearchModeBtn");
+    btn.textContent = exact ? "精" : "模";
+    btn.classList.toggle("exact", exact);
+    btn.title = exact ? "当前：精准匹配，点击切换模糊" : "当前：模糊匹配，点击切换精准";
+  };
+  $("tSearchModeBtn").onclick = () => {
+    const sel = $("tSearchMode");
+    sel.value = sel.value === "exact" ? "fuzzy" : "exact";
+    syncSearchModeBtn();
+    renderTermData();
+  };
+  $("tSearchMode").onchange = () => { syncSearchModeBtn(); renderTermData(); };
+  syncSearchModeBtn();
   document.querySelectorAll(".tStatusOpt").forEach(cb => cb.onchange = () => {
     updateTermStatusSummary();
     renderTermData();
@@ -1713,9 +1744,9 @@ function todayStr(o = 0) { const d = new Date(); d.setDate(d.getDate() + o); ret
     $("statusTag").textContent = s.has_cookie ? `登录态 OK（${s.cookie_count}）` : "未找到 Cookie";
     $("statusTag").className = s.has_cookie ? "muted" : "tag err";
   } catch (e) { $("statusTag").textContent = "后端未连接"; }
-  // 默认进入「查询数据」页签；支持从指令任务页切回搜索数据/采集/精简采集
+  // 默认进入「搜索数据」；显式带 tab 参数时按参数进入。
   const tab = new URLSearchParams(location.search).get("tab");
-  switchTab(["termData", "collect", "simple"].includes(tab) ? tab : "query");
+  switchTab(["query", "termData", "collect", "simple"].includes(tab) ? tab : "termData");
 })();
 
 /* 查活动 */
@@ -1959,14 +1990,21 @@ function renderTermData() {
     return;
   }
   const q = ($("tSearch").value || "").trim().toLowerCase();
+  const searchMode = $("tSearchMode").value;
   const statusFilter = termStatusFilterValues();
   const markFilter = $("tMarkFilter").value;
   const rows = TERM_DATA.filter(r => {
-    if (q && ![
-      r.term, r.campaign_name, r.group_name, r.match_type,
-      ...(r.product_asins || []), ...(r.child_skus || []),
-      ...(r.parent_skus || []),
-    ].some(v => String(v || "").toLowerCase().includes(q))) return false;
+    if (q) {
+      const values = [
+        r.term, r.campaign_name, r.group_name, r.match_type,
+        ...(r.product_asins || []), ...(r.child_skus || []),
+        ...(r.parent_skus || []),
+      ].map(v => String(v || "").trim().toLowerCase());
+      const hit = searchMode === "exact"
+        ? values.some(v => v === q)
+        : values.some(v => v.includes(q));
+      if (!hit) return false;
+    }
     if (statusFilter.length && !statusFilter.includes(opStatus(r, TERM_KIND))) return false;
     const neg = opMarked(r, TERM_KIND, "neg");
     const manual = opMarked(r, TERM_KIND, "manual");

@@ -733,7 +733,7 @@ def translate_ensure(req: TranslateReq = Body(default=TranslateReq())) -> Dict[s
     已翻译过的直接返回(不再调模型); ASIN 形态的 query 自动跳过。
     """
     kind = req.kind if req.kind in (translate.KIND_TERM, translate.KIND_PRODUCT,
-                                    translate.KIND_PRODUCT_EN) \
+                                    translate.KIND_PRODUCT_EN, translate.KIND_ATTR_ZH) \
         else translate.KIND_TERM
     try:
         res = translate.ensure(kind, req.sources, refresh=req.refresh)
@@ -747,7 +747,15 @@ def translate_ensure(req: TranslateReq = Body(default=TranslateReq())) -> Dict[s
 @router.get("/translate/status")
 def translate_status(kind: str = translate.KIND_TERM, sources: str = "") -> Dict[str, Any]:
     """轮询翻译进度与结果 (sources 逗号分隔)"""
-    items = [s.strip() for s in (sources or "").split(",") if s.strip()]
+    raw = (sources or "").strip()
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+            items = [str(s).strip() for s in parsed if str(s or "").strip()]
+        except Exception:  # noqa: BLE001 - 非法 JSON 时退回逗号分隔
+            items = [s.strip() for s in raw.split(",") if s.strip()]
+    else:
+        items = [s.strip() for s in raw.split(",") if s.strip()]
     return {"translations": db.get_translations(kind, items),
             "job": translate.job_state(kind, items),
             "provider": ai_label.get_config().get("provider"),

@@ -2314,6 +2314,8 @@ const ol = {
   aiLabels: {},           // asin -> AI 品名(本地 Ollama 解析)
   enLabels: {},           // 中文商品标识 -> 英文标识
   enRequested: new Set(), // 已发起英文翻译的中文标识
+  attrLabels: {},         // 子体属性原文 -> 中文翻译（保持原格式）
+  attrRequested: new Set(),
   markCounts: { pass: 0, fail: 0 },   // 打标统计(通过 / 不通过)
   loaded: false,
 };
@@ -2336,6 +2338,7 @@ const OL_COLUMNS = [
   // 原「分析」列替换为价格列: 父体 = 全部子体售价中位数
   { key: "priceMedian", label: "价格", fields: ["priceMedian"], type: "medianprice" },
   { key: "variationChildStr", label: "属性", fields: ["variationChildStr"] },
+  { key: "variationAttrZh", label: "属性翻译", fields: [], type: "attrZh" },
   { key: "labelName", label: "产品标签", fields: ["labelName"] },
   { key: "parentAsin", label: "父ASIN", fields: ["parentAsin"] },
   { key: "parentSku", label: "父SKU", fields: ["parentSku"] },
@@ -2491,6 +2494,14 @@ function olCell(col, r) {
       return `<span class="ol-ai ol-ai-en${en ? "" : " ol-ai-empty"}" data-ai-en-asin="${a}"
         ${en ? `data-copy="${esc(en)}" data-copy-label="英文标识"` : ""}
         title="${en ? `点击复制英文标识：${esc(en)}` : (lab ? "正在翻译父体商品标识…" : "等待父体中文商品标识…")}">${en ? esc(en) : "翻译中…"}</span>`;
+    }
+    case "attrZh": {
+      const raw = String(olVal(g("variationChildStr")) || "");
+      if (!raw) return `<span class="ol-na">-</span>`;
+      const zh = (ol.attrLabels || {})[raw];
+      return `<span class="ol-ai ol-attr-zh${zh ? "" : " ol-ai-empty"}" data-attr-raw="${esc(raw)}"
+        ${zh ? `data-copy="${esc(zh)}" data-copy-label="属性翻译"` : ""}
+        title="${zh ? `点击复制属性翻译：${esc(zh)}` : "正在翻译子体属性…"}">${zh ? esc(zh) : "翻译中…"}</span>`;
     }
     case "amazonlink": {
       // 店小秘没导出亚马逊链接时, 退回用 ASIN 拼详情页 —— 与点 ASIN/MSKU 跳的是同一个地址
@@ -2748,6 +2759,7 @@ function renderOnline() {
   const HEAD_TIPS = {
     aiTitle: "本地模型解析标题得出的「这是什么」(≤5 个词)",
     aiTitleEn: "商品标识的英文翻译，由本地模型生成并缓存",
+    variationAttrZh: "子体属性日语翻中文，保留括号、逗号、空格、字母、数字和尺寸单位原格式",
     priceMedian: "父体价格 = 该父体下全部子体售价的中位数；点击排序",
   };
   const head = cols.map((c) => {
@@ -2817,6 +2829,7 @@ function renderOnline() {
   });
   // 只对父体解析商品标识；子体行统一用 parentAsin 复用父体结果。
   ensureAiLabels(ol.rows.map((r) => olRowAiAsin(r)).filter(Boolean));
+  ensureAttrTranslations(ol.rows.map((r) => r.variationChildStr).filter(Boolean));
   olBindPager();
 }
 
@@ -2952,6 +2965,58 @@ function pollOlEnLabels(pending) {
   }, 1500);
 }
 
+/* 子体属性翻译：日语 -> 中文，保留 [A,20cm] 这种原展示格式。 */
+let OL_ATTR_POLL = null;
+function paintAttrLabels() {
+  document.querySelectorAll("#olWrap span[data-attr-raw]").forEach((el) => {
+    const zh = (ol.attrLabels || {})[el.dataset.attrRaw];
+    if (!zh) return;
+    el.textContent = zh;
+    el.title = `点击复制属性翻译：${zh}`;
+    el.classList.remove("ol-ai-empty");
+    el.dataset.copy = zh;
+    el.dataset.copyLabel = "属性翻译";
+  });
+}
+async function ensureAttrTranslations(attrs) {
+  const values = [...new Set((attrs || []).map((v) => String(v || "").trim()).filter(Boolean))];
+  const missing = values.filter((v) => !ol.attrLabels[v] && !ol.attrRequested.has(v));
+  if (!missing.length) { paintAttrLabels(); return; }
+  missing.forEach((v) => ol.attrRequested.add(v));
+  try {
+    const d = await api("/api/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "variation_attr_zh", sources: missing }),
+    });
+    Object.assign(ol.attrLabels, d.translations || {});
+    paintAttrLabels();
+    if (d.available === false) { missing.forEach((v) => ol.attrRequested.delete(v)); return; }
+    const pending = (d.pending || []).filter((v) => !ol.attrLabels[v]);
+    if (pending.length) pollAttrTranslations(pending);
+  } catch (e) {
+    missing.forEach((v) => ol.attrRequested.delete(v));
+  }
+}
+function pollAttrTranslations(pending) {
+  if (OL_ATTR_POLL) clearInterval(OL_ATTR_POLL);
+  let rounds = 0;
+  OL_ATTR_POLL = setInterval(async () => {
+    rounds += 1;
+    let d;
+    try {
+      d = await api("/api/translate/status?kind=variation_attr_zh&sources="
+        + encodeURIComponent(JSON.stringify(pending)));
+    } catch (e) { return; }
+    Object.assign(ol.attrLabels, d.translations || {});
+    paintAttrLabels();
+    const left = pending.filter((v) => !ol.attrLabels[v]);
+    if (!left.length || rounds > 120) {
+      clearInterval(OL_ATTR_POLL); OL_ATTR_POLL = null;
+      pending.forEach((v) => ol.attrRequested.delete(v));
+    }
+  }, 1500);
+}
+
 /* 产品视角(父体) */
 function ensurePvLabels(asins) {
   return aiEnsure(asins, "pv", pv.aiLabels || (pv.aiLabels = {}), "#pWrap");
@@ -2974,8 +3039,9 @@ function olBindPager() { /* 无限滚动：不再绑定上一页/下一页 */ }
 function renderOnlineColPick() {
   const groups = { "基础": [], "价格/费用": [], "销售/广告": [], "成本/时间": [] };
   OL_COLUMNS.forEach((c) => {
-    if (["onlineStatus", "image", "asinSku", "title", "analyze", "variationChildStr", "labelName",
-      "parentAsin", "parentSku", "fnsku", "aiCopy", "commodity", "shopSite"].includes(c.key)) groups["基础"].push(c);
+    if (["onlineStatus", "image", "asinSku", "title", "analyze", "variationChildStr",
+      "variationAttrZh", "labelName", "parentAsin", "parentSku", "fnsku",
+      "aiCopy", "commodity", "shopSite"].includes(c.key)) groups["基础"].push(c);
     else if (["standardPrice", "strike", "listPrice", "businessPrice", "skuType", "listingPricing",
       "discountPrice", "profit", "totalFee", "listingPrice", "buyBoxWinner"].includes(c.key)) groups["价格/费用"].push(c);
     else if (["saleNum", "yesterdaySaleNum", "triSaleNum", "triAvgSaleNum", "salePrices",

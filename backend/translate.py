@@ -20,6 +20,7 @@ JOBS: Dict[str, Dict[str, Any]] = {}
 KIND_TERM = "search_term"        # 搜索词
 KIND_PRODUCT = "product_name"    # 父SKU品名 (由 ai_label 写入)
 KIND_PRODUCT_EN = "product_name_en"  # 商品标识的英文翻译
+KIND_ATTR_ZH = "variation_attr_zh"   # 子体属性：日语 -> 中文（保留原格式）
 
 _PROMPT = (
     "你是跨境电商关键词翻译助手。下面是一个亚马逊日本站的用户搜索词，"
@@ -59,9 +60,38 @@ _PROMPT_EN = (
 )
 
 
+_PROMPT_ATTR = (
+    "你是商品属性格式翻译助手。只把日语文字翻译成简体中文，保持原展示格式完全不变。\n"
+    "必须保留方括号、逗号、空格、字母、数字、标点和尺寸单位（cm、mm、kg 等）原样；"
+    "英文字母/单词不翻译；已经是中文的内容不改动。\n"
+    "只输出翻译后的属性表达式，不要解释、不要引号、不要换行。\n\n"
+    "示例：\n"
+    "输入：[A,長さ40cm幅40cm高さ40cm]\n输出：[A,长40cm宽40cm高40cm]\n"
+    "输入：[C,20cm]\n输出：[C,20cm]\n"
+    "输入：[A,30個セット]\n输出：[A,30个装]\n"
+    "输入：[シルバー,長さ 15cm 幅 15cm]\n输出：[银色,长 15cm 宽 15cm]\n\n"
+    "输入：{q}\n输出："
+)
+
+
+def _clean_attr(raw: str, limit: int = 200) -> str:
+    """属性翻译只取首行，去引号/前缀，但保留括号、逗号、空格和单位。"""
+    line = str(raw or "").strip().splitlines()[0].strip(' "\'')
+    for prefix in ("输出：", "输出:", "翻译：", "翻译:"):
+        if line.startswith(prefix):
+            line = line[len(prefix):].strip()
+    return line[:limit]
+
+
 def _generate_one(text: str, cfg: Dict[str, Any], kind: str = KIND_TERM) -> Tuple[str, str]:
     """返回 (短标识, 模型名); 中文标识和英文标识共用模型管道。"""
-    prompt = (_PROMPT_EN if kind == KIND_PRODUCT_EN else _PROMPT).format(q=str(text)[:120])
+    if kind == KIND_PRODUCT_EN:
+        prompt_tpl = _PROMPT_EN
+    elif kind == KIND_ATTR_ZH:
+        prompt_tpl = _PROMPT_ATTR
+    else:
+        prompt_tpl = _PROMPT
+    prompt = prompt_tpl.format(q=str(text)[:120])
     if cfg.get("provider") == "workbuddy":
         raw = ai_label._workbuddy_generate(prompt, cfg)
         model = cfg.get("workbuddy_model") or config.WORKBUDDY_MODEL
@@ -71,6 +101,8 @@ def _generate_one(text: str, cfg: Dict[str, Any], kind: str = KIND_TERM) -> Tupl
     if kind == KIND_PRODUCT_EN:
         # 英文标识只保留首行、去引号，限制长度。
         return str(raw or "").strip().splitlines()[0].strip(' "\'')[:80], model
+    if kind == KIND_ATTR_ZH:
+        return _clean_attr(raw), model
     return clean_zh(raw), model
 
 
