@@ -2514,10 +2514,14 @@ function olCell(col, r) {
     case "title":
       return `<div class="ol-title-in" title="${esc(olVal(r.title))}">${olPlain(r.title)}</div>`;
     case "medianprice": {
-      const v = Number(r._price_median || 0);
+      // 父体显示子体售价中位数; 子体没有 _price_median, 退回自身售价字段
+      const own = Number(olVal(r.standardPrice) || 0)
+        || Number(olVal(r.landedPrice) || 0)
+        || Number(olVal(r.listingPrice) || 0);
+      const v = Number(r._price_median || 0) || own;
       if (!v) return "-";
-      const n = r._price_child_count || 0;
-      return `<span title="该父体下 ${n} 个子体售价的中位数">${olMoney(v)}</span>`;
+      const n = Number(r._price_child_count || 0);
+      return `<span title="${n ? `该父体下 ${n} 个子体售价的中位数` : "商品售价"}">${olMoney(v)}</span>`;
     }
     case "mark": {
       const m = String(olVal(r._mark) || "");
@@ -3028,12 +3032,30 @@ function pvAiHtml(asin) {
 }
 
 function olPager() {
+  const sizePick = ol.pageType === "child"
+    ? `<label class="ol-pagesize" title="子体列表触底自动加载时，每次加载的条数">每页
+        <select id="olPageSize">
+          ${[20, 50, 100, 200].map((n) =>
+            `<option value="${n}"${ol.pageSize === n ? " selected" : ""}>${n}</option>`).join("")}
+        </select> 条</label>`
+    : "";
   return `<div class="pager">
     <span>共 ${ol.total} 条 · 已加载 ${ol.rows.length} 条</span>
-    <span class="ol-load-hint">${ol.rows.length < ol.total ? "继续向下滚动自动加载" : "已全部加载"}</span>
+    ${sizePick}
+    <span class="ol-load-hint">${ol.rows.length < ol.total
+      ? `继续向下滚动自动加载（每页 ${ol.pageSize} 条）` : "已全部加载"}</span>
   </div>`;
 }
-function olBindPager() { /* 无限滚动：不再绑定上一页/下一页 */ }
+function olBindPager() {
+  const el = $("olPageSize");
+  if (!el) return;                         // 父体不显示每页条数选择
+  el.onchange = (e) => {
+    ol.pageSize = +e.target.value || 50;
+    ol.page = 1;
+    const w = $("olWrap"); if (w) w.scrollTop = 0;
+    loadOnlineProducts();
+  };
+}
 
 /* 列选择器: 列出与原站一致的 47 个显示列 */
 function renderOnlineColPick() {

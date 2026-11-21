@@ -337,6 +337,8 @@ td.name{font-weight:500;color:#1f2d3d}
 .p-content{background:#fff;border:1px solid var(--bd);border-radius:4px;margin:10px 12px 14px;min-width:0}
 .p-wrap{max-height:calc(100vh - 300px)}
 .ol-load-hint{color:var(--muted);font-size:11.5px;margin-left:12px}
+.ol-pagesize{display:inline-flex;align-items:center;gap:4px;color:var(--txt-2);font-size:12px}
+.ol-pagesize select{height:26px;padding:0 4px;font-size:12px}
 .prod-thumb{width:38px;height:38px;object-fit:contain;background:#fff;
   border:1px solid #eef0f3;border-radius:3px;display:block}
 .cell-link{color:var(--blue);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
