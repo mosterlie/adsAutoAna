@@ -34,15 +34,8 @@ def sync_fulfillment(days: int = DEFAULT_DAYS,
         "from server.services.fulfillment_service import FulfillmentService\n"
         f"r = FulfillmentService.sync_from_miaoshou(days={int(days)}, pull=True, "
         "username='adsAutoAna-daily')\n"
-        "try:\n"
-        "    from server.services.order_service import OrderService\n"
-        "    before = int(r.get('labeled') or 0)\n"
-        "    r['product_labels'] = OrderService.tag_missing_product_labels(limit=300)\n"
-        "    r['labeled'] = before + int((r['product_labels'] or {}).get('tagged') or 0)\n"
-        "    if r['labeled']:\n"
-        "        r.pop('label_error', None)\n"
-        "except Exception as exc:\n"
-        "    r['label_error'] = str(exc)[:300]\n"
+        # 商品标识由 FulfillmentService 内部调用 tag_missing_product_labels；
+        # 这里不能重复调用，否则一次 404 会连续消耗 3 次尝试额度。
         "try:\n"
         "    from server.services.dxm_order_service import DxmOrderService\n"
         f"    r['tracking_backfill'] = DxmOrderService.backfill_missing_tracking("
