@@ -19,6 +19,7 @@
     if (path === "/search-ops") return "daily";
     if (path === "/campaign-analysis") return "analysis";
     if (path === "/static/api-docs.html") return "api";
+
     if (path === "/static/daily-probe.html") return "daily";
     if (path === "/static/campaign-probe.html") return "table";
     if (path === "/" || path === "/index.html") {
@@ -116,6 +117,29 @@
       btn.onclick = () => { location.href = "/?view=table&openConfig=1"; };
       right.appendChild(btn);
     }
+    // 打开调试 Chrome：统一入口，省的自己找命令行；已运行则复用。
+    if (!document.getElementById("navBtnOpenChrome")) {
+      const btn = document.createElement("button");
+      btn.id = "navBtnOpenChrome";
+      btn.className = "btn btn-ghost";
+      btn.textContent = "打开调试 Chrome";
+      btn.title = "启动带 9222 调试端口的 Chrome（已在运行则复用，并补开赛狐/店小秘页面）";
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "启动中…";
+        try {
+          const r = await fetch("/api/cookies/browser/open", { method: "POST" });
+          const d = await r.json();
+          navToast(d.message || (d.ok ? "调试 Chrome 已就绪" : "启动失败"), !d.ok);
+        } catch (e) {
+          navToast("启动失败：" + (e.message || e), true);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "打开调试 Chrome";
+        }
+      };
+      right.appendChild(btn);
+    }
     // 同步登录态：所有页面统一调用同一个接口。
     if (!document.getElementById("btnSyncCookie")) {
       const btn = document.createElement("button");
@@ -128,10 +152,25 @@
         try {
           const r = await fetch("/api/cookies/sync", { method: "POST" });
           const d = await r.json();
-          navToast(r.ok ? `登录态已同步 (${d.count || 0} 项)` : (d.detail || "同步失败"), !r.ok);
+          if (!r.ok) { navToast(d.detail || "同步失败", true); return; }
+          const sites = d.sites || [];
+          const brief = sites.map((s) => (s.saved
+            ? `${s.label} ${s.count} 项`
+            : `${s.label}失败（${s.error || "未知"}）`));
+          navToast(`登录态已同步：${brief.join(" / ")}`, sites.some((s) => !s.saved));
         } catch (e) { navToast("同步失败：" + (e.message || e), true); }
         finally { btn.disabled = false; btn.textContent = "同步登录态"; }
       };
+      right.appendChild(btn);
+    }
+    // 查看登录态：展示 data/cookies.json 当前记录的 Cookie 明细（默认打码）。
+    if (!document.getElementById("navBtnCookieView")) {
+      const btn = document.createElement("button");
+      btn.id = "navBtnCookieView";
+      btn.className = "btn btn-ghost";
+      btn.textContent = "查看登录态";
+      btn.title = "查看当前已保存的登录 Cookie 明细";
+      btn.onclick = () => openCookieView();
       right.appendChild(btn);
     }
     // 采集最新：所有菜单均可触发同一个后台任务。
@@ -148,7 +187,7 @@
 
     // 统一所有菜单的右上角：只保留这三个操作按钮。
     const allowed = new Set(["btnAiConfig", "navBtnConfig", "btnSyncCookie",
-      "navBtnSync", "btnLatest", "navBtnLatest"]);
+      "navBtnSync", "navBtnCookieView", "navBtnOpenChrome", "btnLatest", "navBtnLatest"]);
     right.querySelectorAll("button").forEach((btn) => {
       if (!allowed.has(btn.id)) { btn.remove(); return; }
       const isLatest = btn.id === "btnLatest" || btn.id === "navBtnLatest";
@@ -317,6 +356,230 @@
     } catch (e) {
       body.innerHTML = `<div class="nav-history-empty">读取失败：${escapeHtml(e.message || e)}</div>`;
     }
+  }
+
+  /* 查看登录态：账号管理 (赛狐 / 店小秘) + 明细 (默认明文) + 设默认/重命名/识别/删除 */
+  const ckState = { sites: [], details: {}, active: {} };
+
+  async function openCookieView() {
+    let modal = document.getElementById("navCookieModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "navCookieModal";
+      modal.className = "nav-history-modal";
+      modal.innerHTML = `<div class="nav-history-card" style="width:min(1040px,96vw);">
+        <div class="nav-history-head"><b>登录态账号</b>
+          <span class="muted" data-meta></span>
+          <span class="sp"></span>
+          <label style="font-size:12px;color:#667085;cursor:pointer;user-select:none;">
+            <input type="checkbox" data-reveal checked style="vertical-align:-2px;"> 显示明文
+          </label>
+          <button type="button" class="nav-history-close" data-refresh>刷新</button>
+          <button type="button" class="nav-history-close" data-close>关闭</button>
+        </div>
+        <div class="nav-history-body" data-body><div class="nav-history-empty">加载中…</div></div>
+      </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector("[data-close]").onclick = () => modal.classList.remove("on");
+      modal.onclick = (e) => { if (e.target === modal) modal.classList.remove("on"); };
+      modal.querySelector("[data-reveal]").onchange = () => renderCookieAccounts();
+      modal.querySelector("[data-refresh]").onclick = () => loadCookieAccounts();
+    }
+    modal.classList.add("on");
+    await loadCookieAccounts();
+  }
+
+  async function loadCookieAccounts() {
+    const modal = document.getElementById("navCookieModal");
+    if (!modal) return;
+    const body = modal.querySelector("[data-body]");
+    const meta = modal.querySelector("[data-meta]");
+    body.innerHTML = `<div class="nav-history-empty">加载中…</div>`;
+    try {
+      const r = await fetch("/api/cookies/accounts");
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      ckState.sites = d.sites || [];
+      ckState.details = {};
+      meta.textContent = `${ckState.sites.reduce((n, s) => n + (s.accounts || []).length, 0)} 个账号`;
+      renderCookieAccounts();
+    } catch (e) {
+      body.innerHTML = `<div class="nav-history-empty">读取失败：${escapeHtml(e.message || e)}</div>`;
+    }
+  }
+
+  async function toggleCookieDetail(site, key) {
+    if (ckState.active[site] === key) {
+      ckState.active[site] = "";
+      renderCookieAccounts();
+      return;
+    }
+    const cacheKey = `${site}:${key}`;
+    if (!ckState.details[cacheKey]) {
+      try {
+        const r = await fetch(`/api/cookies/detail?site=${encodeURIComponent(site)}`
+          + `&account=${encodeURIComponent(key)}&reveal=true`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+        ckState.details[cacheKey] = d;
+      } catch (e) {
+        navToast("读取明细失败：" + (e.message || e), true);
+        return;
+      }
+    }
+    ckState.active[site] = key;
+    renderCookieAccounts();
+  }
+
+  async function cookieAccountAction(site, key, action) {
+    let label = "";
+    if (action === "rename") {
+      label = prompt("账号备注：") || "";
+      if (!label) return;
+    }
+    try {
+      const r = await fetch("/api/cookies/account", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site, key, action, label }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      if (action === "default") navToast("已设为默认账号");
+      else if (action === "delete") navToast("已删除");
+      else if (action === "detect") navToast(`已识别为「${d.label || ""}」`);
+      else navToast("备注已更新");
+      await loadCookieAccounts();
+    } catch (e) {
+      navToast("操作失败：" + (e.message || e), true);
+    }
+  }
+
+  /* 有效期单元: 空=会话型(关闭浏览器失效); 已过期标红; 3 天内标橙 */
+  function expiryCell(v) {
+    const s = String(v || "").trim();
+    if (!s) return '<span style="color:#94a3b8;">会话型</span>';
+    const t = new Date(s.replace(/-/g, "/")).getTime();
+    if (!t) return escapeHtml(s);
+    const left = t - Date.now();
+    if (left <= 0) {
+      return `<span class="nav-history-status failed">${escapeHtml(s)}（已过期）</span>`;
+    }
+    if (left < 3 * 864e5) {
+      return `<span style="color:#b54708;">${escapeHtml(s)}</span>`;
+    }
+    return escapeHtml(s);
+  }
+
+  function maskCookieValue(v) {
+    const s = String(v || "");
+    if (s.length <= 8) return "*".repeat(s.length);
+    return s.slice(0, 4) + "*".repeat(Math.min(24, s.length - 6)) + s.slice(-2);
+  }
+
+  function renderCookieAccounts() {
+    const modal = document.getElementById("navCookieModal");
+    if (!modal) return;
+    const body = modal.querySelector("[data-body]");
+    const reveal = modal.querySelector("[data-reveal]").checked;
+    if (!ckState.sites.length) {
+      body.innerHTML = `<div class="nav-history-empty">暂无账号，请点右上角「打开调试 Chrome」登录后，「同步登录态」</div>`;
+      return;
+    }
+    body.innerHTML = ckState.sites.map((s) => {
+      const accounts = s.accounts || [];
+      const rows = accounts.map((a) => `<tr>
+        <td><b>${escapeHtml(a.label)}</b>${a.is_default
+          ? ' <span class="nav-history-status running">默认</span>' : ""}</td>
+        <td>${escapeHtml(a.updated_at || "—")}</td>
+        <td>${expiryCell(a.expires_at)}</td>
+        <td>${Number(a.count || 0)}</td>
+        <td>${a.has_key
+          ? '<span class="nav-history-status done">已登录</span>'
+          : `<span class="nav-history-status failed">缺少 ${escapeHtml(s.key_name || "")}</span>`}</td>
+        <td style="white-space:nowrap;">
+          <button type="button" class="nav-history-close" data-ck="detail"
+            data-site="${s.key}" data-key="${a.key}">${
+            ckState.active[s.key] === a.key ? "收起" : "查看"}</button>
+          ${a.is_default ? "" : `<button type="button" class="nav-history-close" data-ck="default"
+            data-site="${s.key}" data-key="${a.key}">设为默认</button>`}
+          <button type="button" class="nav-history-close" data-ck="rename"
+            data-site="${s.key}" data-key="${a.key}">重命名</button>
+          <button type="button" class="nav-history-close" data-ck="detect"
+            data-site="${s.key}" data-key="${a.key}">识别账号</button>
+          <button type="button" class="nav-history-close" data-ck="delete"
+            data-site="${s.key}" data-key="${a.key}" style="color:#c53030;">删除</button>
+        </td>
+      </tr>`).join("");
+
+      const activeKey = ckState.active[s.key];
+      const detail = activeKey ? ckState.details[`${s.key}:${activeKey}`] : null;
+      const detailHtml = detail ? `<div style="padding:4px 2px 10px;">
+        <table class="nav-history-table">
+          <thead><tr><th style="width:120px;">账号</th><th style="width:170px;">名称</th>
+            <th>值</th><th style="width:60px;">长度</th></tr></thead>
+          <tbody>${(detail.items || []).map((x) => `<tr>
+            <td><span class="nav-history-status running">${
+              escapeHtml(detail.account_label || activeKey)}</span></td>
+            <td><b>${escapeHtml(x.name)}</b>${String(x.name) === String(detail.key_name || "")
+              ? ' <span class="nav-history-status done">关键</span>' : ""}</td>
+            <td style="white-space:normal;word-break:break-all;
+              font-family:ui-monospace,Menlo,monospace;">${
+              escapeHtml(reveal ? x.value : maskCookieValue(x.value))}</td>
+            <td>${Number(x.length || 0)}</td>
+          </tr>`).join("")}</tbody>
+        </table>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 2px 0;">
+          <button type="button" class="nav-history-close" data-ck="copy"
+            data-site="${s.key}" data-key="${activeKey}">复制整串</button>
+          <span style="font-size:11px;color:#94a3b8;">来源：${escapeHtml(detail.source || "-")}</span>
+        </div>
+      </div>` : "";
+
+      return `<div style="padding-top:10px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 2px;">
+          <b style="font-size:13px;">${escapeHtml(s.label)}</b>
+          <span style="font-size:11.5px;color:#667085;">${accounts.length} 个账号</span>
+          ${s.error ? `<span class="nav-history-status failed">${escapeHtml(s.error)}</span>` : ""}
+        </div>
+        ${accounts.length
+          ? `<table class="nav-history-table">
+               <thead><tr><th>账号</th><th style="width:140px;">同步时间</th>
+                 <th style="width:140px;">有效期至</th>
+                 <th style="width:76px;">Cookie 数</th><th style="width:90px;">登录态</th>
+                 <th style="width:320px;">操作</th></tr></thead>
+               <tbody>${rows}</tbody></table>`
+          : `<div class="nav-history-empty" style="padding:16px;">
+               还没有保存账号：先在调试 Chrome 登录 ${escapeHtml(s.label)}，
+               再点右上角「同步登录态」</div>`}
+        ${detailHtml}
+      </div>`;
+    }).join("") + `<div style="padding:10px 2px 4px;color:#667085;font-size:11.5px;">
+        Cookie 等同登录凭证，请勿外发。不填备注同步时会自动识别登录账号名；
+        识别不到可点「识别账号」或手动重命名。</div>`;
+
+    body.querySelectorAll("[data-ck]").forEach((btn) => {
+      const site = btn.dataset.site;
+      const key = btn.dataset.key;
+      const act = btn.dataset.ck;
+      btn.onclick = () => {
+        if (act === "detail") { toggleCookieDetail(site, key); return; }
+        if (act === "copy") {
+          const d = ckState.details[`${site}:${key}`] || {};
+          const raw = (d.items || []).map((x) => `${x.name}=${x.value}`).join("; ");
+          if (!raw) { navToast("没有可复制的 Cookie", true); return; }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(raw)
+              .then(() => navToast("Cookie 整串已复制"))
+              .catch(() => navToast("复制失败，请手动选择复制", true));
+          } else {
+            navToast("当前浏览器不支持自动复制，请手动选择复制", true);
+          }
+          return;
+        }
+        if (act === "delete" && !confirm("确定删除该账号的 cookie？删除后需重新登录同步。")) return;
+        cookieAccountAction(site, key, act);
+      };
+    });
   }
 
   if (document.readyState === "loading") {

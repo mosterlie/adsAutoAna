@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """FastAPI 路由: 采集控制 + 数据查询"""
 import json
+import os
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
@@ -15,7 +16,11 @@ from backend import (ai_label, amazon, amazon_prefetch, amazon_product,
                      amazon_store, amazon_targets, bulk_data, bulk_generator,
                      crawler, database as db, image_jobs, relevance, term_status,
                      translate, wb_config)
-from backend.cookies import load_cookies, parse_cookie_string, save_cookies, sync_from_browser
+from backend.cookies import (SITE_LABELS, SITE_SESSION_KEYS, delete_account,
+                             detect_account_label, get_account, get_default_account,
+                             has_session, list_accounts, load_cookies, parse_cookie_string,
+                             rename_account, save_cookies, set_default_account,
+                             sync_sites_from_browser, upsert_account)
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
 router = APIRouter(prefix="/api")
@@ -857,12 +862,26 @@ def bulk_generate(req: BulkGenerateReq = Body(...)):
                  f"attachment; filename={fname}; filename*=UTF-8''{quote(fname)}"})
 
 
-# ---- Cookie ----
+# ---- Cookie (多账号) ----
 @router.get("/cookies/status")
 def cookie_status() -> Dict[str, Any]:
     c = load_cookies()
     return {"saved": bool(c), "count": len(c or {}),
             "keys": list((c or {}).keys())[:20]}
+
+
+@router.get("/cookies/accounts")
+def cookie_accounts() -> Dict[str, Any]:
+    """两个站点的全部账号 (备注 / 同步时间 / 是否默认 / 关键 cookie 是否就绪)"""
+    sites = []
+    for site, label in SITE_LABELS.items():
+        res = list_accounts(site)
+        sites.append({"key": site, "label": label,
+                      "key_name": (SITE_SESSION_KEYS.get(site) or [""])[0],
+                      "accounts": res.get("accounts", []),
+                      "default": res.get("default", ""),
+                      "error": res.get("error", "")})
+    return {"sites": sites}
 
 
 @router.post("/cookies")
@@ -875,12 +894,149 @@ def set_cookies(cookie_string: str = Body("", embed=True)) -> Dict[str, Any]:
 
 
 @router.post("/cookies/sync")
-def sync_cookies() -> Dict[str, Any]:
+def sync_cookies(payload: Optional[Dict[str, Any]] = Body(default=None)) -> Dict[str, Any]:
+    """一键同步登录态 (多账号): 从调试 Chrome 读取, 按会话指纹 upsert 两个站点
+
+    请求体可选 {"label": "A号"}; 留空沿用旧备注或自动编号。
+    同一账号重复同步只刷新同步时间, 不会重复新增。
+    """
+    label = str(((payload or {}).get("label") or "")).strip()[:40]
     try:
-        c = sync_from_browser()
-    except Exception as e:      # noqa: BLE001
+        sites, ua, expiries = sync_sites_from_browser()
+    except Exception as e:      # noqa: BLE001  端口不通/未启动调试浏览器
         raise HTTPException(400, str(e))
-    return {"saved": True, "count": len(c), "keys": list(c.keys())[:20]}
+
+    results: List[Dict[str, Any]] = []
+    for site, site_label in SITE_LABELS.items():
+        cookies = sites.get(site) or {}
+        if not cookies:
+            results.append({"key": site, "label": site_label, "saved": False, "count": 0,
+                            "error": "调试 Chrome 未读到该站点 cookie（未打开/未登录）"})
+            continue
+        if not has_session(site, cookies):   # 未登录读到的是匿名 cookie, 不写库
+            results.append({"key": site, "label": site_label, "saved": False,
+                            "count": len(cookies),
+                            "error": f"未登录（缺少 {SITE_SESSION_KEYS[site][0]}），已跳过写入"})
+            continue
+        try:
+            # 未填备注时自动识别登录账号名 (赛狐 手机号 / 店小秘 account);
+            # 自动识别的同名条目视为同一账号重新登录, 覆盖旧条目
+            name = label or detect_account_label(site, cookies)
+            acc = upsert_account(site, cookies, name, ua, dedupe_label=not label,
+                                 expires_at=expiries.get(site, ""))
+            results.append({"key": site, "label": site_label, "saved": True,
+                            "count": acc.get("count", 0), "account": acc})
+        except Exception as e:      # noqa: BLE001
+            results.append({"key": site, "label": site_label, "saved": False,
+                            "count": len(cookies), "error": str(e)})
+    return {"saved": any(r["saved"] for r in results), "sites": results}
+
+
+@router.post("/cookies/browser/open")
+def open_debug_chrome() -> Dict[str, Any]:
+    """打开带 9222 调试端口的 Chrome (已在运行则直接返回)"""
+    from backend.cookies import open_debug_browser
+    return open_debug_browser()
+
+
+@router.post("/cookies/account")
+def cookie_account_action(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """账号操作: {site, key, action: default|rename|delete, label?}"""
+    site = str(payload.get("site") or "")
+    key = str(payload.get("key") or "")
+    action = str(payload.get("action") or "")
+    if site not in SITE_LABELS:
+        raise HTTPException(400, "site 仅支持 sellfox / dianxiaomi")
+    if not key:
+        raise HTTPException(400, "缺少账号 key")
+    try:
+        if action == "default":
+            return {"ok": True, **set_default_account(site, key)}
+        if action == "rename":
+            return {"ok": True, **rename_account(site, key, str(payload.get("label") or ""))}
+        if action == "delete":
+            return {"ok": True, **delete_account(site, key)}
+        if action == "detect":
+            acc = get_account(site, key)
+            if not acc:
+                raise ValueError("账号不存在")
+            name = detect_account_label(site, acc.get("cookies") or {})
+            if not name:
+                raise ValueError("未能识别登录账号名（cookie 可能已失效）")
+            return {"ok": True, "label": name, **rename_account(site, key, name)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:      # noqa: BLE001
+        raise HTTPException(500, str(e))
+    raise HTTPException(400, "action 仅支持 default / rename / delete / detect")
+
+
+def _mask_cookie(value: str) -> str:
+    """Cookie 值打码: 保留首 4 / 末 2 位, 中间用 * 代替 (便于确认是哪一条)"""
+    v = str(value or "")
+    if len(v) <= 8:
+        return "*" * len(v)
+    return f"{v[:4]}{'*' * min(24, len(v) - 6)}{v[-2:]}"
+
+
+@router.get("/cookies/detail")
+def cookie_detail(reveal: bool = Query(False, description="true=返回明文值 (默认打码)"),
+                  site: str = Query("", description="sellfox / dianxiaomi; 省略=两个站点的默认账号"),
+                  account: str = Query("", description="账号 key; 省略=该站点默认账号")) -> Dict[str, Any]:
+    """Cookie 明细 (多账号)
+
+    - 不传 site: 返回两个站点"默认账号"的明细 (兼容旧调用)
+    - 传 site(+account): 返回指定账号明细
+    - reveal=False 时 value 打码并给出长度
+    """
+    def _items(pairs: Dict[str, str]) -> List[Dict[str, Any]]:
+        return [{
+            "name": k,
+            "value": str(v or "") if reveal else _mask_cookie(v),
+            "masked": not reveal,
+            "length": len(str(v or "")),
+        } for k, v in (pairs or {}).items()]
+
+    def _source(s: str) -> str:
+        return ("adsauto/data/cookies.json" if s == "sellfox"
+                else "ERP system_settings.dxm_http_accounts")
+
+    if site:
+        if site not in SITE_LABELS:
+            raise HTTPException(400, "site 仅支持 sellfox / dianxiaomi")
+        acc = get_account(site, account) if account else get_default_account(site)
+        if not acc:
+            raise HTTPException(404, "账号不存在或尚未同步")
+        cookies = acc.get("cookies") or {}
+        return {"site": site, "label": SITE_LABELS[site], "account": acc.get("key", ""),
+                "account_label": acc.get("label", ""), "count": len(cookies),
+                "updated_at": acc.get("updated_at", ""),
+                "expires_at": acc.get("expires_at", ""),
+                "has_key": has_session(site, cookies),
+                "key_name": (SITE_SESSION_KEYS.get(site) or [""])[0],
+                "source": _source(site), "items": _items(cookies)}
+
+    sites = []
+    for s, lab in SITE_LABELS.items():
+        acc = get_default_account(s) or {}
+        cookies = acc.get("cookies") or {}
+        res = list_accounts(s)
+        sites.append({"key": s, "label": lab, "saved": bool(cookies),
+                      "count": len(cookies), "updated_at": acc.get("updated_at", ""),
+                      "expires_at": acc.get("expires_at", ""),
+                      "has_key": has_session(s, cookies),
+                      "key_name": (SITE_SESSION_KEYS.get(s) or [""])[0],
+                      "account": acc.get("key", ""),
+                      "account_label": acc.get("label", ""),
+                      "accounts_total": len(res.get("accounts") or []),
+                      "source": _source(s), "items": _items(cookies),
+                      "error": res.get("error", "")})
+    sf = get_default_account("sellfox") or {}
+    sf_cookies = sf.get("cookies") or {}
+    return {"saved": bool(sf_cookies), "count": len(sf_cookies),
+            "has_sf_u": has_session("sellfox", sf_cookies),
+            "updated_at": sf.get("updated_at", ""), "file": config.COOKIE_PATH,
+            "items": _items(sf_cookies), "sites": sites}
 
 
 # ---- 搜索词 × SKU 相关性 ----

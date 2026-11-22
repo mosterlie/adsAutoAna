@@ -865,7 +865,15 @@ async function pollCrawl() {
 async function syncCookies() {
   toast("正在从调试 Chrome 同步登录态…");
   const r = await api("/api/cookies/sync", { method: "POST" });
-  if (r.saved) toast(`登录态已同步 (${r.count} 项)`); else toast(r.detail || "同步失败");
+  const sites = (r && r.sites) || [];
+  if (sites.length) {
+    const brief = sites.map((s) => (s.saved
+      ? `${s.label} ${s.count} 项`
+      : `${s.label}失败（${s.error || "未知"}）`));
+    toast(`登录态已同步：${brief.join(" / ")}`);
+  } else {
+    toast(r.saved ? `登录态已同步 (${r.count} 项)` : (r.detail || "同步失败"));
+  }
 }
 
 /* ---------- 事件绑定 ---------- */

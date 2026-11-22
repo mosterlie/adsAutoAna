@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛狐账号 - 登录态管理</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .acc-wrap{max-width:1180px;margin:0 auto;padding:18px 22px 44px}
+  .acc-title{font-size:22px;font-weight:700}
+  .acc-sub{color:var(--txt-2);font-size:12.5px;margin-top:4px;line-height:1.6}
+  .acc-bar{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .acc-bar input{height:34px;border:1px solid var(--bd-d);border-radius:6px;padding:0 10px;
+    font:inherit;width:180px;outline:none;background:#fff}
+  .acc-bar input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(43,95,208,.08)}
+  .acc-card{background:#fff;border:1px solid var(--bd);border-radius:10px;margin-top:16px;overflow:hidden}
+  .acc-card-h{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--bd);
+    background:#fafbfd}
+  .acc-card-h h3{margin:0;font-size:15px}
+  .acc-card-h .sp{flex:1}
+  .acc-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .acc-table th{background:#f7f8fa;color:var(--txt-2);text-align:left;padding:8px 10px;
+    border-bottom:1px solid var(--bd);font-size:11.5px;white-space:nowrap}
+  .acc-table td{padding:9px 10px;border-bottom:1px solid #f0f2f5;vertical-align:middle}
+  .acc-table tr:last-child td{border-bottom:0}
+  .acc-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;line-height:18px;
+    background:#eef2f7;color:#475467;white-space:nowrap}
+  .acc-tag.ok{background:#e8f7ee;color:#17803d}
+  .acc-tag.err{background:#fdecec;color:#c53030}
+  .acc-tag.def{background:#eef2ff;color:#3b5bdb}
+  .acc-empty{padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
+  .acc-ops button{border:1px solid var(--bd-d);background:#fff;border-radius:5px;padding:3px 8px;
+    font-size:11.5px;cursor:pointer;color:#475467;margin-right:4px}
+  .acc-ops button:hover{border-color:var(--blue);color:var(--blue)}
+  .acc-ops button.danger:hover{border-color:#e5503a;color:#e5503a}
+  .acc-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);
+    background:#22303f;color:#fff;padding:9px 16px;border-radius:8px;font-size:12.5px;opacity:0;
+    transition:all .18s;z-index:10010;pointer-events:none}
+  .acc-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .acc-toast.err{background:#a73927}
+  .acc-val{font-family:ui-monospace,Menlo,monospace;word-break:break-all;white-space:normal}
+</style>
+</head>
+<body>
+<header class="topbar topbar-slim">
+  <div class="logo"><span class="logo-mark">狐</span><span class="logo-text">XI狐ERP</span></div>
+  <div class="seg seg-top"></div>
+  <div class="topbar-right"><span id="clock" class="clock">--:--:--</span></div>
+</header>
+
+<div class="acc-wrap">
+  <div class="acc-title" id="siteTitle">赛狐账号</div>
+  <div class="acc-sub">
+    同一浏览器 profile 同一时刻只能维持一个赛狐会话：<b>登录账号 A → 同步 → 登录账号 B → 再同步</b>，
+    两份 cookie 分别保存、长期有效。默认账号用于日常采集；查询失败时会自动尝试其它账号。
+  </div>
+
+  <div class="acc-bar">
+    <input id="syncLabel" type="text" maxlength="40" placeholder="账号备注（可选，如 A号）">
+    <button class="btn btn-primary" id="btnSync">从调试 Chrome 同步</button>
+    <button class="btn btn-ghost" id="btnOpenChrome">打开调试 Chrome</button>
+    <button class="btn btn-ghost" id="btnReload">刷新</button>
+    <span class="acc-sub" id="syncHint"></span>
+  </div>
+
+  <div id="siteCard"></div>
+</div>
+
+<div class="modal" id="detailModal">
+  <div class="modal-card" style="width:min(960px,96vw);">
+    <div class="modal-head">
+      <b id="detailTitle">Cookie 明细</b>
+      <span class="close" id="detailClose">×</span>
+    </div>
+    <div class="modal-tools">
+      <label style="font-size:12px;color:#667085;cursor:pointer;">
+        <input type="checkbox" id="detailReveal" checked> 显示明文
+      </label>
+      <span class="link" id="detailCopy" style="cursor:pointer;">复制整串</span>
+      <span class="muted" id="detailMeta"></span>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="acc-toast" id="accToast"></div>
+<script>window.ACC_SITE = "sellfox";</script>
+<script src="/static/nav.js"></script>
+<script src="/static/accounts.js"></script>
+</body>
+</html>
