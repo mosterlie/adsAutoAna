@@ -20,6 +20,11 @@ a{color:inherit;text-decoration:none}
 .topnav{display:flex;gap:16px;flex:1;font-size:13px;opacity:.95}
 .topnav a{padding:4px 2px;cursor:pointer;border-bottom:2px solid transparent}
 .topnav a.active,.topnav a:hover{border-bottom-color:#fff;font-weight:600}
+/* 首页带 view 参数时，首屏先隐藏默认广告活动表，避免闪一下再切视图。 */
+html[data-initial-view="product"] #tableView,
+html[data-initial-view="online"] #tableView,
+html[data-initial-view="bulk"] #tableView,
+html[data-initial-view="adcreator"] #tableView{display:none}
 .topbar-right{display:flex;align-items:center;gap:10px;margin-left:auto}
 .topbar-right .muted{color:rgba(255,255,255,.82);font-size:12px}
 .nav-api-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
@@ -29,6 +34,12 @@ a{color:inherit;text-decoration:none}
 .nav-api-icon:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.7)}
 .nav-api-icon.active{background:#fff;border-color:#fff;color:var(--blue)}
 .topbar-right #btnLatest,.topbar-right #navBtnLatest{order:999}
+/* 某些页面自己重写了 .btn；右上角导航按钮用更高优先级固定为统一浅色样式。 */
+.topbar-right .btn-ghost{height:30px!important;padding:0 12px!important;border-radius:4px!important;
+  background:rgba(255,255,255,.14)!important;border:1px solid rgba(255,255,255,.4)!important;
+  color:#fff!important;font-size:13px!important}
+.topbar-right .btn-ghost:hover{background:rgba(255,255,255,.26)!important;
+  border-color:rgba(255,255,255,.4)!important;color:#fff!important}
 .nav-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);
   z-index:10002;background:#243047;color:#fff;padding:9px 14px;border-radius:6px;
   font-size:12.5px;opacity:0;pointer-events:none;transition:.18s;max-width:min(680px,90vw)}
@@ -64,6 +75,15 @@ a{color:inherit;text-decoration:none}
 .nav-history-status.running{background:#eef2ff;color:#3b5bdb}
 .nav-history-err{max-width:260px;white-space:normal!important;word-break:break-word;color:#b54708}
 .nav-history-empty{padding:30px;text-align:center;color:var(--muted)}
+.sys-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 0 4px}
+.sys-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;
+  padding:12px 14px;border:1px solid var(--bd);border-radius:7px;background:#fff;cursor:pointer}
+.sys-card:hover{border-color:#9db7e8;background:#f7faff}
+.sys-card b{font-size:13px;color:#1f2937}
+.sys-card span{font-size:11.5px;color:var(--muted);line-height:1.45}
+.sys-note{padding:8px 2px;font-size:11.5px;color:var(--muted);line-height:1.6}
+.sys-note a{color:var(--blue);text-decoration:none}
+.sys-note a:hover{text-decoration:underline}
 .clock{font-size:12px;opacity:.9}
 /* 顶栏一级菜单: 深色底上的分段控件(未选透明, 选中白底蓝字) */
 .seg-top{border-color:rgba(255,255,255,.42);flex:0 0 auto}

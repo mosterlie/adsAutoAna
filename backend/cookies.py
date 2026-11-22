@@ -30,8 +30,21 @@ SITE_LABELS = {"sellfox": "赛狐", "dianxiaomi": "店小秘"}
 # 站点 → 判定"已登录"的关键 cookie (任一存在即视为有会话)
 SITE_SESSION_KEYS = {"sellfox": ("sf_u",), "dianxiaomi": ("dxm_i", "dxm_t")}
 
-# ERP 数据库: 与 adsauto 同级部署 (adsauto/../data/products.db)
-ERP_DB_PATH = os.path.join(os.path.dirname(config.BASE_DIR), "data", "products.db")
+# ERP 数据库: 优先 browser_toolkit/data/products.db，兼容旧的同级 data/products.db。
+# 可用 ERP_DB_PATH 环境变量覆盖。
+def _resolve_erp_db() -> str:
+    candidates = [
+        os.environ.get("ERP_DB_PATH", ""),
+        os.path.join(os.path.dirname(config.BASE_DIR), "browser_toolkit", "data", "products.db"),
+        os.path.join(os.path.dirname(config.BASE_DIR), "data", "products.db"),
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            return os.path.abspath(path)
+    return os.path.abspath(candidates[1])
+
+
+ERP_DB_PATH = _resolve_erp_db()
 ERP_ACCOUNTS_KEY = "dxm_http_accounts"
 ERP_DEFAULT_KEY = "dxm_http_default"
 ERP_LEGACY_KEYS = ("dxm_http_cookie", "dxm_http_cookie_at", "dxm_http_ua")

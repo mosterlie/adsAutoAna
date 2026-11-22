@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>XI狐ERP - 广告管理</title>
+<script>
+  // 首屏防闪：在 body 渲染前标记目标视图，先用 CSS 隐藏广告活动表。
+  try {
+    var iv = new URLSearchParams(location.search).get("view");
+    if (["product", "online", "bulk", "adcreator"].includes(iv)) {
+      document.documentElement.setAttribute("data-initial-view", iv);
+    }
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>

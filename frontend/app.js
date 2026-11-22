@@ -74,6 +74,12 @@ async function boot() {
   const sp = new URLSearchParams(location.search);
   if (sp.get("page")) { await bootStandalone(sp); return; }
 
+  // 先切目标视图并启动它自己的数据加载，不等广告活动数据全部初始化完。
+  const wantView = sp.get("view");
+  const initialView = ["table", "product", "online", "adcreator", "bulk"].includes(wantView)
+    ? wantView : "table";
+  showView(initialView);
+
   const meta = await api("/api/tabs");
   state.tabs = meta.tabs; state.today = meta.today; state.defaultStart = meta.default_start;
   state.tab = state.tabs[1] ? state.tabs[1].key : state.tabs[0].key;   // 默认「广告活动」
@@ -85,11 +91,6 @@ async function boot() {
   await loadFilterMeta();
   await loadAmzCached();        // 先拿到"哪些搜索词本地已有", 表格才能标出可直读的词
   await loadAll();
-  // 支持从独立页面(分时分析/接口查询)带 ?view=product 之类跳回来时直接定位视图
-  const wantView = sp.get("view");
-  if (wantView && ["table", "product", "online", "adcreator", "bulk"].includes(wantView)) {
-    showView(wantView);
-  }
   tick();
   setInterval(tick, 1000);
   setInterval(() => { if (state.polling) pollCrawl(); }, 1200);
@@ -1219,8 +1220,16 @@ function sortRows(arr, field, dir, type) {
 }
 
 function showView(v) {
-  document.querySelectorAll("#viewSwitch .seg-btn")
-    .forEach((b) => b.classList.toggle("active", b.dataset.view === v));
+  // 首屏防闪标记用完后移除，后续以内联 display 为准。
+  document.documentElement.removeAttribute("data-initial-view");
+  // 从系统管理打开配置时，nav.js 已把「系统管理」设为当前菜单，
+  // showView 不能再把一级菜单切回「广告活动」。
+  const fromSystem = new URLSearchParams(location.search).get("openConfig") === "1";
+  document.querySelectorAll("#viewSwitch .seg-btn").forEach((b) => {
+    b.classList.toggle("active", fromSystem
+      ? b.dataset.nav === "system"
+      : b.dataset.view === v);
+  });
   $("tableView").style.display = v === "table" ? "" : "none";
   $("productView").style.display = v === "product" ? "" : "none";
   $("onlineView").style.display = v === "online" ? "" : "none";
@@ -2314,7 +2323,7 @@ bkCfgSync();
    =================================================================== */
 const ol = {
   page: 1, pageSize: 50, total: 0, rows: [],
-  keyword: "", searchField: "asin", filters: { isVariation: ["1"] }, pageType: "parent",
+  keyword: "", searchField: "sku", filters: { isVariation: ["1"] }, pageType: "parent",
   orderField: "", orderDir: "desc",
   fields: [], shops: [], filterMeta: [], updated: "", counts: { child: 0, parent: 0, total: 0 },
   loading: false,         // 防止触底重复请求
@@ -2704,6 +2713,15 @@ function renderOnline() {
         <button class="seg-btn${ol.pageType === "parent" ? " active" : ""}" data-v="parent" title="父体: 与原站「父体」接口同一数据源">父体</button>
         <button class="seg-btn${ol.pageType === "child" ? " active" : ""}" data-v="child" title="子体: 与原站「子体」接口同一数据源">子体</button>
       </div>
+      <select id="olSearchField" title="选择搜索字段">
+        ${[["asin", "ASIN"], ["sku", "MSKU"], ["title", "标题"], ["parentAsin", "父ASIN"],
+          ["fnsku", "FNSKU"], ["commodityName", "品名"], ["commoditySku", "品名SKU"],
+          ["standardProductId", "商品编码"]].map(([v, t]) =>
+          `<option value="${v}"${ol.searchField === v ? " selected" : ""}>${esc(t)}</option>`).join("")}
+      </select>
+      <input type="text" id="olKw" placeholder="双击可批量搜索内容" value="${esc(ol.keyword)}">
+      <button class="btn btn-primary" id="olQuery">查询</button>
+      <button class="btn" id="olReset">重置</button>
       ${sel("olSite", "全部站点", "marketplaceId")}
       ${sel("olShopSel", "全部店铺", "shopId")}
       ${sel("olLabel", "产品标签", "labelName")}
@@ -2713,15 +2731,6 @@ function renderOnline() {
       ${sel("olStrike", "划线价类型", "crawlerStrikethroughType")}
       ${olMarkSelect()}
       <span class="ol-range" title="本地为快照数据，时间区间仅作显示，不参与过滤">统计区间 ${esc(olRangeText())}</span>
-      <select id="olSearchField">
-        ${[["asin", "ASIN"], ["sku", "MSKU"], ["title", "标题"], ["parentAsin", "父ASIN"],
-          ["fnsku", "FNSKU"], ["commodityName", "品名"], ["commoditySku", "品名SKU"],
-          ["standardProductId", "商品编码"]].map(([v, t]) =>
-          `<option value="${v}"${ol.searchField === v ? " selected" : ""}>${esc(t)}</option>`).join("")}
-      </select>
-      <input type="text" id="olKw" placeholder="双击可批量搜索内容" value="${esc(ol.keyword)}">
-      <button class="btn btn-primary" id="olQuery">查询</button>
-      <button class="btn" id="olReset">重置</button>
       <div class="colpick" id="olColPick"></div>
     </div>
     <div class="p-sum">

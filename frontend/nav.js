@@ -11,10 +11,13 @@
     { key: "daily", label: "广告数据", href: "/static/daily-probe.html" },
     { key: "analysis", label: "活动分析", href: "/campaign-analysis" },
     { key: "agent", label: "智能体", href: "/agent" },
+    { key: "system", label: "系统管理", action: "system" },
   ];
 
   function activeKey() {
     const path = location.pathname.replace(/\/+$/, "") || "/";
+    // 从系统管理打开配置时，保持一级菜单为「系统管理」。
+    if (new URLSearchParams(location.search).get("openConfig") === "1") return "system";
     if (path === "/agent") return "agent";
     if (path === "/search-ops") return "daily";
     if (path === "/campaign-analysis") return "analysis";
@@ -57,7 +60,7 @@
     const viewKeys = new Set(["table", "product", "online"]);
     bar.innerHTML = MENU.map((item) =>
       `<button type="button" class="seg-btn ${item.key === active ? "active" : ""}" ` +
-      `data-nav="${item.key}" data-href="${item.href}"` +
+      `data-nav="${item.key}" data-href="${item.href || ""}" data-action="${item.action || ""}"` +
       (viewKeys.has(item.key) ? ` data-view="${item.key}"` : "") +
       `>${item.label}</button>`
     ).join("");
@@ -65,13 +68,13 @@
       btn.style.flex = "0 0 auto";
       btn.style.whiteSpace = "nowrap";
       btn.addEventListener("click", () => {
+        if (btn.dataset.action === "system") { openSystemMenu(); return; }
         const href = btn.dataset.href || "/";
         if (href === location.pathname + location.search) return;
         location.href = href;
       });
     });
 
-    // 接口查询不占主菜单，放到右侧以图标展示。
     let right = document.querySelector(".topbar-right");
     if (!right) {
       const topbar = document.querySelector(".topbar");
@@ -81,15 +84,6 @@
         topbar.appendChild(right);
       }
     }
-    if (right && !right.querySelector(".nav-api-icon")) {
-      const icon = document.createElement("a");
-      icon.className = "nav-api-icon" + (active === "api" ? " active" : "");
-      icon.href = "/static/api-docs.html";
-      icon.title = "接口查询";
-      icon.setAttribute("aria-label", "接口查询");
-      icon.textContent = "</>";
-      right.appendChild(icon);
-    }
 
     ensureTopActions(active);
   }
@@ -97,33 +91,12 @@
   function ensureTopActions(active) {
     const right = document.querySelector(".topbar-right");
     if (!right) return;
-    // 采集记录：只读查询，不占用主操作按钮位置。
-    if (!right.querySelector(".nav-history-link")) {
-      const link = document.createElement("a");
-      link.className = "nav-history-link";
-      link.href = "#";
-      link.textContent = "采集记录";
-      link.title = "查询每次「采集最新」的开始/结束时间和采集结果";
-      link.onclick = (e) => { e.preventDefault(); openLatestHistory(); };
-      right.appendChild(link);
-    }
-    // 配置：本页有配置弹窗直接点；没有则回首页并自动打开。
-    if (!document.getElementById("btnAiConfig")) {
-      const btn = document.createElement("button");
-      btn.id = "navBtnConfig";
-      btn.className = "btn btn-ghost";
-      btn.textContent = "配置";
-      btn.title = "品名解析模型 + 相关性判断底座模型 + Ollama / WorkBuddy 配置";
-      btn.onclick = () => { location.href = "/?view=table&openConfig=1"; };
-      right.appendChild(btn);
-    }
-    // 打开调试 Chrome：统一入口，省的自己找命令行；已运行则复用。
-    if (!document.getElementById("navBtnOpenChrome")) {
-      const btn = document.createElement("button");
+    // 右上角只保留三个按钮：打开9222 / 同步登录态 / 采集最新。
+    let btn = document.getElementById("navBtnOpenChrome");
+    if (!btn) {
+      btn = document.createElement("button");
       btn.id = "navBtnOpenChrome";
       btn.className = "btn btn-ghost";
-      btn.textContent = "打开调试 Chrome";
-      btn.title = "启动带 9222 调试端口的 Chrome（已在运行则复用，并补开赛狐/店小秘页面）";
       btn.onclick = async () => {
         btn.disabled = true;
         btn.textContent = "启动中…";
@@ -135,20 +108,21 @@
           navToast("启动失败：" + (e.message || e), true);
         } finally {
           btn.disabled = false;
-          btn.textContent = "打开调试 Chrome";
+          btn.textContent = "打开9222";
         }
       };
       right.appendChild(btn);
     }
-    // 同步登录态：所有页面统一调用同一个接口。
-    if (!document.getElementById("btnSyncCookie")) {
-      const btn = document.createElement("button");
-      btn.id = "navBtnSync";
-      btn.className = "btn btn-ghost";
-      btn.textContent = "同步登录态";
-      btn.title = "从调试 Chrome 同步登录态";
-      btn.onclick = async () => {
-        btn.disabled = true; btn.textContent = "同步中…";
+    btn.textContent = "打开9222";
+    btn.title = "启动带 9222 调试端口的 Chrome（已在运行则复用，并补开赛狐/店小秘页面）";
+
+    let sync = document.getElementById("navBtnSync");
+    if (!sync) {
+      sync = document.createElement("button");
+      sync.id = "navBtnSync";
+      sync.className = "btn btn-ghost";
+      sync.onclick = async () => {
+        sync.disabled = true; sync.textContent = "同步中…";
         try {
           const r = await fetch("/api/cookies/sync", { method: "POST" });
           const d = await r.json();
@@ -159,41 +133,37 @@
             : `${s.label}失败（${s.error || "未知"}）`));
           navToast(`登录态已同步：${brief.join(" / ")}`, sites.some((s) => !s.saved));
         } catch (e) { navToast("同步失败：" + (e.message || e), true); }
-        finally { btn.disabled = false; btn.textContent = "同步登录态"; }
+        finally { sync.disabled = false; sync.textContent = "同步登录态"; }
       };
-      right.appendChild(btn);
+      right.appendChild(sync);
     }
-    // 查看登录态：展示 data/cookies.json 当前记录的 Cookie 明细（默认打码）。
-    if (!document.getElementById("navBtnCookieView")) {
-      const btn = document.createElement("button");
-      btn.id = "navBtnCookieView";
-      btn.className = "btn btn-ghost";
-      btn.textContent = "查看登录态";
-      btn.title = "查看当前已保存的登录 Cookie 明细";
-      btn.onclick = () => openCookieView();
-      right.appendChild(btn);
-    }
-    // 采集最新：所有菜单均可触发同一个后台任务。
-    if (!document.getElementById("btnLatest")) {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-primary";
-      btn.id = "navBtnLatest";
-      btn.textContent = "采集最新";
-      btn.title = "在线产品 + 上一日全量广告数据 + 上一日在投活动搜索数据";
-      btn.onclick = () => navStartLatest(btn);
-      right.appendChild(btn);
-      checkLatestRunning(btn);
-    }
+    sync.textContent = "同步登录态";
+    sync.title = "从调试 Chrome 同步赛狐 / 店小秘登录态";
 
-    // 统一所有菜单的右上角：只保留这三个操作按钮。
-    const allowed = new Set(["btnAiConfig", "navBtnConfig", "btnSyncCookie",
-      "navBtnSync", "navBtnCookieView", "navBtnOpenChrome", "btnLatest", "navBtnLatest"]);
-    right.querySelectorAll("button").forEach((btn) => {
-      if (!allowed.has(btn.id)) { btn.remove(); return; }
-      const isLatest = btn.id === "btnLatest" || btn.id === "navBtnLatest";
-      btn.classList.toggle("btn-primary", isLatest);
-      btn.classList.toggle("btn-ghost", !isLatest);
+    let latest = document.getElementById("navBtnLatest");
+    if (!latest) {
+      latest = document.createElement("button");
+      latest.className = "btn btn-ghost";
+      latest.id = "navBtnLatest";
+      latest.onclick = () => navStartLatest(latest);
+      right.appendChild(latest);
+      checkLatestRunning(latest);
+    }
+    latest.textContent = "采集最新";
+    latest.title = "在线产品 + 上一日全量广告数据 + 上一日在投活动搜索数据";
+
+    // 隐藏页面自带的状态文字、链接和旧按钮，保留原 DOM 供页面脚本使用。
+    const keep = new Set(["navBtnOpenChrome", "navBtnSync", "navBtnLatest"]);
+    Array.from(right.children).forEach((el) => {
+      if (keep.has(el.id)) {
+        el.style.display = "";
+      } else {
+        el.style.display = "none";
+      }
     });
+    latest.classList.add("btn-ghost");
+    latest.classList.remove("btn-primary");
+    [btn, sync].forEach((b) => { b.classList.remove("btn-primary"); b.classList.add("btn-ghost"); });
   }
 
   let navLatestTimer = null;
@@ -271,6 +241,75 @@
   function escapeHtml(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, c =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
+  async function openSystemMenu() {
+    let modal = document.getElementById("navSystemModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "navSystemModal";
+      modal.className = "nav-history-modal";
+      modal.innerHTML = `<div class="nav-history-card" style="width:min(720px,94vw);">
+        <div class="nav-history-head"><b>系统管理</b>
+          <span class="muted">配置、账号、记录与接口</span>
+          <span class="sp"></span>
+          <button type="button" class="nav-history-close" data-close>关闭</button>
+        </div>
+        <div class="nav-history-body">
+          <div class="sys-grid">
+            <button type="button" class="sys-card" data-sys="config">
+              <b>配置</b><span>模型、翻译与品名解析设置</span>
+            </button>
+            <button type="button" class="sys-card" data-sys="accounts">
+              <b>登录态账号</b><span>赛狐 / 店小秘 Cookie 与默认账号</span>
+            </button>
+            <button type="button" class="sys-card" data-sys="history">
+              <b>采集记录</b><span>查看每次采集的时间与结果</span>
+            </button>
+            <button type="button" class="sys-card" data-sys="api">
+              <b>接口查询</b><span>打开接口文档与调试页面</span>
+            </button>
+          </div>
+          <div class="sys-note" id="sysSchedule">定时任务：读取中…</div>
+          <div class="sys-note">
+            账号独立页：
+            <a href="/static/accounts-sellfox.html" target="_blank" rel="noopener">赛狐账号</a>
+            ·
+            <a href="/static/accounts-dianxiaomi.html" target="_blank" rel="noopener">店小秘账号</a>
+          </div>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector("[data-close]").onclick = () => modal.classList.remove("on");
+      modal.onclick = (e) => { if (e.target === modal) modal.classList.remove("on"); };
+      modal.querySelectorAll("[data-sys]").forEach((btn) => {
+        btn.onclick = () => {
+          const act = btn.dataset.sys;
+          if (act === "config") {
+            // 首页已有配置弹窗：原地打开，不再跳转导致一级菜单回到第一个。
+            const cfg = document.getElementById("btnAiConfig");
+            if (cfg) { modal.classList.remove("on"); cfg.click(); }
+            else location.href = "/?view=table&openConfig=1";
+            return;
+          }
+          if (act === "api") { window.open("/static/api-docs.html", "_blank", "noopener"); return; }
+          modal.classList.remove("on");
+          if (act === "accounts") openCookieView();
+          if (act === "history") openLatestHistory();
+        };
+      });
+    }
+    modal.classList.add("on");
+    const schedule = modal.querySelector("#sysSchedule");
+    try {
+      const r = await fetch("/api/daily/latest/schedule");
+      const d = await r.json();
+      schedule.textContent = d.next_run
+        ? `定时任务：每天 02:00 · 下一次 ${d.next_run}（失败不补偿）`
+        : "定时任务：未启用";
+    } catch (e) {
+      schedule.textContent = "定时任务：状态读取失败";
+    }
   }
 
   const HISTORY_STATUS = { running: "采集中", done: "完成", partial: "部分完成", failed: "失败" };

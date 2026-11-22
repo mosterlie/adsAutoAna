@@ -924,8 +924,13 @@ def sync_cookies(payload: Optional[Dict[str, Any]] = Body(default=None)) -> Dict
             name = label or detect_account_label(site, cookies)
             acc = upsert_account(site, cookies, name, ua, dedupe_label=not label,
                                  expires_at=expiries.get(site, ""))
-            results.append({"key": site, "label": site_label, "saved": True,
-                            "count": acc.get("count", 0), "account": acc})
+            if acc.get("error"):
+                results.append({"key": site, "label": site_label, "saved": False,
+                                "count": acc.get("count", 0), "account": acc,
+                                "error": acc["error"]})
+            else:
+                results.append({"key": site, "label": site_label, "saved": True,
+                                "count": acc.get("count", 0), "account": acc})
         except Exception as e:      # noqa: BLE001
             results.append({"key": site, "label": site_label, "saved": False,
                             "count": len(cookies), "error": str(e)})
