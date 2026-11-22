@@ -16,11 +16,12 @@ from backend import (ai_label, amazon, amazon_prefetch, amazon_product,
                      amazon_store, amazon_targets, bulk_data, bulk_generator,
                      crawler, database as db, image_jobs, relevance, term_status,
                      translate, wb_config)
-from backend.cookies import (SITE_LABELS, SITE_SESSION_KEYS, delete_account,
-                             detect_account_label, get_account, get_default_account,
-                             has_session, list_accounts, load_cookies, parse_cookie_string,
-                             rename_account, save_cookies, set_default_account,
-                             sync_sites_from_browser, upsert_account)
+from backend.cookies import (SITE_LABELS, SITE_SESSION_KEYS, debug_chrome_info,
+                             delete_account, detect_account_label, get_account,
+                             get_default_account, has_session, list_accounts,
+                             load_cookies, parse_cookie_string, rename_account,
+                             save_cookies, set_default_account, sync_sites_from_browser,
+                             upsert_account)
 from backend.sellfox_client import TAB_DEFS, TAB_ORDER, scope_str
 
 router = APIRouter(prefix="/api")
@@ -881,7 +882,7 @@ def cookie_accounts() -> Dict[str, Any]:
                       "accounts": res.get("accounts", []),
                       "default": res.get("default", ""),
                       "error": res.get("error", "")})
-    return {"sites": sites}
+    return {"sites": sites, "debug_chrome": debug_chrome_info()}
 
 
 @router.post("/cookies")

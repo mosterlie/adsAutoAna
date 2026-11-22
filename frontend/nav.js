@@ -398,7 +398,7 @@
   }
 
   /* 查看登录态：账号管理 (赛狐 / 店小秘) + 明细 (默认明文) + 设默认/重命名/识别/删除 */
-  const ckState = { sites: [], details: {}, active: {} };
+  const ckState = { sites: [], details: {}, active: {}, debug: {} };
 
   async function openCookieView() {
     let modal = document.getElementById("navCookieModal");
@@ -439,6 +439,7 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
       ckState.sites = d.sites || [];
+      ckState.debug = d.debug_chrome || {};
       ckState.details = {};
       meta.textContent = `${ckState.sites.reduce((n, s) => n + (s.accounts || []).length, 0)} 个账号`;
       renderCookieAccounts();
@@ -515,16 +516,42 @@
     return s.slice(0, 4) + "*".repeat(Math.min(24, s.length - 6)) + s.slice(-2);
   }
 
+  function bindCopyDebug(body) {
+    const btn = body.querySelector("[data-copy-debug]");
+    if (!btn) return;
+    btn.onclick = () => {
+      const path = (ckState.debug || {}).user_data_dir || "";
+      if (!path) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(path)
+          .then(() => navToast("调试 Chrome 配置路径已复制"))
+          .catch(() => navToast("复制失败，请手动选择", true));
+      } else {
+        navToast("当前浏览器不支持自动复制", true);
+      }
+    };
+  }
+
   function renderCookieAccounts() {
     const modal = document.getElementById("navCookieModal");
     if (!modal) return;
     const body = modal.querySelector("[data-body]");
     const reveal = modal.querySelector("[data-reveal]").checked;
+    const debug = ckState.debug || {};
+    const debugHtml = debug.user_data_dir ? `<div class="sys-note" style="padding:10px 2px 4px;">
+        9222 调试 Chrome 配置：
+        <code style="word-break:break-all;color:#1f2937;">${escapeHtml(debug.user_data_dir)}</code>
+        <button type="button" class="nav-history-close" data-copy-debug>复制路径</button>
+        <br>Profile：<b>${escapeHtml(debug.profile_name || debug.profile_dir || "Default")}</b>
+        · CDP：<code>${escapeHtml(debug.cdp_url || "")}</code>
+        ${debug.exists ? "" : ' · <span class="nav-history-status failed">目录不存在</span>'}
+      </div>` : "";
     if (!ckState.sites.length) {
-      body.innerHTML = `<div class="nav-history-empty">暂无账号，请点右上角「打开调试 Chrome」登录后，「同步登录态」</div>`;
+      body.innerHTML = debugHtml + `<div class="nav-history-empty">暂无账号，请点右上角「打开9222」登录后，「同步登录态」</div>`;
+      bindCopyDebug(body);
       return;
     }
-    body.innerHTML = ckState.sites.map((s) => {
+    body.innerHTML = debugHtml + ckState.sites.map((s) => {
       const accounts = s.accounts || [];
       const rows = accounts.map((a) => `<tr>
         <td><b>${escapeHtml(a.label)}</b>${a.is_default
@@ -602,6 +629,7 @@
       const act = btn.dataset.ck;
       btn.onclick = () => {
         if (act === "detail") { toggleCookieDetail(site, key); return; }
+
         if (act === "copy") {
           const d = ckState.details[`${site}:${key}`] || {};
           const raw = (d.items || []).map((x) => `${x.name}=${x.value}`).join("; ");
@@ -619,6 +647,7 @@
         cookieAccountAction(site, key, act);
       };
     });
+    bindCopyDebug(body);
   }
 
   if (document.readyState === "loading") {

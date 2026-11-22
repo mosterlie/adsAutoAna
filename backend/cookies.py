@@ -562,6 +562,81 @@ def sync_from_browser(cdp_url: str = config.CDP_URL) -> Dict[str, str]:
     return out
 
 
+def debug_chrome_info() -> Dict[str, Any]:
+    """当前 9222 调试 Chrome 的实际配置目录和 Profile 名称。"""
+    raw = str(config.CHROME_DEBUG_USER_DATA or "")
+    path = raw if os.path.isabs(raw) else os.path.join(config.BASE_DIR, raw)
+    path = os.path.abspath(path)
+    profile_dir = "Default"
+    profile_name = ""
+    try:
+        import json
+        with open(os.path.join(path, "Local State"), encoding="utf-8") as f:
+            state = json.load(f)
+        info = (state.get("profile") or {}).get("info_cache") or {}
+        entry = info.get(profile_dir) or {}
+        profile_name = str(entry.get("name") or "")
+    except Exception:       # noqa: BLE001
+        pass
+    return {"cdp_url": config.CDP_URL, "user_data_dir": path,
+            "profile_dir": profile_dir, "profile_name": profile_name,
+            "exists": os.path.isdir(path)}
+
+
+def _restore_saved_sessions(cdp_url: str) -> List[str]:
+    """Chrome 重启后会话 Cookie 可能丢失；用已保存账号自动回填。
+
+    只在当前站点没有会话时回填，避免覆盖用户刚登录的新 Cookie。
+    """
+    import json
+    import urllib.request
+
+    import websocket
+
+    raw, _ua = _cdp_all_cookies(cdp_url)
+    restored: List[str] = []
+    pages = json.load(urllib.request.urlopen(f"{cdp_url.rstrip('/')}/json", timeout=5))
+    for site, domain in SITE_DOMAINS.items():
+        if has_session(site, _filter_domain(raw, domain)):
+            continue
+        acc = get_default_account(site) or {}
+        cookies = acc.get("cookies") or {}
+        if not cookies:
+            continue
+        target = next((p for p in pages if p.get("type") == "page"
+                       and domain in (p.get("url") or "")), None) \
+            or next((p for p in pages if p.get("type") == "page"
+                     and p.get("webSocketDebuggerUrl")), None)
+        if not target:
+            continue
+        ws = websocket.create_connection(target["webSocketDebuggerUrl"],
+                                         max_size=16 * 1024 * 1024, timeout=10)
+        try:
+            ws.send(json.dumps({"id": 1, "method": "Network.enable"}))
+            for _ in range(10):
+                if json.loads(ws.recv()).get("id") == 1:
+                    break
+            payload = [{"name": k, "value": v, "domain": "." + domain,
+                        "path": "/", "secure": True, "httpOnly": False}
+                       for k, v in cookies.items()]
+            ws.send(json.dumps({"id": 2, "method": "Network.setCookies",
+                                "params": {"cookies": payload}}))
+            for _ in range(20):
+                if json.loads(ws.recv()).get("id") == 2:
+                    break
+            ws.send(json.dumps({"id": 3, "method": "Page.reload",
+                                "params": {"ignoreCache": True}}))
+            restored.append(site)
+        except Exception:       # noqa: BLE001 回填失败不影响浏览器启动
+            pass
+        finally:
+            try:
+                ws.close()
+            except Exception:
+                pass
+    return restored
+
+
 def open_debug_browser(open_sites: bool = True) -> Dict[str, Any]:
     """打开带 9222 调试端口的 Chrome (独立 profile)
 
@@ -604,9 +679,18 @@ def open_debug_browser(open_sites: bool = True) -> Dict[str, Any]:
             except Exception:   # noqa: BLE001  开页面失败不影响浏览器本身
                 pass
 
+    restored: List[str] = []
+    try:
+        restored = _restore_saved_sessions(base)
+    except Exception:       # noqa: BLE001  自动恢复失败不影响浏览器本身
+        restored = []
+
     head = "调试 Chrome 已启动" if started else "调试 Chrome 已在运行 (9222)"
     tail = f"，已打开 {'/'.join(opened)}" if opened else ""
-    return {"ok": True, "running": True, "started": started, "message": head + tail}
+    if restored:
+        tail += f"，已恢复登录态 {'/'.join(SITE_LABELS[x] for x in restored)}"
+    return {"ok": True, "running": True, "started": started,
+            "restored": restored, "message": head + tail}
 
 
 # ───────────────────────── 自动识别登录账号 ─────────────────────────
