@@ -202,7 +202,7 @@
     if (!btn || btn.disabled) return;
     const d = new Date(); d.setDate(d.getDate() - 1);
     const day = d.toISOString().slice(0, 10);
-    if (!confirm(`将执行采集最新：\n\n1. 在线产品全量\n2. ${day} 全量广告数据（已有则跳过）\n3. ${day} 在投活动精简采集（已有则跳过）\n4. 近 30 天履约同步（妙手订单 → 履约订单/包裹，并回填缺失运单号）\n\n开始?`)) return;
+    if (!confirm(`将执行采集最新：\n\n1. 近 30 天订单同步（含商品标识、店小秘运单号回填）\n2. 在线产品全量\n3. ${day} 全量广告数据 + ${day} 在投活动精简采集（已有则跳过）\n\n开始?`)) return;
     btn.disabled = true; btn.textContent = "采集中…";
     try {
       const r = await fetch("/api/daily/latest/start", { method: "POST" });
@@ -228,7 +228,7 @@
       panel.innerHTML = `<b>采集最新 · ${s.day || ""}</b><pre>${escapeHtml(lines.join("\n") || "等待中...")}</pre>`;
       panel.classList.add("on");
       if (btn) btn.textContent = s.running
-        ? `采集中…${s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : s.stage === "fulfillment" ? "履约同步" : ""}`
+        ? `采集中…${s.stage === "orders" ? "订单同步" : s.stage === "online" ? "产品同步" : s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : ""}`
         : "采集最新";
       if (!s.running) {
         clearInterval(navLatestTimer); navLatestTimer = null;
@@ -377,7 +377,7 @@
       body.innerHTML = `<table class="nav-history-table">
         <thead><tr><th>开始时间</th><th>完成时间</th><th>日期</th><th>状态</th>
           <th>在线产品</th><th>广告数据</th><th>精简完成</th><th>跳过</th>
-          <th>履约同步</th><th>错误</th></tr></thead>
+          <th>订单同步</th><th>错误</th></tr></thead>
         <tbody>${rows.map(x => `<tr>
           <td>${escapeHtml(x.started_at || "-")}</td>
           <td>${escapeHtml(x.finished_at || "-")}</td>

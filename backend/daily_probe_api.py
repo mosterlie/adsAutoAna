@@ -907,10 +907,10 @@ def _latest_log(level: str, message: str, detail: str = "") -> None:
 
 
 def _run_latest_refresh(run_id: int = 0) -> None:
-    """在线产品 + 昨日全量广告数据 + 昨日在投活动搜索词/ASIN。"""
+    """订单同步 + 在线产品 + 昨日广告数据 + 昨日在投活动搜索词/ASIN。"""
     day = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     LATEST_STATE.update({
-        "running": True, "stage": "online", "day": day, "done": 0, "total": 0,
+        "running": True, "stage": "orders", "day": day, "done": 0, "total": 0,
         "runId": run_id, "current": "", "error": "", "progress": [],
         "startedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "finishedAt": "",
     })
@@ -927,7 +927,56 @@ def _run_latest_refresh(run_id: int = 0) -> None:
     fulfillment_labeled = 0
     fulfillment_error = ""
     try:
-        # 1) 在线产品：保持原「采集最新」行为。
+        # 1) 订单同步：先跑 browser_toolkit 的订单同步流程。
+        LATEST_STATE["stage"] = "orders"
+        _latest_db_update(run_id, stage="orders")
+        _latest_log("info", "开始订单同步", "近 30 天，妙手订单 → 履约订单/包裹")
+        try:
+            from backend.fulfillment_sync import DEFAULT_DAYS, sync_fulfillment
+            result = sync_fulfillment(days=DEFAULT_DAYS)
+            fulfillment_orders = int(result.get("orders") or 0)
+            fulfillment_packages = int(result.get("packages") or 0)
+            bf = result.get("tracking_backfill") or {}
+            fulfillment_backfilled = int(bf.get("filled") or 0)
+            fulfillment_labeled = int(result.get("labeled") or 0)
+            pull_error = str(result.get("pull_error") or "")
+            label_error = str(result.get("label_error") or "")
+            backfill_error = str(bf.get("error") or "")
+            fulfillment_status = "partial" if (pull_error or label_error or backfill_error) else "success"
+            fulfillment_error = (pull_error or label_error or backfill_error)[:300]
+            if pull_error:
+                errors.append(f"履约拉取: {pull_error[:150]}")
+            if label_error:
+                errors.append(f"商品标识: {label_error[:150]}")
+            if backfill_error:
+                errors.append(f"运单号回填: {backfill_error[:150]}")
+            if pull_error or label_error or backfill_error:
+                _latest_log("warn", "订单同步完成，但有错误",
+                            f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}"
+                            f" / 标识 {fulfillment_labeled} / 回填 {fulfillment_backfilled}"
+                            f"；{(pull_error or label_error or backfill_error)[:160]}")
+            else:
+                _latest_log("success", "订单同步完成",
+                            f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}"
+                            f" / 商品标识 {fulfillment_labeled}"
+                            f" / 运单号回填 {fulfillment_backfilled}")
+            _latest_db_update(run_id, fulfillment_status=fulfillment_status,
+                              fulfillment_orders=fulfillment_orders,
+                              fulfillment_packages=fulfillment_packages,
+                              fulfillment_backfilled=fulfillment_backfilled,
+                              fulfillment_labeled=fulfillment_labeled,
+                              fulfillment_error=fulfillment_error,
+                              errors_json=json.dumps(errors, ensure_ascii=False))
+        except Exception as e:      # noqa: BLE001
+            fulfillment_status = "failed"
+            fulfillment_error = str(e)[:300]
+            errors.append(f"订单同步: {str(e)[:150]}")
+            _latest_log("error", "订单同步失败", str(e)[:200])
+            _latest_db_update(run_id, fulfillment_status=fulfillment_status,
+                              fulfillment_error=fulfillment_error,
+                              errors_json=json.dumps(errors, ensure_ascii=False))
+
+        # 2) 产品同步：在线产品全量。
         _latest_log("info", "开始采集在线产品", "父体 + 子体全量")
         try:
             from backend.api import crawl_online_products
@@ -940,7 +989,7 @@ def _run_latest_refresh(run_id: int = 0) -> None:
             _latest_db_update(run_id, stage="online",
                               errors_json=json.dumps(errors, ensure_ascii=False))
 
-        # 2) 昨日全量广告数据：复用原「同步数据」爬虫，只跑上一日。
+        # 3) 昨日全量广告数据：复用原「同步数据」爬虫，只跑上一日。
         LATEST_STATE["stage"] = "ad_data"
         _latest_db_update(run_id, stage="ad_data")
         from backend import crawler, database as db
@@ -969,8 +1018,8 @@ def _run_latest_refresh(run_id: int = 0) -> None:
         _latest_db_update(run_id, ad_data_status=ad_data_status,
                           errors_json=json.dumps(errors, ensure_ascii=False))
 
-        # 3) 昨日精简采集：只处理 enabled 活动，已有当天数据则跳过。
-        # 单独兜底：这一阶段依赖赛狐，失败不能阻断后面的履约同步。
+        # 4) 昨日精简采集：只处理 enabled 活动，已有当天数据则跳过。
+        # 单独兜底：这一阶段依赖赛狐，失败只记录。
         LATEST_STATE["stage"] = "search"
         try:
             from backend import ads_store
@@ -1009,57 +1058,8 @@ def _run_latest_refresh(run_id: int = 0) -> None:
                     _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
         except Exception as e:          # noqa: BLE001
             errors.append(f"精简采集: {str(e)[:150]}")
-            _latest_log("error", "精简采集阶段失败，继续履约同步", str(e)[:200])
+            _latest_log("error", "精简采集阶段失败", str(e)[:200])
             _latest_db_update(run_id, errors_json=json.dumps(errors, ensure_ascii=False))
-
-        # 4) 履约同步：复用 browser_toolkit，默认近 30 天，先拉妙手再写履约表。
-        LATEST_STATE["stage"] = "fulfillment"
-        _latest_db_update(run_id, stage="fulfillment")
-        _latest_log("info", "开始履约同步", "近 30 天，妙手订单 → 履约订单/包裹")
-        try:
-            from backend.fulfillment_sync import DEFAULT_DAYS, sync_fulfillment
-            result = sync_fulfillment(days=DEFAULT_DAYS)
-            fulfillment_orders = int(result.get("orders") or 0)
-            fulfillment_packages = int(result.get("packages") or 0)
-            bf = result.get("tracking_backfill") or {}
-            fulfillment_backfilled = int(bf.get("filled") or 0)
-            fulfillment_labeled = int(result.get("labeled") or 0)
-            pull_error = str(result.get("pull_error") or "")
-            label_error = str(result.get("label_error") or "")
-            backfill_error = str(bf.get("error") or "")
-            fulfillment_status = "partial" if (pull_error or label_error or backfill_error) else "success"
-            fulfillment_error = (pull_error or label_error or backfill_error)[:300]
-            if pull_error:
-                errors.append(f"履约拉取: {pull_error[:150]}")
-            if label_error:
-                errors.append(f"商品标识: {label_error[:150]}")
-            if backfill_error:
-                errors.append(f"运单号回填: {backfill_error[:150]}")
-            if pull_error or label_error or backfill_error:
-                _latest_log("warn", "履约同步完成，但有错误",
-                            f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}"
-                            f" / 标识 {fulfillment_labeled} / 回填 {fulfillment_backfilled}"
-                            f"；{(pull_error or label_error or backfill_error)[:160]}")
-            else:
-                _latest_log("success", "履约同步完成",
-                            f"订单 {fulfillment_orders} / 包裹 {fulfillment_packages}"
-                            f" / 商品标识 {fulfillment_labeled}"
-                            f" / 运单号回填 {fulfillment_backfilled}")
-            _latest_db_update(run_id, fulfillment_status=fulfillment_status,
-                              fulfillment_orders=fulfillment_orders,
-                              fulfillment_packages=fulfillment_packages,
-                              fulfillment_backfilled=fulfillment_backfilled,
-                              fulfillment_labeled=fulfillment_labeled,
-                              fulfillment_error=fulfillment_error,
-                              errors_json=json.dumps(errors, ensure_ascii=False))
-        except Exception as e:      # noqa: BLE001
-            fulfillment_status = "failed"
-            fulfillment_error = str(e)[:300]
-            errors.append(f"履约同步: {str(e)[:150]}")
-            _latest_log("error", "履约同步失败", str(e)[:200])
-            _latest_db_update(run_id, fulfillment_status=fulfillment_status,
-                              fulfillment_error=fulfillment_error,
-                              errors_json=json.dumps(errors, ensure_ascii=False))
     except Exception as e:              # noqa: BLE001
         errors.append(str(e)[:200])
         _latest_log("error", "最新采集失败", str(e)[:300])
