@@ -603,6 +603,14 @@ def _restore_saved_sessions(cdp_url: str) -> List[str]:
         cookies = acc.get("cookies") or {}
         if not cookies:
             continue
+        # 已过期的保存 Cookie 不能再回填，否则会把登录页重新带回失败循环。
+        exp = str(acc.get("expires_at") or "").strip()
+        if exp:
+            try:
+                if datetime.strptime(exp, "%Y-%m-%d %H:%M:%S") <= datetime.now():
+                    continue
+            except ValueError:
+                pass
         target = next((p for p in pages if p.get("type") == "page"
                        and domain in (p.get("url") or "")), None) \
             or next((p for p in pages if p.get("type") == "page"
