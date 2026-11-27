@@ -814,7 +814,7 @@ async function startLatestRefresh() {
   if (!b || b.disabled) return;
   const d = new Date(); d.setDate(d.getDate() - 1);
   const day = d.toISOString().slice(0, 10);
-  if (!confirm(`将执行采集最新：\n\n1. 近 30 天订单同步（含商品标识、店小秘运单号回填）\n2. 在线产品全量\n3. ${day} 全量广告数据 + ${day} 在投活动精简采集（已有则跳过）\n\n开始?`)) return;
+  if (!confirm(`将执行采集最新：\n\n1. 在线产品全量\n2. ${day} 全量广告数据 + ${day} 在投活动精简采集（已有则跳过）\n\n开始?`)) return;
   b.disabled = true; b.textContent = "采集中…";
   try {
     const r = await api("/api/daily/latest/start", { method: "POST" });
@@ -837,7 +837,7 @@ async function startLatestPolling() {
     $("drawerBody").textContent = lines.join("\n") || "等待中...";
     $("drawerBody").scrollTop = $("drawerBody").scrollHeight;
     const b = $("btnLatest");
-    if (b && s.running) b.textContent = `采集中…${s.stage === "orders" ? "订单同步" : s.stage === "online" ? "产品同步" : s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : ""}`;
+    if (b && s.running) b.textContent = `采集中…${s.stage === "online" ? "产品同步" : s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : ""}`;
     if (!s.running) {
       clearInterval(latestTimer); latestTimer = null;
       if (b) { b.disabled = false; b.textContent = "采集最新"; }

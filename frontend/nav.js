@@ -202,7 +202,7 @@
     if (!btn || btn.disabled) return;
     const d = new Date(); d.setDate(d.getDate() - 1);
     const day = d.toISOString().slice(0, 10);
-    if (!confirm(`将执行采集最新：\n\n1. 近 30 天订单同步（含商品标识、店小秘运单号回填）\n2. 在线产品全量\n3. ${day} 全量广告数据 + ${day} 在投活动精简采集（已有则跳过）\n\n开始?`)) return;
+    if (!confirm(`将执行采集最新：\n\n1. 在线产品全量\n2. ${day} 全量广告数据 + ${day} 在投活动精简采集（已有则跳过）\n\n开始?`)) return;
     btn.disabled = true; btn.textContent = "采集中…";
     try {
       const r = await fetch("/api/daily/latest/start", { method: "POST" });
@@ -228,7 +228,7 @@
       panel.innerHTML = `<b>采集最新 · ${s.day || ""}</b><pre>${escapeHtml(lines.join("\n") || "等待中...")}</pre>`;
       panel.classList.add("on");
       if (btn) btn.textContent = s.running
-        ? `采集中…${s.stage === "orders" ? "订单同步" : s.stage === "online" ? "产品同步" : s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : ""}`
+        ? `采集中…${s.stage === "online" ? "产品同步" : s.stage === "ad_data" ? "广告数据" : s.stage === "search" ? ` ${s.done || 0}/${s.total || 0}` : ""}`
         : "采集最新";
       if (!s.running) {
         clearInterval(navLatestTimer); navLatestTimer = null;
@@ -314,7 +314,6 @@
 
   const HISTORY_STATUS = { running: "采集中", done: "完成", partial: "部分完成", failed: "失败" };
   const AD_STATUS = { success: "完成", skipped: "已存在跳过", failed: "失败" };
-  const FULFILL_STATUS = { success: "完成", partial: "部分完成", failed: "失败" };
   async function openLatestHistory() {
     let modal = document.getElementById("navHistoryModal");
     if (!modal) {
@@ -355,11 +354,6 @@
             active_total: s.total || 0,
             search_done: s.done || 0,
             search_skipped: 0,
-            fulfillment_status: s.fulfillment_status || "",
-            fulfillment_orders: s.fulfillment_orders || 0,
-            fulfillment_packages: s.fulfillment_packages || 0,
-            fulfillment_backfilled: s.fulfillment_backfilled || 0,
-            fulfillment_labeled: s.fulfillment_labeled || 0,
             errors_json: s.error || "当前任务尚未写入历史库，重启服务后历史接口生效",
           }];
         } else {
@@ -377,7 +371,7 @@
       body.innerHTML = `<table class="nav-history-table">
         <thead><tr><th>开始时间</th><th>完成时间</th><th>日期</th><th>状态</th>
           <th>在线产品</th><th>广告数据</th><th>精简完成</th><th>跳过</th>
-          <th>订单同步</th><th>错误</th></tr></thead>
+          <th>错误</th></tr></thead>
         <tbody>${rows.map(x => `<tr>
           <td>${escapeHtml(x.started_at || "-")}</td>
           <td>${escapeHtml(x.finished_at || "-")}</td>
@@ -387,9 +381,6 @@
           <td>${escapeHtml(AD_STATUS[x.ad_data_status] || x.ad_data_status || "-")}</td>
           <td>${Number(x.search_done || 0)}</td>
           <td>${Number(x.search_skipped || 0)}</td>
-          <td>${escapeHtml(FULFILL_STATUS[x.fulfillment_status] || x.fulfillment_status || "-")}<br>
-            <span class="muted">订单 ${Number(x.fulfillment_orders || 0)} / 包裹 ${Number(x.fulfillment_packages || 0)}
-              / 标识 ${Number(x.fulfillment_labeled || 0)} / 回填 ${Number(x.fulfillment_backfilled || 0)}</span></td>
           <td class="nav-history-err">${escapeHtml(x.errors_json && x.errors_json !== "[]" ? x.errors_json : "-")}</td>
         </tr>`).join("")}</tbody></table>`;
     } catch (e) {
